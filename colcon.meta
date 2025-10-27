@@ -1,0 +1,11 @@
+{
+    "names": {
+        "qt_node": {
+            "build": {
+                "cmake-args": [
+                    "-D", "CMAKE_PREFIX_PATH=%CONDA_PREFIX%\\Library"
+                ]
+            }
+        }
+    }
+}

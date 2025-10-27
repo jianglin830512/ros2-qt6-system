@@ -1,0 +1,40 @@
+# 这个文件是最终的配置参数，可以覆盖每个 package 下面自己的 yaml 的内容
+
+qt_ros_node:
+  ros__parameters:
+    # 定义订阅的主题名称
+    
+    # --- 订阅的主题名称 ---
+    
+    # 这个键名必须与 qt_node_constants::CIRCUIT_STATUS_TOPIC_PARAM 的值匹配
+    circuit_status_topic: "circuit_status"
+    # 这个键名必须与 qt_node_constants::REGULATOR_STATUS_TOPIC_PARAM 的值匹配
+    regulator_status_topic: "voltage_regulator_status"
+
+    # --- 发布的主题名称 ---
+
+    # 回路命令TOPIC -- qt_node_constants::CIRCUIT_COMMAND_TOPIC_PARAM
+    circuit_command_topic: "circuit_command"
+    # 调压器命令TOPIC -- qt_node_constants::REGULATOR_COMMAND_TOPIC_PARAM
+    regulator_command_topic: "regulator_command"
+    # 清除报警TOPIC -- qt_node_constants::CLEAR_ALARM_TOPIC_PARAM
+    clear_alarm_topic: "clear_alarm_command"
+
+control_node:
+  ros__parameters:
+    # 注意：这些值必须与 qt_node 使用的发布话题名称完全一致，才能成功通信
+    
+    # --- 发布器话题名称 ---
+    # control_node_constants::CIRCUIT_STATUS_TOPIC_PARAM
+    circuit_status_topic: "circuit_status"
+    # control_node_constants::REGULATOR_STATUS_TOPIC_PARAM
+    regulator_status_topic: "voltage_regulator_status"
+
+    # --- 订阅器话题名称 ---
+
+    # control_node_constants::REGULATOR_COMMAND_TOPIC_PARAM
+    regulator_command_topic: "regulator_command"
+    # control_node_constants::CIRCUIT_COMMAND_TOPIC_PARAM
+    circuit_command_topic: "circuit_command"
+    # control_node_constants::CLEAR_ALARM_TOPIC_PARAM
+    clear_alarm_topic: "clear_alarm_command"

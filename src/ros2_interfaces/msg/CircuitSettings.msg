@@ -1,0 +1,4 @@
+# 完整回路的参数设置
+LoopSettings test_loop
+LoopSettings ref_loop
+SampleSettings sample_params

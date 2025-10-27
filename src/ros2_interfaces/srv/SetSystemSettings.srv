@@ -1,0 +1,6 @@
+# Request: Contains only system parameters
+SystemSettings settings
+---
+# Response
+bool success
+string message

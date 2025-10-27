@@ -1,0 +1,63 @@
+﻿#ifndef QT_NODE_CONSTANTS_HPP
+#define QT_NODE_CONSTANTS_HPP
+
+#include <QObject> // Q_NAMESPACE 需要这个头文件
+#include <QtQml/qqml.h>
+
+// =======================================================================
+//          合并后的统一常量命名空间
+// =======================================================================
+namespace qt_node_constants
+{
+Q_NAMESPACE// 声明此命名空间参与Qt元对象系统
+
+// --- 命令枚举 (供 QML 和 C++ 使用) ---
+enum RegulatorCommand {
+    CMD_REGULATOR_BREAKER_CLOSE = 1,
+    CMD_REGULATOR_BREAKER_OPEN = 2,
+    CMD_REGULATOR_VOLTAGE_UP = 3,
+    CMD_REGULATOR_VOLTAGE_DOWN = 4
+};
+Q_ENUM_NS(RegulatorCommand) // 注册枚举
+
+enum CircuitCommand {
+    CMD_CIRCUIT_TEST_BREAKER_CLOSE = 1,
+    CMD_CIRCUIT_TEST_BREAKER_OPEN = 2,
+    CMD_CIRCUIT_SIM_BREAKER_CLOSE = 3,
+    CMD_CIRCUIT_SIM_BREAKER_OPEN = 4,
+    CMD_CIRCUIT_SET_MANUAL_MODE = 5,
+    CMD_CIRCUIT_SET_CONST_CURRENT_MODE = 6,
+    CMD_CIRCUIT_SET_TEMP_CONTROL_MODE = 7
+};
+Q_ENUM_NS(CircuitCommand) // 注册枚举
+
+// --- ROS Topic 和参数名 (供 C++ 使用) ---
+
+// 订阅话题
+constexpr const char* CIRCUIT_STATUS_TOPIC_PARAM = "circuit_status_topic";
+constexpr const char* REGULATOR_STATUS_TOPIC_PARAM = "regulator_status_topic";
+
+constexpr const char* DEFAULT_CIRCUIT_STATUS_TOPIC = "default_circuit_status";
+constexpr const char* DEFAULT_REGULATOR_STATUS_TOPIC = "default_voltage_regulator_status";
+
+// 发布话题
+constexpr const char* REGULATOR_COMMAND_TOPIC_PARAM = "regulator_command_topic";
+constexpr const char* CIRCUIT_COMMAND_TOPIC_PARAM = "circuit_command_topic";
+constexpr const char* CLEAR_ALARM_TOPIC_PARAM = "clear_alarm_topic";
+
+constexpr const char* DEFAULT_REGULATOR_COMMAND_TOPIC = "default_regulator_command";
+constexpr const char* DEFAULT_CIRCUIT_COMMAND_TOPIC = "default_circuit_command";
+constexpr const char* DEFAULT_CLEAR_ALARM_TOPIC = "default_clear_alarm_command";
+
+// Service
+constexpr const char* SET_SYSTEM_SETTINGS_SERVICE_PARAM = "set_system_settings_service";
+constexpr const char* SET_REGULATOR_SETTINGS_SERVICE_PARAM = "set_regulator_settings_service";
+constexpr const char* SET_CIRCUIT_SETTINGS_SERVICE_PARAM = "set_circuit_settings_service";
+
+constexpr const char* DEFAULT_SET_SYSTEM_SETTINGS_SERVICE = "default_set_system_settings";
+constexpr const char* DEFAULT_SET_REGULATOR_SETTINGS_SERVICE = "default_set_regulator_settings";
+constexpr const char* DEFAULT_SET_CIRCUIT_SETTINGS_SERVICE = "default_set_circuit_settings";
+
+} // namespace qt_node_constants
+
+#endif // QT_NODE_CONSTANTS_HPP

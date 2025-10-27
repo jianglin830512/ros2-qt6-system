@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>qt_node</name>
+  <version>0.0.0</version>
+  <description>A Qt6 application with a ROS 2 node, built with colcon.</description>
+  <maintainer email="user@example.com">Your Name</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- 
+    构建工具依赖。
+    因为我们在 CMakeLists.txt 中使用了 ament_package() 等宏，
+    所以这里必须是 ament_cmake。
+  -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- 
+    添加你的包在编译和运行时所需要的 ROS 2 依赖。
+    我们的 C++ 代码中包含了 rclcpp 和 std_msgs 的头文件。
+  -->
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+
+  <!-- 
+    导出信息，告诉其他包这个包是用什么构建系统构建的。
+    这对于依赖你的包的其他包来说很重要。
+  -->
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

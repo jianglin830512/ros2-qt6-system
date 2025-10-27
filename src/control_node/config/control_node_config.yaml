@@ -1,0 +1,23 @@
+﻿# 为您的节点 'qt_ros_node' 定义参数
+# 注意: 这里的节点名需要和您在C++代码中创建节点时使用的名称一致
+control_node:
+  ros__parameters:
+    
+    # --- 发布器话题名称 ---
+    # control_node_constants::CIRCUIT_STATUS_TOPIC_PARAM
+    circuit_status_topic: "circuit_status"
+    # control_node_constants::REGULATOR_STATUS_TOPIC_PARAM
+    regulator_status_topic: "voltage_regulator_status"
+
+    # --- 订阅器话题名称 ---
+    # control_node_constants::REGULATOR_COMMAND_TOPIC_PARAM
+    regulator_command_topic: "regulator_command"
+    # control_node_constants::CIRCUIT_COMMAND_TOPIC_PARAM
+    circuit_command_topic: "circuit_command"
+    # control_node_constants::CLEAR_ALARM_TOPIC_PARAM
+    clear_alarm_topic: "clear_alarm_command"
+
+    # --- 服务名称 ---
+    set_system_settings_service: "set_system_settings"
+    set_regulator_settings_service: "set_regulator_settings"
+    set_circuit_settings_service: "set_circuit_settings"

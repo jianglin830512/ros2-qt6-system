@@ -1,0 +1,19 @@
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
+# pixi-pack
+pixi-cache/
+environment.tar
+
+# Build and install directories
+build/
+install/
+log/
+
+# Qt Creator user-specific files
+qt_build/
+
+# Windows
+ros_auto_launch.bat
+ros_auto_launch.ps1

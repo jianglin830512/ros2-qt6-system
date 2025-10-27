@@ -1,0 +1,4 @@
+# 系统级参数设置
+int32 sample_interval_sec
+int32 record_interval_min
+bool keep_record_on_shutdown

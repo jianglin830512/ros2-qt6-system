@@ -1,0 +1,7 @@
+# Request: Contains an ID and circuit parameters
+uint8 circuit_id  # e.g., 1 for circuit 1, 2 for circuit 2
+CircuitSettings settings
+---
+# Response
+bool success
+string message

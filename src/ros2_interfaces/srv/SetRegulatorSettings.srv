@@ -1,0 +1,7 @@
+# Request: Contains an ID and regulator parameters
+uint8 regulator_id  # e.g., 1 for main, 2 for aux
+VoltageRegulatorSettings settings
+---
+# Response
+bool success
+string message
