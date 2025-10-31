@@ -7,41 +7,50 @@ namespace {
 
 void convertQtToRos(const CircuitSettingsData* qt_data, ros2_interfaces::msg::CircuitSettings& ros_msg, const rclcpp::Logger& logger)
 {
-    // --- 增加安全性检查并记录日志 ---
     if (!qt_data) {
         RCLCPP_ERROR(logger, "Received a null pointer for CircuitSettingsData in convertQtToRos. Conversion aborted.");
         return;
     }
-    // 同样检查嵌套的指针
     if (!qt_data->test_loop() || !qt_data->ref_loop() || !qt_data->sample_params()) {
         RCLCPP_ERROR(logger, "Nested settings data (test_loop, ref_loop, or sample_params) is null. Conversion aborted.");
         return;
     }
 
     // --- 1. 转换试验回路 (Test Loop) ---
-    // 改动：通过 -> 调用 getter 方法，这些方法返回指针，再通过 -> 调用值的 getter
     ros_msg.test_loop.start_current_a = qt_data->test_loop()->start_current_a();
     ros_msg.test_loop.max_current_a = qt_data->test_loop()->max_current_a();
     ros_msg.test_loop.current_change_range_percent = qt_data->test_loop()->current_change_range_percent();
     ros_msg.test_loop.ct_ratio = qt_data->test_loop()->ct_ratio();
-    ros_msg.test_loop.start_date = qt_data->test_loop()->start_date().toString("yyyy-MM-dd").toStdString();
     ros_msg.test_loop.cycle_count = qt_data->test_loop()->cycle_count();
-    ros_msg.test_loop.heating_time = qt_data->test_loop()->heating_time().toString("HH:mm").toStdString();
-    ros_msg.test_loop.heating_duration_min = qt_data->test_loop()->heating_duration_min();
+
+    // --- [修改] 从 QDateTime 转换为 ROS Time ---
+    QDateTime test_start_dt = qt_data->test_loop()->start_datetime();
+    ros_msg.test_loop.start_datetime.sec = static_cast<int32_t>(test_start_dt.toSecsSinceEpoch());
+    ros_msg.test_loop.start_datetime.nanosec = static_cast<uint32_t>(test_start_dt.time().msec() * 1000000);
+
+    // --- [修改] 从 int (秒) 转换为 ROS Duration ---
+    ros_msg.test_loop.heating_duration.sec = qt_data->test_loop()->heating_duration_sec();
+    ros_msg.test_loop.heating_duration.nanosec = 0;
+
 
     // --- 2. 转换参考回路 (Reference Loop) ---
-    // 改动：应用相同的模式
     ros_msg.ref_loop.start_current_a = qt_data->ref_loop()->start_current_a();
     ros_msg.ref_loop.max_current_a = qt_data->ref_loop()->max_current_a();
     ros_msg.ref_loop.current_change_range_percent = qt_data->ref_loop()->current_change_range_percent();
     ros_msg.ref_loop.ct_ratio = qt_data->ref_loop()->ct_ratio();
-    ros_msg.ref_loop.start_date = qt_data->ref_loop()->start_date().toString("yyyy-MM-dd").toStdString();
     ros_msg.ref_loop.cycle_count = qt_data->ref_loop()->cycle_count();
-    ros_msg.ref_loop.heating_time = qt_data->ref_loop()->heating_time().toString("HH:mm").toStdString();
-    ros_msg.ref_loop.heating_duration_min = qt_data->ref_loop()->heating_duration_min();
 
-    // --- 3. 转换试品参数 (Sample Parameters) ---
-    // 改动：应用相同的模式
+    // --- [修改] 从 QDateTime 转换为 ROS Time ---
+    QDateTime ref_start_dt = qt_data->ref_loop()->start_datetime();
+    ros_msg.ref_loop.start_datetime.sec = static_cast<int32_t>(ref_start_dt.toSecsSinceEpoch());
+    ros_msg.ref_loop.start_datetime.nanosec = static_cast<uint32_t>(ref_start_dt.time().msec() * 1000000);
+
+    // --- [修改] 从 int (秒) 转换为 ROS Duration ---
+    ros_msg.ref_loop.heating_duration.sec = qt_data->ref_loop()->heating_duration_sec();
+    ros_msg.ref_loop.heating_duration.nanosec = 0;
+
+
+    // --- 3. 转换试品参数 (Sample Parameters) - 保持不变 ---
     ros_msg.sample_params.cable_type = qt_data->sample_params()->cable_type().toStdString();
     ros_msg.sample_params.cable_spec = qt_data->sample_params()->cable_spec().toStdString();
     ros_msg.sample_params.insulation_material = qt_data->sample_params()->insulation_material().toStdString();
@@ -316,9 +325,11 @@ void QtROSNode::onSetCircuitSettings(quint8 circuit_id, CircuitSettingsData* dat
 
     // --- 5. 定义异步回调并发送 (逻辑不变) ---
     auto response_callback = [this, service_name = set_circuit_settings_service_name_](rclcpp::Client<ros2_interfaces::srv::SetCircuitSettings>::SharedFuture future) {
+        RCLCPP_INFO(this->get_logger(), "SetCircuitSettings -- 5");
         auto response = future.get();
         if (response) {
             emit settingsUpdateResult(QString::fromStdString(service_name), response->success, QString::fromStdString(response->message));
+            RCLCPP_INFO(this->get_logger(), "SetCircuitSettings %s : %s", response->success ? "success":"failed", response->message.c_str());
         } else {
             RCLCPP_ERROR(this->get_logger(), "Failed to call service '%s'", service_name.c_str());
             emit settingsUpdateResult(QString::fromStdString(service_name), false, "Failed to call service");

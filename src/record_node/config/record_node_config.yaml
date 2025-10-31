@@ -1,0 +1,13 @@
+# 'record_node' 节点的参数
+record_node:
+  ros__parameters:
+    
+    # 数据库文件路径。可以是绝对路径，也可以是相对于节点运行目录的相对路径。
+    db_path: "records_and_settings.db"
+
+    # 本节点提供的服务名称。
+    # 注意: 这些名称必须与 control_node_config.yaml 中 'Client' 部分的服务名称完全匹配，
+    # 这样 control_node 的客户端才能找到 record_node 提供的服务。
+    save_system_settings_service: "save_system_settings"
+    save_regulator_settings_service: "save_regulator_settings"
+    save_circuit_settings_service: "save_circuit_settings"

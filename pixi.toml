@@ -17,3 +17,7 @@ qt6-main = ">=6.9.3,<7"
 ros-jazzy-desktop = ">=0.11.0,<0.12"
 ros-jazzy-turtlesim = ">=1.8.3,<2"
 setuptools = ">=80.9.0,<81"
+
+[host-dependencies]
+sqlite = ">=3.50.4,<4"
+sqlitecpp = ">=3.3.3,<4"

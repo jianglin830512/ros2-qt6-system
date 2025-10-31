@@ -38,3 +38,8 @@ control_node:
     circuit_command_topic: "circuit_command"
     # control_node_constants::CLEAR_ALARM_TOPIC_PARAM
     clear_alarm_topic: "clear_alarm_command"
+    
+record_node:
+  ros__parameters:
+    # 使用正斜杠 / 或者双反斜杠 \\
+    db_path: "D:/WGS/database/records_and_settings.db"

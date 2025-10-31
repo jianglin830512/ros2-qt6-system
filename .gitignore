@@ -17,3 +17,6 @@ qt_build/
 # Windows
 ros_auto_launch.bat
 ros_auto_launch.ps1
+
+# database
+database/

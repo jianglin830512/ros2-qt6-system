@@ -1,0 +1,57 @@
+# -----------------------------------------------------------------------------
+# 这是一个为您的ROS 2节点生成的参数配置文件。
+# 所有的参数都定义在节点名下面的 "ros__parameters" 键中。
+# 在启动文件中加载此文件，即可为节点设置所有参数。
+# -----------------------------------------------------------------------------
+control_node:
+  ros__parameters:
+
+    # 对应 SystemSettings.msg
+    # 系统级参数设置
+    system_settings:
+      sample_interval_sec: 1
+      record_interval_min: 5
+      keep_record_on_shutdown: true
+
+    # 对应 VoltageRegulatorSettings.msg
+    # 调压器参数设置
+    voltage_regulator_settings:
+      over_current_a: 2500
+      over_voltage_v: 400
+      voltage_up_speed_percent: 10
+      voltage_down_speed_percent: 20
+      over_voltage_protection_mode: true
+
+    # 对应 CircuitSettings.msg
+    # 完整回路的参数设置
+    circuit_settings:
+      
+      # 对应 LoopSettings.msg (试验回路)
+      test_loop:
+        start_current_a: 10
+        max_current_a: 2000
+        current_change_range_percent: 5
+        ct_ratio: 1000
+        start_date: "2025-10-27"
+        cycle_count: 10000
+        heating_time: "08:30"
+        heating_duration_min: 120
+
+      # 对应 LoopSettings.msg (参考回路)
+      ref_loop:
+        start_current_a: 10
+        max_current_a: 2000
+        current_change_range_percent: 5
+        ct_ratio: 1000
+        start_date: "2025-10-27"
+        cycle_count: 10000
+        heating_time: "09:00"
+        heating_duration_min: 120
+
+      # 对应 SampleSettings.msg
+      sample_params:
+        cable_type: "YJLV22"
+        cable_spec: "1x400"
+        insulation_material: "交联聚乙烯 (XLPE)"
+        insulation_thickness: 2.5
+

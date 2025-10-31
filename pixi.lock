@@ -573,6 +573,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/snowballstemmer-3.0.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/spdlog-1.15.3-h430ee68_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/sqlite-3.50.4-hdb435a2_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/sqlitecpp-3.3.3-hb4f51d0_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/svt-av1-3.1.2-hac47afa_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/tbb-2022.2.0-h18a62a1_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/tbb-devel-2022.2.0-h4eb897c_1.conda
@@ -11136,6 +11137,22 @@ packages:
   license: blessing
   size: 400981
   timestamp: 1753948927232
+- conda: https://conda.anaconda.org/conda-forge/win-64/sqlitecpp-3.3.3-hb4f51d0_0.conda
+  sha256: 1a3eb79414dab449dedfa7ca03c3ced29ae698500c885b8b8174c31140827dc7
+  md5: 4a3de98dafdd08d6a32f180b789dc0dd
+  depends:
+  - vc >=14.2,<15
+  - vc14_runtime >=14.29.30139
+  - ucrt >=10.0.20348.0
+  - vc >=14.2,<15
+  - vc14_runtime >=14.29.30139
+  - ucrt >=10.0.20348.0
+  - libsqlite >=3.49.2,<4.0a0
+  - gtest >=1.17.0,<1.17.1.0a0
+  license: MIT
+  license_family: MIT
+  size: 54820
+  timestamp: 1747821989588
 - conda: https://conda.anaconda.org/conda-forge/win-64/svt-av1-3.1.2-hac47afa_0.conda
   sha256: 444c94a9c1fcb2cdf78b260472451990257733bcf89ed80c73db36b5047d3134
   md5: 91866412570c922f55178855deb0f952

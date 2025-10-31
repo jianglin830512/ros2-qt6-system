@@ -18,6 +18,11 @@ control_node:
     clear_alarm_topic: "clear_alarm_command"
 
     # --- 服务名称 ---
+    # Server
     set_system_settings_service: "set_system_settings"
     set_regulator_settings_service: "set_regulator_settings"
     set_circuit_settings_service: "set_circuit_settings"
+    # Client
+    save_system_settings_service: "save_system_settings"
+    save_regulator_settings_service: "save_regulator_settings"
+    save_circuit_settings_service: "save_circuit_settings"

@@ -21,13 +21,20 @@ namespace control_node_constants
 [[maybe_unused]] constexpr const char* DEFAULT_CLEAR_ALARM_TOPIC = "default_clear_alarm_command";
 
 // --- 服务服务器相关常量 ---
+// Server
 [[maybe_unused]] constexpr const char* SET_SYSTEM_SETTINGS_SERVICE_PARAM = "set_system_settings_service";
 [[maybe_unused]] constexpr const char* SET_REGULATOR_SETTINGS_SERVICE_PARAM = "set_regulator_settings_service";
 [[maybe_unused]] constexpr const char* SET_CIRCUIT_SETTINGS_SERVICE_PARAM = "set_circuit_settings_service";
 [[maybe_unused]] constexpr const char* DEFAULT_SET_SYSTEM_SETTINGS_SERVICE = "default_set_system_settings";
 [[maybe_unused]] constexpr const char* DEFAULT_SET_REGULATOR_SETTINGS_SERVICE = "default_set_regulator_settings";
 [[maybe_unused]] constexpr const char* DEFAULT_SET_CIRCUIT_SETTINGS_SERVICE = "default_set_circuit_settings";
-
+// Client
+[[maybe_unused]] constexpr const char* SAVE_SYSTEM_SETTINGS_SERVICE_PARAM = "save_system_settings_service";
+[[maybe_unused]] constexpr const char* SAVE_REGULATOR_SETTINGS_SERVICE_PARAM = "save_regulator_settings_service";
+[[maybe_unused]] constexpr const char* SAVE_CIRCUIT_SETTINGS_SERVICE_PARAM = "save_circuit_settings_service";
+[[maybe_unused]] constexpr const char* DEFAULT_SAVE_SYSTEM_SETTINGS_SERVICE = "default_save_system_settings";
+[[maybe_unused]] constexpr const char* DEFAULT_SAVE_REGULATOR_SETTINGS_SERVICE = "default_save_regulator_settings";
+[[maybe_unused]] constexpr const char* DEFAULT_SAVE_CIRCUIT_SETTINGS_SERVICE = "default_save_circuit_settings";
 } // namespace control_node_constants
 
 #endif // CONTROL_NODE_CONSTANTS_HPP
