@@ -1,0 +1,4 @@
+uint8 regulator_id
+---
+bool success
+RegulatorSettings settings

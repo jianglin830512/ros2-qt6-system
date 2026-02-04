@@ -11,18 +11,30 @@ qt_ros_node:
     # 这个键名必须与 qt_node_constants::REGULATOR_STATUS_TOPIC_PARAM 的值匹配
     regulator_status_topic: "voltage_regulator_status"
 
+    system_settings_topic: "system_settings"
+    regulator_settings_topic: "regulator_settings"
+    circuit_settings_topic: "circuit_settings"
+
     # --- 发布的主题名称 ---
 
-    # 回路命令TOPIC -- qt_node_constants::CIRCUIT_COMMAND_TOPIC_PARAM
-    circuit_command_topic: "circuit_command"
+    # 调压器操作命令TOPIC (升压/降压/停止) -- 对应 qt_node_constants::REGULATOR_OPERATION_COMMAND_TOPIC_PARAM
+    regulator_operation_command_topic: "regulator_operation_command"
 
-    # 调压器命令TOPIC -- qt_node_constants::REGULATOR_COMMAND_TOPIC_PARAM
-    regulator_command_topic: "regulator_command"
-
-    # 清除报警TOPIC -- qt_node_constants::CLEAR_ALARM_TOPIC_PARAM
-    clear_alarm_topic: "clear_alarm_command"
+    # 清除报警TOPIC -- 对应 qt_node_constants::CLEAR_ALARM_TOPIC_PARAM
+    clear_alarm_topic: "clear_alarm"
 
     # --- Service names ---
+
+    # 调压器断路器命令SERVICE -- 对应 qt_node_constants::REGULATOR_BREAKER_COMMAND_SERVICE_PARAM
+    regulator_breaker_command_service: "regulator_breaker_command"
+    
+    # 回路模式设置命令SERVICE -- 对应 qt_node_constants::CIRCUIT_MODE_COMMAND_SERVICE_PARAM
+    circuit_mode_command_service: "circuit_mode_command"
+
+    # 回路断路器命令SERVICE -- 对应 qt_node_constants::CIRCUIT_BREAKER_COMMAND_SERVICE_PARAM
+    circuit_breaker_command_service: "circuit_breaker_command"
+
+    # 设置服务
     set_system_settings_service: "set_system_settings"
     set_regulator_settings_service: "set_regulator_settings"
     set_circuit_settings_service: "set_circuit_settings"

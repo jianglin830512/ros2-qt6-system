@@ -1,11 +1,9 @@
 ﻿#include "control_node/state_manager.hpp"
-#include <stdexcept> // 用于抛出异常
+#include <stdexcept>
 
 StateManager::StateManager() {}
 
 // --- 私有帮助函数 ---
-// 将外部使用的 ID (通常从1开始) 转换为数组索引 (从0开始)
-// 并进行边界检查，保证内存安全
 size_t StateManager::circuit_id_to_index(uint8_t id) const
 {
     if (id < 1 || id > NUM_CIRCUITS) {
@@ -22,27 +20,31 @@ size_t StateManager::regulator_id_to_index(uint8_t id) const
     return id - 1;
 }
 
+// ==========================================
+//               写方法的实现
+// ==========================================
 
-// --- 写方法的实现 ---
+// --- 常规数据 ---
+void StateManager::update_system_status(const ros2_interfaces::msg::SystemStatus& status)
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    system_status_ = status;
+}
 
 void StateManager::update_circuit_status(uint8_t id, const ros2_interfaces::msg::CircuitStatus& status)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
     try {
         circuit_statuses_.at(circuit_id_to_index(id)) = status;
-    } catch (const std::out_of_range& e) {
-        // 在这里可以添加日志记录
-    }
+    } catch (const std::out_of_range& e) {}
 }
 
-void StateManager::update_regulator_status(uint8_t id, const ros2_interfaces::msg::VoltageRegulatorStatus& status)
+void StateManager::update_regulator_status(uint8_t id, const ros2_interfaces::msg::RegulatorStatus& status)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
     try {
         regulator_statuses_.at(regulator_id_to_index(id)) = status;
-    } catch (const std::out_of_range& e) {
-        // 日志
-    }
+    } catch (const std::out_of_range& e) {}
 }
 
 void StateManager::update_system_settings(const ros2_interfaces::msg::SystemSettings& settings)
@@ -56,23 +58,62 @@ void StateManager::update_circuit_settings(uint8_t id, const ros2_interfaces::ms
     std::lock_guard<std::mutex> lock(state_mutex_);
     try {
         circuit_settings_.at(circuit_id_to_index(id)) = settings;
-    } catch (const std::out_of_range& e) {
-        // 日志
-    }
+    } catch (const std::out_of_range& e) {}
 }
 
-void StateManager::update_regulator_settings(uint8_t id, const ros2_interfaces::msg::VoltageRegulatorSettings& settings)
+void StateManager::update_regulator_settings(uint8_t id, const ros2_interfaces::msg::RegulatorSettings& settings)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
     try {
         regulator_settings_.at(regulator_id_to_index(id)) = settings;
-    } catch (const std::out_of_range& e) {
-        // 日志
-    }
+    } catch (const std::out_of_range& e) {}
 }
 
 
-// --- 读方法的实现 ---
+// --- 硬件原始数据 ---
+void StateManager::update_hardware_circuit_status(uint8_t id, const ros2_interfaces::msg::HardwareCircuitStatus& status)
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    try {
+        hardware_circuit_statuses_.at(circuit_id_to_index(id)) = status;
+    } catch (const std::out_of_range& e) {}
+}
+
+void StateManager::update_hardware_regulator_status(uint8_t id, const ros2_interfaces::msg::RegulatorStatus& status)
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    try {
+        hardware_regulator_statuses_.at(regulator_id_to_index(id)) = status;
+    } catch (const std::out_of_range& e) {}
+}
+
+void StateManager::update_hardware_circuit_settings(uint8_t id, const ros2_interfaces::msg::HardwareCircuitSettings& settings)
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    try {
+        hardware_circuit_settings_.at(circuit_id_to_index(id)) = settings;
+    } catch (const std::out_of_range& e) {}
+}
+
+void StateManager::update_hardware_regulator_settings(uint8_t id, const ros2_interfaces::msg::RegulatorSettings& settings)
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    try {
+        hardware_regulator_settings_.at(regulator_id_to_index(id)) = settings;
+    } catch (const std::out_of_range& e) {}
+}
+
+
+// ==========================================
+//               读方法的实现
+// ==========================================
+
+// --- 常规数据 ---
+ros2_interfaces::msg::SystemStatus StateManager::get_system_status() const
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    return system_status_;
+}
 
 ros2_interfaces::msg::CircuitStatus StateManager::get_circuit_status(uint8_t id) const
 {
@@ -80,19 +121,24 @@ ros2_interfaces::msg::CircuitStatus StateManager::get_circuit_status(uint8_t id)
     try {
         return circuit_statuses_.at(circuit_id_to_index(id));
     } catch (const std::out_of_range& e) {
-        // 如果ID无效，返回一个默认构造的对象
         return ros2_interfaces::msg::CircuitStatus();
     }
 }
 
-ros2_interfaces::msg::VoltageRegulatorStatus StateManager::get_regulator_status(uint8_t id) const
+ros2_interfaces::msg::RegulatorStatus StateManager::get_regulator_status(uint8_t id) const
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
     try {
         return regulator_statuses_.at(regulator_id_to_index(id));
     } catch (const std::out_of_range& e) {
-        return ros2_interfaces::msg::VoltageRegulatorStatus();
+        return ros2_interfaces::msg::RegulatorStatus();
     }
+}
+
+ros2_interfaces::msg::SystemSettings StateManager::get_system_settings() const
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    return system_settings_;
 }
 
 ros2_interfaces::msg::CircuitSettings StateManager::get_circuit_settings(uint8_t id) const
@@ -105,18 +151,54 @@ ros2_interfaces::msg::CircuitSettings StateManager::get_circuit_settings(uint8_t
     }
 }
 
-ros2_interfaces::msg::VoltageRegulatorSettings StateManager::get_regulator_settings(uint8_t id) const
+ros2_interfaces::msg::RegulatorSettings StateManager::get_regulator_settings(uint8_t id) const
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
     try {
         return regulator_settings_.at(regulator_id_to_index(id));
     } catch (const std::out_of_range& e) {
-        return ros2_interfaces::msg::VoltageRegulatorSettings();
+        return ros2_interfaces::msg::RegulatorSettings();
     }
 }
 
-ros2_interfaces::msg::SystemSettings StateManager::get_system_settings() const
+// --- 硬件原始数据 ---
+ros2_interfaces::msg::HardwareCircuitStatus StateManager::get_hardware_circuit_status(uint8_t id) const
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
-    return system_settings_;
+    try {
+        return hardware_circuit_statuses_.at(circuit_id_to_index(id));
+    } catch (const std::out_of_range& e) {
+        return ros2_interfaces::msg::HardwareCircuitStatus();
+    }
 }
+
+ros2_interfaces::msg::RegulatorStatus StateManager::get_hardware_regulator_status(uint8_t id) const
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    try {
+        return hardware_regulator_statuses_.at(regulator_id_to_index(id));
+    } catch (const std::out_of_range& e) {
+        return ros2_interfaces::msg::RegulatorStatus();
+    }
+}
+
+ros2_interfaces::msg::HardwareCircuitSettings StateManager::get_hardware_circuit_settings(uint8_t id) const
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    try {
+        return hardware_circuit_settings_.at(circuit_id_to_index(id));
+    } catch (const std::out_of_range& e) {
+        return ros2_interfaces::msg::HardwareCircuitSettings();
+    }
+}
+
+ros2_interfaces::msg::RegulatorSettings StateManager::get_hardware_regulator_settings(uint8_t id) const
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    try {
+        return hardware_regulator_settings_.at(regulator_id_to_index(id));
+    } catch (const std::out_of_range& e) {
+        return ros2_interfaces::msg::RegulatorSettings();
+    }
+}
+

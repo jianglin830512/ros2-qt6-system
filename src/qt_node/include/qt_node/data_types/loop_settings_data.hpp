@@ -7,17 +7,17 @@
 class LoopSettingsData : public QObject
 {
     Q_OBJECT
-    // --- 属性保持不变 ---
     Q_PROPERTY(int start_current_a READ start_current_a WRITE setStart_current_a NOTIFY start_current_aChanged)
     Q_PROPERTY(int max_current_a READ max_current_a WRITE setMax_current_a NOTIFY max_current_aChanged)
     Q_PROPERTY(int current_change_range_percent READ current_change_range_percent WRITE setCurrent_change_range_percent NOTIFY current_change_range_percentChanged)
     Q_PROPERTY(int ct_ratio READ ct_ratio WRITE setCt_ratio NOTIFY ct_ratioChanged)
     Q_PROPERTY(int cycle_count READ cycle_count WRITE setCycle_count NOTIFY cycle_countChanged)
-
-    // --- 属性已修改 ---
-    Q_PROPERTY(QDateTime start_datetime READ start_datetime WRITE setStart_datetime NOTIFY start_datetimeChanged)
+    // 试验开启日期 (QDateTime方便QML处理，但逻辑上只用日期部分)
+    Q_PROPERTY(QDateTime start_date READ start_date WRITE setStart_date NOTIFY start_dateChanged)
+    // 每日加热开启时刻 (距离00:00:00的秒数)
+    Q_PROPERTY(int heating_start_time_sec READ heating_start_time_sec WRITE setHeating_start_time_sec NOTIFY heating_start_time_secChanged)
     Q_PROPERTY(int heating_duration_sec READ heating_duration_sec WRITE setHeating_duration_sec NOTIFY heating_duration_secChanged)
-
+    Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
 public:
     explicit LoopSettingsData(QObject *parent = nullptr);
 
@@ -30,8 +30,10 @@ public:
     int current_change_range_percent() const;
     int ct_ratio() const;
     int cycle_count() const;
-    QDateTime start_datetime() const;
+    QDateTime start_date() const;
+    int heating_start_time_sec() const;
     int heating_duration_sec() const;
+     bool enabled() const;
 
 
     // --- Setters ---
@@ -40,8 +42,10 @@ public:
     void setCurrent_change_range_percent(int current_change_range_percent);
     void setCt_ratio(int ct_ratio);
     void setCycle_count(int cycle_count);
-    void setStart_datetime(const QDateTime &start_datetime);
+    void setStart_date(const QDateTime &start_date);
+    void setHeating_start_time_sec(int heating_start_time_sec);
     void setHeating_duration_sec(int heating_duration_sec);
+    void setEnabled(bool enabled);
 
     // --- 运算符重载 ---
     bool operator==(const LoopSettingsData& other) const;
@@ -53,9 +57,10 @@ signals:
     void current_change_range_percentChanged();
     void ct_ratioChanged();
     void cycle_countChanged();
-    void start_datetimeChanged();
+    void start_dateChanged();
+    void heating_start_time_secChanged();
     void heating_duration_secChanged();
-
+    void enabledChanged();
 
 private:
     // --- 成员变量 ---
@@ -64,8 +69,10 @@ private:
     int m_current_change_range_percent = 0;
     int m_ct_ratio = 0;
     int m_cycle_count = 0;
-    QDateTime m_start_datetime = QDateTime::currentDateTime(); // 使用 QDateTime
+    QDateTime m_start_date = QDateTime::currentDateTime();
+    int m_heating_start_time_sec = 0;
     int m_heating_duration_sec = 0; // 使用秒
+    bool m_enabled = false;
 };
 
 #endif // LOOPSETTINGSDATA_HPP

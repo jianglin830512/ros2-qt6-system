@@ -1,3 +1,5 @@
+
+uint8 regulator_id  # 1 for main, 2 for aux
 # 调压器参数设置
 int32 over_current_a
 int32 over_voltage_v

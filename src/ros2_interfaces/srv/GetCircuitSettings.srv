@@ -1,0 +1,4 @@
+uint8 circuit_id
+---
+bool success
+CircuitSettings settings

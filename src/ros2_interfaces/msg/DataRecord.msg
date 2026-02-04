@@ -1,0 +1,14 @@
+string record_time
+uint8 circuit_id
+uint8 control_mode
+float64 regulator_voltage
+float64 regulator_current
+bool regulator_breaker_closed
+bool test_loop_enabled
+bool ref_loop_enabled
+float64 test_loop_current
+float64 ref_loop_current
+bool test_loop_breaker_closed
+bool ref_loop_breaker_closed
+float64[16] test_loop_temp
+float64[8] ref_loop_temp

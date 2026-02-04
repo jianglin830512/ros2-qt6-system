@@ -1,0 +1,6 @@
+string start_time  # 格式: "YYYY-MM-DD HH:MM:SS"
+string end_time    # 格式: "YYYY-MM-DD HH:MM:SS"
+---
+bool success
+string message
+DataRecord[] records

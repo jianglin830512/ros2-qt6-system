@@ -1,9 +1,9 @@
-﻿#ifndef VOLTAGE_REGULATOR_SETTINGS_DATA_HPP
-#define VOLTAGE_REGULATOR_SETTINGS_DATA_HPP
+﻿#ifndef REGULATOR_SETTINGS_DATA_H
+#define REGULATOR_SETTINGS_DATA_H
 
 #include <QObject>
 
-class VoltageRegulatorSettingsData : public QObject
+class RegulatorSettingsData : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(int over_current_a READ over_current_a WRITE setOver_current_a NOTIFY over_current_aChanged)
@@ -13,10 +13,10 @@ class VoltageRegulatorSettingsData : public QObject
     Q_PROPERTY(bool over_voltage_protection_mode READ over_voltage_protection_mode WRITE setOver_voltage_protection_mode NOTIFY over_voltage_protection_modeChanged)
 
 public:
-    explicit VoltageRegulatorSettingsData(QObject *parent = nullptr);
+    explicit RegulatorSettingsData(QObject *parent = nullptr);
 
-    VoltageRegulatorSettingsData(const VoltageRegulatorSettingsData& other) = delete;
-    VoltageRegulatorSettingsData& operator=(const VoltageRegulatorSettingsData& other) = delete;
+    RegulatorSettingsData(const RegulatorSettingsData& other) = delete;
+    RegulatorSettingsData& operator=(const RegulatorSettingsData& other) = delete;
 
     // Getters
     int over_current_a() const;
@@ -47,4 +47,4 @@ private:
     bool m_over_voltage_protection_mode = false;
 };
 
-#endif // VOLTAGE_REGULATOR_SETTINGS_DATA_HPP
+#endif // REGULATOR_SETTINGS_DATA_H

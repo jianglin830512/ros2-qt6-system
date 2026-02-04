@@ -1,0 +1,42 @@
+﻿hardware_node:
+  ros__parameters:
+
+    # =================================================
+    #               发布器话题名称 (Publishers)
+    # =================================================
+    # [无变更] 这些话题被 control_node 订阅
+    hardware_circuit_status_topic: "hardware_circuit_status"
+    hardware_regulator_status_topic: "hardware_regulator_status"
+    hardware_circuit_settings_topic: "hardware_circuit_settings"
+    hardware_regulator_settings_topic: "hardware_regulator_settings"
+
+    # =================================================
+    #               订阅器话题名称 (Subscribers)
+    # =================================================
+    # 订阅 control_node 发布的调压器操作命令 (升/降/停)
+    hardware_regulator_operation_command_topic: "hardware_regulator_operation_command"
+
+    # 订阅 control_node 发布的清除报警命令
+    hardware_clear_alarm_topic: "hardware_clear_alarm"
+
+    # =================================================
+    #               服务名称 (Services)
+    # =================================================
+    # 为 control_node 提供设置服务
+    set_hardware_regulator_settings_service: "set_hardware_regulator_settings"
+    set_hardware_circuit_settings_service: "set_hardware_circuit_settings"
+
+    # 为 control_node 提供命令服务
+    hardware_regulator_breaker_command_service: "hardware_regulator_breaker_command"
+    hardware_circuit_breaker_command_service: "hardware_circuit_breaker_command"
+
+    # [新增] PLC 控制模式与源设置服务
+    hardware_set_control_mode_service: "hardware_set_control_mode"
+    hardware_set_control_source_service: "hardware_set_control_source"
+
+    # =================================================
+    #               硬件节点特定参数
+    # =================================================
+    # --- 轮询周期 (毫秒) ---
+    polling_rate_ms: 200
+    use_mock_driver: false

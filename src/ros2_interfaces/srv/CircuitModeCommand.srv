@@ -1,0 +1,23 @@
+# 回路模式设置命令
+
+# --- 请求 Request ---
+
+# 目标回路的ID
+uint8 circuit_id
+
+# 命令常量定义
+uint8 CMD_SET_MANUAL_MODE = 1          # 切换为手动模式
+uint8 CMD_SET_CONST_CURRENT_MODE = 2   # 切换为恒流模式
+uint8 CMD_SET_TEMP_CONTROL_MODE = 3    # 切换为温控模式
+
+# 要设定的模式命令
+uint8 command
+
+---
+# --- 响应 Response ---
+
+# true 表示命令已成功接收和执行
+bool success
+
+# 提供额外的信息，例如成功或失败的原因
+string message

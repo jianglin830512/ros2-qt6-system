@@ -1,0 +1,16 @@
+# 设置硬件回路的控制模式 (PLC模式)
+
+# --- Request ---
+uint8 circuit_id
+
+# 模式常量定义
+uint8 MODE_MANUAL = 1       # 手动模式 (ROS控制升降 / 手柄控制)
+uint8 MODE_AUTO_CURRENT = 2 # 自动恒流模式 (PLC闭环)
+uint8 MODE_AUTO_TEMP = 3  # 自动温控 (预留)
+
+uint8 mode
+
+---
+# --- Response ---
+bool success
+string message

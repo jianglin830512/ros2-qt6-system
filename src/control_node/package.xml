@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+﻿<?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>control_node</name>
@@ -12,9 +12,6 @@
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
   <depend>ros2_interfaces</depend>
-  <!-- 声明对 sqlite3 的依赖 -->
-  <build_depend>sqlite3</build_depend>
-  <exec_depend>sqlite3</exec_depend>
   
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

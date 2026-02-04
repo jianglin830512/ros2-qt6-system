@@ -18,9 +18,10 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     Gui
     Qml
     Quick
-    Sql
+    Charts
     QuickControls2
-    CoreTools
+    Widgets
+    CoreTools  # 不是开发用的，而是工具包。
 )
 
 qt_policy(SET QTP0001 NEW)
@@ -55,7 +56,37 @@ qt_add_qml_module(qt_node_executable
     VERSION 1.0
     RESOURCE_PREFIX /
     QML_FILES
-        qml/Main.qml       
+        qml/Main.qml
+        qml/MainForm.ui.qml              # 主窗口的纯UI布局
+        qml/Theme.qml
+        qml/components/StyledButton.qml            # 带有逻辑的自定义按钮
+        qml/components/StyledButtonForm.ui.qml
+        qml/components/ModeControl.qml
+        qml/components/ModeControlForm.ui.qml
+        qml/components/LoopStatus.qml
+        qml/components/LoopStatusForm.ui.qml
+        qml/components/CircuitStatus.qml           # 回路状态
+        qml/components/CircuitStatusForm.ui.qml
+        qml/components/RegulatorControl.qml        # 调压器控制
+        qml/components/RegulatorControlForm.ui.qml
+        qml/components/ActionButtonForm.ui.qml
+        qml/components/ToggleActionButton.qml
+        qml/components/ContinuousActionButton.qml
+        qml/components/ValueAndUnit.ui.qml
+        qml/components/SettingsGroup.qml
+        qml/components/SettingInput.qml
+        qml/components/SettingSwitch.qml
+        qml/components/MessagePopup.qml
+        qml/components/StartStopPanel.qml
+        qml/components/SettingTextArea.qml
+        qml/pages/CircuitSettingsPageForm.ui.qml
+        qml/pages/CircuitSettingsPage.qml
+        qml/pages/HistoryPage.qml
+        qml/pages/SystemSettingsPage.qml
+        qml/pages/SystemSettingsPageForm.ui.qml
+        qml/pages/TemperatureMonitorPage.qml
+        qml/pages/TemperatureMonitorPageForm.ui.qml
+        qml/pages/TestDataPage.qml
     SOURCES
         include/qt_node/qt_node_constants.hpp # hpp only
         include/qt_node/qt_ros_node.hpp
@@ -64,26 +95,26 @@ qt_add_qml_module(qt_node_executable
         include/qt_node/data_types/sample_settings_data.hpp
         include/qt_node/data_types/loop_settings_data.hpp
         include/qt_node/data_types/circuit_settings_data.hpp
-        include/qt_node/data_types/voltage_regulator_settings_data.hpp
+        include/qt_node/data_types/regulator_settings_data.hpp
         include/qt_node/data_types/system_settings_data.hpp
         src/qt_ros_node.cpp
         src/ros_proxy.cpp
         src/data_types/sample_settings_data.cpp
         src/data_types/loop_settings_data.cpp
         src/data_types/circuit_settings_data.cpp
-        src/data_types/voltage_regulator_settings_data.cpp
+        src/data_types/regulator_settings_data.cpp
         src/data_types/system_settings_data.cpp
 )
 
-
 # --- 链接库 ---
 target_link_libraries(qt_node_executable PRIVATE
-    Qt6::Sql
     Qt6::Core
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
+    Qt6::Charts
     Qt6::QuickControls2
+    Qt6::Widgets
     # ROS 2 依赖项 (使用导入的目标)
     # rclcpp 提供了现代的导入目标
     rclcpp::rclcpp
@@ -94,6 +125,12 @@ target_link_libraries(qt_node_executable PRIVATE
     # ros2_interfaces 依赖的底层库通过变量提供
     ${ros2_interfaces_LIBRARIES}
 )
+
+if(MSVC)
+  # 为你的目标（target）添加 /bigobj 编译选项
+  # 将 your_target_name 替换为你的 CMake target 名称，很可能就是 qt_ros_node
+  target_compile_options(qt_node_executable PRIVATE /bigobj)
+endif()
 
 # =======================================================================
 #               手动触发QML分析（这是解决问题的关键新增步骤）
@@ -114,7 +151,7 @@ install(TARGETS qt_node_executable
 # 2. 使用专为QML应用设计的部署脚本生成函数
 qt_generate_deploy_qml_app_script(
     TARGET qt_node_executable
-    OUTPUT_SCRIPT deploy_script # <-- 修正了之前的警告，使用 OUTPUT_SCRIPT
+    OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
 

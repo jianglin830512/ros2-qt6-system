@@ -1,9 +1,8 @@
-﻿#include <QGuiApplication>
+﻿#include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QThread>
-
-
+#include <QQuickStyle>
 
 #include "include/qt_node/qt_ros_node.hpp" // 引入我们的节点头文件
 #include "qt_node/ros_proxy.hpp"
@@ -58,104 +57,99 @@ int main(int argc, char *argv[])
     // 4. 将我们的节点 "移动" 到新线程。这不是物理移动，而是设置其事件亲和性。
     ros_node->moveToThread(ros_thread);
 
-    QGuiApplication app(argc, argv);
+    QApplication app(argc, argv);
+    // QGuiApplication app(argc, argv);
+    QQuickStyle::setStyle("Fusion");
+    qmlRegisterSingletonType(QUrl("qrc:/qt_node/qml/Theme.qml"), "qt.theme", 1, 0, "Theme");
 
     // 注册自定义的类型 - struct
+    qRegisterMetaType<LoopStatusData>("LoopStatusData");
     qRegisterMetaType<CircuitStatusData>("CircuitStatusData");
-    qRegisterMetaType<VoltageRegulatorStatusData>("VoltageRegulatorStatusData");
+    qRegisterMetaType<RegulatorStatusData>("RegulatorStatusData");
     // 注册自定义的类型 - class (顶层)
     qRegisterMetaType<SystemSettingsData>("SystemSettingsData");
-    qRegisterMetaType<VoltageRegulatorSettingsData>("RegulatorSettingsData");
+    qRegisterMetaType<RegulatorSettingsData>("RegulatorSettingsData");
     qRegisterMetaType<CircuitSettingsData>("CircuitSettingsData");
     // 注册自定义的类型 - class (嵌套)
     qRegisterMetaType<LoopSettingsData>("LoopSettingsData");
     qRegisterMetaType<SampleSettingsData>("SampleSettingsData");
+    // 注册 ROS 消息指针类型，以便跨线程传递
+    qRegisterMetaType<SystemSettingsMsgPtr>("SystemSettingsMsgPtr");
+    qRegisterMetaType<RegulatorSettingsMsgPtr>("RegulatorSettingsMsgPtr");
+    qRegisterMetaType<CircuitSettingsMsgPtr>("CircuitSettingsMsgPtr");
 
     // 5. 连接信号和槽
-    // 订阅方向的连接：ROS -> GUI
+    // --- 订阅方向的连接：ROS -> GUI ---
     QObject::connect(ros_node.get(), &QtROSNode::circuitStatusReceived,
                      ros_proxy.get(), &ROSProxy::updateCircuitStatus,
+                     Qt::QueuedConnection); // 显示指定异步，用于跨线程
+    QObject::connect(ros_node.get(), &QtROSNode::regulatorStatusReceived, // 变更
+                     ros_proxy.get(), &ROSProxy::updateRegulatorStatus,
                      Qt::QueuedConnection);
-    QObject::connect(ros_node.get(), &QtROSNode::voltageRegulatorStatusReceived,
-                     ros_proxy.get(), &ROSProxy::updateVoltageRegulatorStatus,
+
+    // Settings 更新连接 (ROS -> GUI) - 之前漏掉了这些！
+    QObject::connect(ros_node.get(), &QtROSNode::systemSettingsReceived,
+                     ros_proxy.get(), &ROSProxy::updateSystemSettings,
                      Qt::QueuedConnection);
-    // 连接 SettingsUpdateResult
+    QObject::connect(ros_node.get(), &QtROSNode::regulatorSettingsReceived,
+                     ros_proxy.get(), &ROSProxy::updateRegulatorSettings,
+                     Qt::QueuedConnection);
+    QObject::connect(ros_node.get(), &QtROSNode::circuitSettingsReceived,
+                     ros_proxy.get(), &ROSProxy::updateCircuitSettings,
+                     Qt::QueuedConnection);
+
+    // --- Settings, Command 结果返回的连接：ROS -> GUI ---
     QObject::connect(ros_node.get(), &QtROSNode::settingsUpdateResult,
                      ros_proxy.get(), &ROSProxy::onSettingsUpdateResult);
+    QObject::connect(ros_node.get(), &QtROSNode::commandResult,
+                     ros_proxy.get(), &ROSProxy::onCommandResult);
 
-    // --- 发布方向的连接 GUI -> ROS ---
-    QObject::connect(ros_proxy.get(), &ROSProxy::regulatorCommandRequested,
-                     ros_node.get(), &QtROSNode::onSendRegulatorCommand,
-                     Qt::QueuedConnection);
-    QObject::connect(ros_proxy.get(), &ROSProxy::circuitCommandRequested,
-                     ros_node.get(), &QtROSNode::onSendCircuitCommand,
-                     Qt::QueuedConnection);
+    // --- Command 连接 GUI -> ROS ---
+    QObject::connect(ros_proxy.get(), &ROSProxy::regulatorOperationCommandRequested,
+                     ros_node.get(), &QtROSNode::onSendRegulatorOperationCommand, Qt::QueuedConnection);
+    QObject::connect(ros_proxy.get(), &ROSProxy::regulatorBreakerCommandRequested,
+                     ros_node.get(), &QtROSNode::onSendRegulatorBreakerCommand, Qt::QueuedConnection);
+    QObject::connect(ros_proxy.get(), &ROSProxy::circuitModeCommandRequested,
+                     ros_node.get(), &QtROSNode::onSendCircuitModeCommand, Qt::QueuedConnection);
+    QObject::connect(ros_proxy.get(), &ROSProxy::circuitBreakerCommandRequested,
+                     ros_node.get(), &QtROSNode::onSendCircuitBreakerCommand, Qt::QueuedConnection);
     QObject::connect(ros_proxy.get(), &ROSProxy::clearAlarmRequested,
-                     ros_node.get(), &QtROSNode::onSendClearAlarm,
-                     Qt::QueuedConnection);
-    // 连接 SystemSettings
+                     ros_node.get(), &QtROSNode::onSendClearAlarm, Qt::QueuedConnection);
+
+    // --- Settings 连接 GUI -> ROS ---
     QObject::connect(ros_proxy.get(), &ROSProxy::systemSettingsUpdateRequest,
-                     ros_node.get(), &QtROSNode::onSetSystemSettings);
-    // 连接 RegulatorSettings
+                     ros_node.get(), &QtROSNode::onSetSystemSettings,
+                     Qt::QueuedConnection);
     QObject::connect(ros_proxy.get(), &ROSProxy::regulatorSettingsUpdateRequest,
-                     ros_node.get(), &QtROSNode::onSetRegulatorSettings);
-    // 连接 CircuitSettings
+                     ros_node.get(), &QtROSNode::onSetRegulatorSettings,
+                     Qt::QueuedConnection);
     QObject::connect(ros_proxy.get(), &ROSProxy::circuitSettingsUpdateRequest,
-                     ros_node.get(), &QtROSNode::onSetCircuitSettings);
+                     ros_node.get(), &QtROSNode::onSetCircuitSettings,
+                     Qt::QueuedConnection);
+
+    // --- 关闭程序的连接：GUI -> ROS ---
+    QObject::connect(ros_proxy.get(), &ROSProxy::shutdownRequested,
+                     ros_node.get(), &QtROSNode::onShutdownRequested,
+                     Qt::QueuedConnection);
+
+    // --- 关闭程序的连接：ROS -> GUI ---
+    QObject::connect(ros_node.get(), &QtROSNode::shutdownFinished,
+                     &app, [&app, ros_thread]() {
+                         ros_thread->quit();
+                         if (!ros_thread->wait(1000)) {
+                             ros_thread->terminate();
+                             ros_thread->wait();
+                         }
+                         delete ros_thread;
+
+                         app.quit(); // 这是最后一步，真正关闭UI
+                     },
+                     Qt::QueuedConnection);
 
     // 6. 当线程启动后，再去调用 startTimer 槽
     QObject::connect(ros_thread, &QThread::started, ros_node.get(), &QtROSNode::startTimer);
 
-    /*
-    // 7. 当Qt应用即将退出时，安全地关闭ROS 2
-    QObject::connect(&app, &QGuiApplication::aboutToQuit, &app, [ros_node, ros_thread]() {
-        RCLCPP_INFO(ros_node->get_logger(), "Application is about to quit. Shutting down ROS.");
-        rclcpp::shutdown();
-        ros_thread->quit(); // 告诉线程事件循环停止
-        if (!ros_thread->wait(2000)) { // 等待最多2秒
-            RCLCPP_WARN(ros_node->get_logger(), "ROS thread did not terminate gracefully. Forcing termination.");
-            ros_thread->terminate();
-            ros_thread->wait();
-        }
-        delete ros_thread;
-    });
-    */
-
-    // 7. 当Qt应用即将退出时，执行一个精心设计的、线程安全的关闭序列
-    QObject::connect(&app, &QGuiApplication::aboutToQuit, &app, [ros_node, ros_thread]() {
-        if (!ros_thread->isRunning()) {
-            return;
-        }
-
-        RCLCPP_INFO(ros_node->get_logger(), "Application is about to quit. Starting shutdown sequence.");
-
-        // 第1步：停止ROS的spin()循环。
-        // 这会解除对ros_thread事件循环的阻塞，使其能够处理后续的Qt事件（比如deleteLater）。
-        rclcpp::shutdown();
-
-        // 第2步：请求在ros_thread线程中安全地删除ros_node。
-        // deleteLater()会向ros_thread的事件队列发布一个删除事件。
-        // 节点将在自己的线程中被销毁，从而避免了跨线程销毁定时器的警告。
-        ros_node->deleteLater();
-
-        // 第3步：请求ros_thread的事件循环在处理完所有待办事件后退出。
-        ros_thread->quit();
-
-        // 第4步：阻塞主线程，等待ros_thread完全结束。
-        // 推荐给一个超时时间，以防万一线程卡死。
-        if (!ros_thread->wait(2000)) { // 等待最多2秒
-            RCLCPP_WARN(ros_node->get_logger(), "ROS thread did not terminate gracefully. Forcing termination.");
-            ros_thread->terminate(); // 作为最后的手段
-            ros_thread->wait();
-        }
-
-        // 第5步：现在ros_thread已经停止，可以安全地从主线程删除QThread对象本身。
-        delete ros_thread;
-
-        RCLCPP_INFO(ros_node->get_logger(), "Shutdown sequence complete.");
-    });
-
-    // 8. 启动ROS线程
+    // 7. 启动ROS线程
     ros_thread->start();
 
     QQmlApplicationEngine engine;
@@ -172,7 +166,7 @@ int main(int argc, char *argv[])
     // 修正这里的URL，使其与真实路径完全匹配
     const QUrl url(QStringLiteral("qrc:/qt_node/qml/Main.qml"));
 
-    // 9. 将我们的ros_proxy代理暴露给QML，这样QML就可以调用它的方法
+    // 8. 将我们的ros_proxy代理暴露给QML，这样QML就可以调用它的方法
     engine.rootContext()->setContextProperty("rosProxy", ros_proxy.get());
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,

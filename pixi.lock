@@ -262,6 +262,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pyyaml-6.0.3-pyh7db6752_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/qhull-2020.2-hc790b64_5.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/qt-main-5.15.15-hb098fff_6.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/qt6-charts-6.9.3-hac47afa_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/qt6-main-6.9.3-ha0de62e_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/rav1e-0.7.1-ha073cba_3.conda
       - conda: https://conda.anaconda.org/robostack-jazzy/win-64/ros-jazzy-action-msgs-2.0.3-np126py312h4d29ed4_10.conda
@@ -3888,6 +3889,19 @@ packages:
   license_family: LGPL
   size: 59506014
   timestamp: 1760357612191
+- conda: https://conda.anaconda.org/conda-forge/win-64/qt6-charts-6.9.3-hac47afa_0.conda
+  sha256: 4afaef537b6dbd68f257f870e02b6ce269c19d2182f76d69534e6b842c93ba2a
+  md5: 2aac98894c3b3fe90d7ba6676a7706b5
+  depends:
+  - qt6-main 6.9.3.*
+  - qt6-main >=6.9.3,<6.10.0a0
+  - ucrt >=10.0.20348.0
+  - vc >=14.3,<15
+  - vc14_runtime >=14.44.35208
+  license: GPL-3.0-only
+  license_family: GPL
+  size: 912887
+  timestamp: 1759322861230
 - conda: https://conda.anaconda.org/conda-forge/win-64/qt6-main-6.9.3-ha0de62e_0.conda
   sha256: 2fb9f30a6bf9211f3ef0e1f49990a2f70794ed85bce21d172864f129d2437714
   md5: ba19851ccdcee8d0a074cb3738b08f60

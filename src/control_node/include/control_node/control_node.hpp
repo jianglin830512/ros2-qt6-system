@@ -1,86 +1,110 @@
 ﻿#ifndef CONTROL_NODE_HPP_
 #define CONTROL_NODE_HPP_
 
-#include "rclcpp/rclcpp.hpp"  // IWYU pragma: keep
-#include <memory>
+#include "rclcpp/rclcpp.hpp" // IWYU pragma: keep
+//#include <memory>
 
-// === 包含所有需要的消息和服务的头文件 ===
-
-// 命令消息 (订阅)
-#include "ros2_interfaces/msg/voltage_regulator_command.hpp"
-#include "ros2_interfaces/msg/circuit_command.hpp"
+// --- 消息和服务的头文件 ---
+// Status & Settings (发布用)
+#include "ros2_interfaces/msg/regulator_status.hpp"
+#include "ros2_interfaces/msg/circuit_status.hpp"
+#include "ros2_interfaces/msg/system_settings.hpp"
+#include "ros2_interfaces/msg/regulator_settings.hpp"
+#include "ros2_interfaces/msg/circuit_settings.hpp"
+// Commands (订阅用)
+#include "ros2_interfaces/msg/regulator_operation_command.hpp"
 #include "std_msgs/msg/empty.hpp"
-
-// 服务消息 (服务器)
+// Command Services (Server用)
+#include "ros2_interfaces/srv/regulator_breaker_command.hpp"
+#include "ros2_interfaces/srv/circuit_mode_command.hpp"
+#include "ros2_interfaces/srv/circuit_breaker_command.hpp"
+// Settings Services (Server用)
 #include "ros2_interfaces/srv/set_system_settings.hpp"
 #include "ros2_interfaces/srv/set_regulator_settings.hpp"
 #include "ros2_interfaces/srv/set_circuit_settings.hpp"
 
-// === 前向声明，以避免在头文件中包含具体实现，保持解耦 ===
-class StateManager;
-class HardwareCoordinator;
-class ControlLogic;
-class PersistenceCoordinator;
-struct ControlNodeContext;
 
+// --- 前向声明 ---
+class StateManager;
+class IHardwareCoordinator;
+class IPersistenceCoordinator;
+class ControlLogic;
+
+/**
+ * @class ControlNode
+ * @brief 项目的主ROS节点，负责创建和管理核心组件，并处理所有ROS通信。
+ *
+ * 此类继承自 rclcpp::Node 和 std::enable_shared_from_this，
+ * 以便能够将自身的共享指针传递给它所创建的组件。
+ * 它拥有核心组件的所有实例，并负责依赖注入。
+ */
 class ControlNode : public rclcpp::Node
 {
 public:
     ControlNode();
-    ~ControlNode(); // 析构函数是个好习惯
+    ~ControlNode();
+
+    // 新的初始化方法，在构造后调用
+    void initialize_components();
 
 private:
     // === 回调函数声明 ===
-    // --- 命令回调 (来自订阅) ---
-    void regulator_command_callback(const ros2_interfaces::msg::VoltageRegulatorCommand::SharedPtr msg);
-    void circuit_command_callback(const ros2_interfaces::msg::CircuitCommand::SharedPtr msg);
+    void regulator_operation_command_callback(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg);
     void clear_alarm_callback(const std_msgs::msg::Empty::SharedPtr msg);
-
-    // --- 服务回调 (来自服务) ---
+    void regulator_breaker_command_callback(
+        const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request,
+        std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Response> response);
+    void circuit_mode_command_callback(
+        const std::shared_ptr<ros2_interfaces::srv::CircuitModeCommand::Request> request,
+        std::shared_ptr<ros2_interfaces::srv::CircuitModeCommand::Response> response);
+    void circuit_breaker_command_callback(
+        const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request> request,
+        std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Response> response);
     void set_system_settings_callback(
         const std::shared_ptr<ros2_interfaces::srv::SetSystemSettings::Request> request,
         std::shared_ptr<ros2_interfaces::srv::SetSystemSettings::Response> response);
-
     void set_regulator_settings_callback(
         const std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Request> request,
         std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Response> response);
-
     void set_circuit_settings_callback(
         const std::shared_ptr<ros2_interfaces::srv::SetCircuitSettings::Request> request,
         std::shared_ptr<ros2_interfaces::srv::SetCircuitSettings::Response> response);
-
+    void broadcast_status_callback(); // 广播回调
+    void broadcast_settings_callback();
 
     // === ROS 句柄 (API层) ===
-    // --- 订阅器 (保留，因为它们是节点的输入接口) ---
-    rclcpp::Subscription<ros2_interfaces::msg::VoltageRegulatorCommand>::SharedPtr regulator_command_sub_;
-    rclcpp::Subscription<ros2_interfaces::msg::CircuitCommand>::SharedPtr circuit_command_sub_;
+    // Publishers
+    rclcpp::Publisher<ros2_interfaces::msg::CircuitStatus>::SharedPtr circuit_status_pub_;
+    rclcpp::Publisher<ros2_interfaces::msg::RegulatorStatus>::SharedPtr regulator_status_pub_;
+    // Settings Publishers
+    rclcpp::Publisher<ros2_interfaces::msg::SystemSettings>::SharedPtr system_settings_pub_;
+    rclcpp::Publisher<ros2_interfaces::msg::RegulatorSettings>::SharedPtr regulator_settings_pub_;
+    rclcpp::Publisher<ros2_interfaces::msg::CircuitSettings>::SharedPtr circuit_settings_pub_;
+
+    // Subscribers
+    rclcpp::Subscription<ros2_interfaces::msg::RegulatorOperationCommand>::SharedPtr regulator_operation_command_sub_;
     rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr clear_alarm_sub_;
 
-    // --- 服务服务器 (保留，因为它们是节点的输入接口) ---
+    // Service Servers
     rclcpp::Service<ros2_interfaces::srv::SetSystemSettings>::SharedPtr set_system_settings_service_;
     rclcpp::Service<ros2_interfaces::srv::SetRegulatorSettings>::SharedPtr set_regulator_settings_service_;
     rclcpp::Service<ros2_interfaces::srv::SetCircuitSettings>::SharedPtr set_circuit_settings_service_;
+    // Command Service Servers
+    rclcpp::Service<ros2_interfaces::srv::RegulatorBreakerCommand>::SharedPtr regulator_breaker_command_service_;
+    rclcpp::Service<ros2_interfaces::srv::CircuitModeCommand>::SharedPtr circuit_mode_command_service_;
+    rclcpp::Service<ros2_interfaces::srv::CircuitBreakerCommand>::SharedPtr circuit_breaker_command_service_;
 
-    // --- 核心定时器 (新的，用于驱动控制逻辑) ---
-    rclcpp::TimerBase::SharedPtr control_logic_timer_;
+    // 驱动控制逻辑的核心定时器
+    rclcpp::TimerBase::SharedPtr control_logic_timer_; // 50Hz 逻辑更新
+    rclcpp::TimerBase::SharedPtr status_broadcast_timer_;     // 较慢的广播
+    rclcpp::TimerBase::SharedPtr settings_broadcast_timer_;     // 较慢的广播
+    rclcpp::TimerBase::SharedPtr lifecycle_check_timer_;
 
-
-    // === 核心组件实例 (新的内部架构) ===
-    std::shared_ptr<ControlNodeContext> context_;
+    // === 核心组件实例 (由本节点拥有) ===
+    std::shared_ptr<StateManager> state_manager_;
+    std::shared_ptr<IHardwareCoordinator> hardware_coordinator_;
+    std::shared_ptr<IPersistenceCoordinator> persistence_coordinator_;
     std::unique_ptr<ControlLogic> control_logic_;
-
-    // === 配置变量 (保留，用于初始化) ===
-    std::string circuit_status_topic_;
-    std::string regulator_status_topic_;
-    std::string regulator_command_topic_;
-    std::string circuit_command_topic_;
-    std::string clear_alarm_topic_;
-    std::string set_system_settings_service_name_;
-    std::string set_regulator_settings_service_name_;
-    std::string set_circuit_settings_service_name_;
-    std::string save_system_settings_service_name_;
-    std::string save_regulator_settings_service_name_;
-    std::string save_circuit_settings_service_name_;
 
     // === 多线程的组 ===
     rclcpp::CallbackGroup::SharedPtr client_cb_group_;

@@ -2,7 +2,7 @@
 std_msgs/Header header
 
 # --- 调压器编号 ---
-uint8 voltage_regulator_id # 编号
+uint8 regulator_id # 编号
 
 # --- 调压器读数 (连续值) ---
 float64 voltage_reading   # 电压值

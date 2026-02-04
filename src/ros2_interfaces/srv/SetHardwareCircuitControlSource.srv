@@ -1,0 +1,15 @@
+# 设置硬件回路的控制源 (仅在自动模式下有效)
+
+# --- Request ---
+uint8 circuit_id
+
+# 控制源常量定义
+uint8 SOURCE_TEST_LOOP = 1  # 使用试验回路数据作为反馈
+uint8 SOURCE_REF_LOOP = 2   # 使用参考回路数据作为反馈
+
+uint8 source
+
+---
+# --- Response ---
+bool success
+string message

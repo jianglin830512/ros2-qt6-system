@@ -1,13 +1,28 @@
-# 'record_node' 节点的参数
+﻿# 'record_node' 节点的参数
 record_node:
   ros__parameters:
-    
+
     # 数据库文件路径。可以是绝对路径，也可以是相对于节点运行目录的相对路径。
     db_path: "records_and_settings.db"
 
-    # 本节点提供的服务名称。
-    # 注意: 这些名称必须与 control_node_config.yaml 中 'Client' 部分的服务名称完全匹配，
-    # 这样 control_node 的客户端才能找到 record_node 提供的服务。
+    # --- 数据记录配置 ---
+    # 定时记录间隔 (单位: 分钟)
+    # 建议设置在 1 - 10 之间。节点会在整分钟时刻 (如 9:00:00, 9:01:00) 触发记录。
+    record_interval_min: 2
+
+    # --- Topic 订阅配置 ---
+    # 这些话题名称必须与 Control Node 的配置文件完全一致，
+    # 否则 Record Node 无法接收到状态数据。
+    circuit_status_topic: "circuit_status"
+    regulator_status_topic: "voltage_regulator_status"
+
+    # --- 服务名称配置 (客户端调用以保存设置) ---
     save_system_settings_service: "save_system_settings"
     save_regulator_settings_service: "save_regulator_settings"
     save_circuit_settings_service: "save_circuit_settings"
+
+    # --- 查询类服务名称配置 (用于初始化加载或读取历史记录) ---
+    get_system_settings_service: "get_system_settings"
+    get_regulator_settings_service: "get_regulator_settings"
+    get_circuit_settings_service: "get_circuit_settings"
+    get_data_records_service: "get_data_records"

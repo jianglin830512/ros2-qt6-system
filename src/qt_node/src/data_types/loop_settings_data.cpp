@@ -11,8 +11,10 @@ int LoopSettingsData::max_current_a() const { return m_max_current_a; }
 int LoopSettingsData::current_change_range_percent() const { return m_current_change_range_percent; }
 int LoopSettingsData::ct_ratio() const { return m_ct_ratio; }
 int LoopSettingsData::cycle_count() const { return m_cycle_count; }
-QDateTime LoopSettingsData::start_datetime() const { return m_start_datetime; }
+QDateTime LoopSettingsData::start_date() const { return m_start_date; }
+int LoopSettingsData::heating_start_time_sec() const { return m_heating_start_time_sec; }
 int LoopSettingsData::heating_duration_sec() const { return m_heating_duration_sec; }
+bool LoopSettingsData::enabled() const{ return m_enabled; }
 
 // --- Setters ---
 void LoopSettingsData::setStart_current_a(int start_current_a)
@@ -51,18 +53,37 @@ void LoopSettingsData::setCycle_count(int cycle_count)
     }
 }
 
-void LoopSettingsData::setStart_datetime(const QDateTime &start_datetime)
+void LoopSettingsData::setStart_date(const QDateTime &start_date)
 {
-    if (m_start_datetime != start_datetime) {
-        m_start_datetime = start_datetime;
-        emit start_datetimeChanged();
+    // 我们可以强制把时间设为 00:00:00，或者完全信任 UI 传递的日期
+    // 这里只比较日期部分是否变化，或者直接比较 QDateTime
+    if (m_start_date != start_date) {
+        m_start_date = start_date;
+        emit start_dateChanged();
     }
 }
+
+void LoopSettingsData::setHeating_start_time_sec(int heating_start_time_sec)
+{
+    if (m_heating_start_time_sec != heating_start_time_sec) {
+        m_heating_start_time_sec = heating_start_time_sec;
+        emit heating_start_time_secChanged();
+    }
+}
+
 void LoopSettingsData::setHeating_duration_sec(int heating_duration_sec)
 {
     if (m_heating_duration_sec != heating_duration_sec) {
         m_heating_duration_sec = heating_duration_sec;
         emit heating_duration_secChanged();
+    }
+}
+
+void LoopSettingsData::setEnabled(bool enabled)
+{
+    if (m_enabled != enabled) {
+        m_enabled = enabled;
+        emit enabledChanged(); // 发射信号！
     }
 }
 
@@ -74,6 +95,8 @@ bool LoopSettingsData::operator==(const LoopSettingsData& other) const
            m_current_change_range_percent == other.m_current_change_range_percent &&
            m_ct_ratio == other.m_ct_ratio &&
            m_cycle_count == other.m_cycle_count &&
-           m_start_datetime == other.m_start_datetime &&
-           m_heating_duration_sec == other.m_heating_duration_sec;
+           m_start_date == other.m_start_date &&
+           m_heating_start_time_sec == other.m_heating_start_time_sec &&
+           m_heating_duration_sec == other.m_heating_duration_sec &&
+           m_enabled == other.m_enabled;
 }

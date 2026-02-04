@@ -1,0 +1,22 @@
+# 调压器断路器命令 (合闸/分闸)
+
+# --- 请求 Request ---
+
+# 目标调压器的ID
+uint8 regulator_id
+
+# 命令常量定义
+uint8 CMD_BREAKER_CLOSE = 1 # 合闸
+uint8 CMD_BREAKER_OPEN = 2  # 分闸
+
+# 要执行的命令
+uint8 command
+
+---
+# --- 响应 Response ---
+
+# true 表示命令已成功接收和执行
+bool success
+
+# 提供额外的信息，例如成功或失败的原因
+string message

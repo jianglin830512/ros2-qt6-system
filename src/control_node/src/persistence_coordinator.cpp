@@ -1,108 +1,104 @@
 ﻿#include "control_node/persistence_coordinator.hpp"
+#include "control_node/control_node_constants.hpp"
 
 PersistenceCoordinator::PersistenceCoordinator(
     StateManager* state_manager,
-    std::shared_ptr<ControlNodeContext> context)
-    : state_manager_(state_manager),
-    context_(context)
+    rclcpp::Node::SharedPtr node,
+    rclcpp::CallbackGroup::SharedPtr client_cb_group)
+    : state_manager_(state_manager), node_(node)
 {
-    RCLCPP_INFO(context_->logging_interface->get_logger(), "Persistence Coordinator initialized.");
+    // --- 1. 初始化保存服务客户端 (Set) ---
+    auto save_sys_name = node_->declare_parameter<std::string>(control_node_constants::SAVE_SYSTEM_SETTINGS_SERVICE_PARAM, control_node_constants::DEFAULT_SAVE_SYSTEM_SETTINGS_SERVICE);
+    save_system_settings_client_ = node_->create_client<ros2_interfaces::srv::SetSystemSettings>(save_sys_name, rclcpp::ServicesQoS(), client_cb_group);
+
+    auto save_reg_name = node_->declare_parameter<std::string>(control_node_constants::SAVE_REGULATOR_SETTINGS_SERVICE_PARAM, control_node_constants::DEFAULT_SAVE_REGULATOR_SETTINGS_SERVICE);
+    save_regulator_settings_client_ = node_->create_client<ros2_interfaces::srv::SetRegulatorSettings>(save_reg_name, rclcpp::ServicesQoS(), client_cb_group);
+
+    auto save_cir_name = node_->declare_parameter<std::string>(control_node_constants::SAVE_CIRCUIT_SETTINGS_SERVICE_PARAM, control_node_constants::DEFAULT_SAVE_CIRCUIT_SETTINGS_SERVICE);
+    save_circuit_settings_client_ = node_->create_client<ros2_interfaces::srv::SetCircuitSettings>(save_cir_name, rclcpp::ServicesQoS(), client_cb_group);
+
+    // --- 2. 初始化查询服务客户端 (Get) ---
+    auto get_sys_name = node_->declare_parameter<std::string>(control_node_constants::GET_SYSTEM_SETTINGS_SERVICE_PARAM, control_node_constants::DEFAULT_GET_SYSTEM_SETTINGS_SERVICE);
+    get_system_settings_client_ = node_->create_client<ros2_interfaces::srv::GetSystemSettings>(get_sys_name, rclcpp::ServicesQoS(), client_cb_group);
+
+    auto get_reg_name = node_->declare_parameter<std::string>(control_node_constants::GET_REGULATOR_SETTINGS_SERVICE_PARAM, control_node_constants::DEFAULT_GET_REGULATOR_SETTINGS_SERVICE);
+    get_regulator_settings_client_ = node_->create_client<ros2_interfaces::srv::GetRegulatorSettings>(get_reg_name, rclcpp::ServicesQoS(), client_cb_group);
+
+    auto get_cir_name = node_->declare_parameter<std::string>(control_node_constants::GET_CIRCUIT_SETTINGS_SERVICE_PARAM, control_node_constants::DEFAULT_GET_CIRCUIT_SETTINGS_SERVICE);
+    get_circuit_settings_client_ = node_->create_client<ros2_interfaces::srv::GetCircuitSettings>(get_cir_name, rclcpp::ServicesQoS(), client_cb_group);
 }
 
-void PersistenceCoordinator::save_system_settings(PersistenceCallback callback)
+bool PersistenceCoordinator::is_connected() const
 {
-    auto client = context_->save_system_settings_client;
-    if (!client) {
-        RCLCPP_ERROR(context_->logging_interface->get_logger(), "Save system settings client is not initialized!");
-        if (callback) callback(false, "Client not initialized");
-        return;
-    }
+    // 检查 "get_system_settings" 服务代表 Record Node 是否在线
+    return get_system_settings_client_->service_is_ready();
+}
 
-    if (!client->service_is_ready()) {
-        RCLCPP_WARN(context_->logging_interface->get_logger(), "Save system settings service not available.");
-        if (callback) callback(false, "Service not available");
-        return;
-    }
-
+// --- 保存方法的实现 ---
+void PersistenceCoordinator::save_system_settings(PersistenceCallback callback) {
+    if (!save_system_settings_client_->service_is_ready()) { if(callback) callback(false, "Service Not Ready"); return; }
     auto request = std::make_shared<ros2_interfaces::srv::SetSystemSettings::Request>();
     request->settings = state_manager_->get_system_settings();
-
-    auto response_callback = [this, callback](rclcpp::Client<ros2_interfaces::srv::SetSystemSettings>::SharedFuture future) {
-        if (!callback) return;
-        try {
-            auto result = future.get();
-            callback(result->success, result->message);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(context_->logging_interface->get_logger(), "Exception while calling save_system_settings service: %s", e.what());
-            callback(false, "Service call failed with exception");
-        }
-    };
-
-    client->async_send_request(request, response_callback);
+    save_system_settings_client_->async_send_request(request, [callback](rclcpp::Client<ros2_interfaces::srv::SetSystemSettings>::SharedFuture future) {
+        auto resp = future.get();
+        if(callback) callback(resp->success, resp->message);
+    });
 }
-
-void PersistenceCoordinator::save_regulator_settings(uint8_t regulator_id, PersistenceCallback callback)
-{
-    auto client = context_->save_regulator_settings_client;
-    if (!client) {
-        RCLCPP_ERROR(context_->logging_interface->get_logger(), "Save regulator settings client is not initialized!");
-        if (callback) callback(false, "Client not initialized");
-        return;
-    }
-
-    if (!client->service_is_ready()) {
-        RCLCPP_WARN(context_->logging_interface->get_logger(), "Save regulator settings service not available.");
-        if (callback) callback(false, "Service not available");
-        return;
-    }
-
+// (注：save_regulator_settings 和 save_circuit_settings 逻辑类似，此处省略具体重复代码，参考 save_system_settings 即可)
+void PersistenceCoordinator::save_regulator_settings(uint8_t regulator_id, PersistenceCallback callback) {
     auto request = std::make_shared<ros2_interfaces::srv::SetRegulatorSettings::Request>();
-    request->regulator_id = regulator_id;
     request->settings = state_manager_->get_regulator_settings(regulator_id);
-
-    auto response_callback = [this, callback, regulator_id](rclcpp::Client<ros2_interfaces::srv::SetRegulatorSettings>::SharedFuture future) {
-        if (!callback) return;
-        try {
-            auto result = future.get();
-            callback(result->success, result->message);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(context_->logging_interface->get_logger(), "Exception while calling save_regulator_settings for ID %u: %s", regulator_id, e.what());
-            callback(false, "Service call failed with exception");
-        }
-    };
-
-    client->async_send_request(request, response_callback);
+    save_regulator_settings_client_->async_send_request(request, [callback](rclcpp::Client<ros2_interfaces::srv::SetRegulatorSettings>::SharedFuture future) {
+        auto resp = future.get();
+        if(callback) callback(resp->success, resp->message);
+    });
 }
 
-void PersistenceCoordinator::save_circuit_settings(uint8_t circuit_id, PersistenceCallback callback)
-{
-    auto client = context_->save_circuit_settings_client;
-    if (!client) {
-        RCLCPP_ERROR(context_->logging_interface->get_logger(), "Save circuit settings client is not initialized!");
-        if (callback) callback(false, "Client not initialized");
-        return;
-    }
-
-    if (!client->service_is_ready()) {
-        RCLCPP_WARN(context_->logging_interface->get_logger(), "Save circuit settings service is not available.");
-        if (callback) callback(false, "Service not available");
-        return;
-    }
-
+void PersistenceCoordinator::save_circuit_settings(uint8_t circuit_id, PersistenceCallback callback) {
     auto request = std::make_shared<ros2_interfaces::srv::SetCircuitSettings::Request>();
-    request->circuit_id = circuit_id;
     request->settings = state_manager_->get_circuit_settings(circuit_id);
+    save_circuit_settings_client_->async_send_request(request, [callback](rclcpp::Client<ros2_interfaces::srv::SetCircuitSettings>::SharedFuture future) {
+        auto resp = future.get();
+        if(callback) callback(resp->success, resp->message);
+    });
+}
 
-    auto response_callback = [this, callback, circuit_id](rclcpp::Client<ros2_interfaces::srv::SetCircuitSettings>::SharedFuture future) {
-        if (!callback) return;
+// --- 获取方法 (Adapter) 的实现：将 Service Response 剥离，只回传 Message ---
+
+void PersistenceCoordinator::get_system_settings(GetSystemSettingsCallback callback) {
+    auto request = std::make_shared<ros2_interfaces::srv::GetSystemSettings::Request>();
+    get_system_settings_client_->async_send_request(request, [callback](rclcpp::Client<ros2_interfaces::srv::GetSystemSettings>::SharedFuture future) {
         try {
-            auto result = future.get();
-            callback(result->success, result->message);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(context_->logging_interface->get_logger(), "Exception while calling save_circuit_settings for ID %u: %s", circuit_id, e.what());
-            callback(false, "Service call failed with exception");
+            auto response = future.get();
+            if (callback) callback(response->success, response->settings);
+        } catch (...) {
+            if (callback) callback(false, ros2_interfaces::msg::SystemSettings());
         }
-    };
+    });
+}
 
-    client->async_send_request(request, response_callback);
+void PersistenceCoordinator::get_regulator_settings(uint8_t regulator_id, GetRegulatorSettingsCallback callback) {
+    auto request = std::make_shared<ros2_interfaces::srv::GetRegulatorSettings::Request>();
+    request->regulator_id = regulator_id;
+    get_regulator_settings_client_->async_send_request(request, [callback](rclcpp::Client<ros2_interfaces::srv::GetRegulatorSettings>::SharedFuture future) {
+        try {
+            auto response = future.get();
+            if (callback) callback(response->success, response->settings);
+        } catch (...) {
+            if (callback) callback(false, ros2_interfaces::msg::RegulatorSettings());
+        }
+    });
+}
+
+void PersistenceCoordinator::get_circuit_settings(uint8_t circuit_id, GetCircuitSettingsCallback callback) {
+    auto request = std::make_shared<ros2_interfaces::srv::GetCircuitSettings::Request>();
+    request->circuit_id = circuit_id;
+    get_circuit_settings_client_->async_send_request(request, [callback](rclcpp::Client<ros2_interfaces::srv::GetCircuitSettings>::SharedFuture future) {
+        try {
+            auto response = future.get();
+            if (callback) callback(response->success, response->settings);
+        } catch (...) {
+            if (callback) callback(false, ros2_interfaces::msg::CircuitSettings());
+        }
+    });
 }

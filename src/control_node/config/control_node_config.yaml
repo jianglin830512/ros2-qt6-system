@@ -1,28 +1,103 @@
-﻿# 为您的节点 'qt_ros_node' 定义参数
-# 注意: 这里的节点名需要和您在C++代码中创建节点时使用的名称一致
-control_node:
+﻿control_node:
   ros__parameters:
-    
-    # --- 发布器话题名称 ---
-    # control_node_constants::CIRCUIT_STATUS_TOPIC_PARAM
+
+    # =================================================
+    #               与 QT_NODE 通信
+    # =================================================
+
+    # --- 发布器 (Publishers) ---
+
+    # 发布状态给 qt_node
     circuit_status_topic: "circuit_status"
-    # control_node_constants::REGULATOR_STATUS_TOPIC_PARAM
     regulator_status_topic: "voltage_regulator_status"
 
-    # --- 订阅器话题名称 ---
-    # control_node_constants::REGULATOR_COMMAND_TOPIC_PARAM
-    regulator_command_topic: "regulator_command"
-    # control_node_constants::CIRCUIT_COMMAND_TOPIC_PARAM
-    circuit_command_topic: "circuit_command"
-    # control_node_constants::CLEAR_ALARM_TOPIC_PARAM
-    clear_alarm_topic: "clear_alarm_command"
+    # 发布当前设置给 qt_node，用于同步UI状态
+    system_settings_topic: "system_settings"
+    regulator_settings_topic: "regulator_settings"
+    circuit_settings_topic: "circuit_settings"
 
-    # --- 服务名称 ---
-    # Server
+    # --- 订阅器 (Subscribers) ---
+
+    # 订阅调压器的持续性操作命令 (升/降/停)
+    regulator_operation_command_topic: "regulator_operation_command"
+
+    # 订阅清除报警命令
+    clear_alarm_topic: "clear_alarm"
+
+    # --- 服务提供方 (Servers) ---
+
+    # 为 qt_node 提供一次性命令服务
+    regulator_breaker_command_service: "regulator_breaker_command"
+    circuit_mode_command_service: "circuit_mode_command"
+    circuit_breaker_command_service: "circuit_breaker_command"
+
+    # 为 qt_node 提供参数设置服务
     set_system_settings_service: "set_system_settings"
     set_regulator_settings_service: "set_regulator_settings"
     set_circuit_settings_service: "set_circuit_settings"
-    # Client
+
+
+    # =================================================
+    #               与 RECORD_NODE 通信
+    # =================================================
+
+    # --- 服务调用方 (Clients) ---
+
+    # 调用 record_node 的保存服务
     save_system_settings_service: "save_system_settings"
     save_regulator_settings_service: "save_regulator_settings"
     save_circuit_settings_service: "save_circuit_settings"
+
+    get_system_settings_service: "get_system_settings"
+    get_regulator_settings_service: "get_regulator_settings"
+    get_circuit_settings_service: "get_circuit_settings"
+
+
+    # =================================================
+    #               与 HARDWARE_NODE 通信
+    # =================================================
+
+    # --- 发布器 (Publishers) ---
+
+    # 发布调压器操作命令 (升/降/停)
+    # control_node_constants::HARDWARE_REGULATOR_OPERATION_COMMAND_TOPIC_PARAM
+    hardware_regulator_operation_command_topic: "hardware_regulator_operation_command"
+
+    # 发布清除硬件报警命令
+    # control_node_constants::HARDWARE_CLEAR_ALARM_TOPIC_PARAM
+    hardware_clear_alarm_topic: "hardware_clear_alarm"
+
+    # --- 订阅器 (Subscribers) ---
+
+    # 订阅硬件状态
+    # control_node_constants::HARDWARE_CIRCUIT_STATUS_TOPIC_PARAM
+    hardware_circuit_status_topic: "hardware_circuit_status"
+    # control_node_constants::HARDWARE_REGULATOR_STATUS_TOPIC_PARAM
+    hardware_regulator_status_topic: "hardware_regulator_status"
+
+    # 订阅硬件当前设置
+    # control_node_constants::HARDWARE_CIRCUIT_SETTINGS_TOPIC_PARAM
+    hardware_circuit_settings_topic: "hardware_circuit_settings"
+    # control_node_constants::HARDWARE_REGULATOR_SETTINGS_TOPIC_PARAM
+    hardware_regulator_settings_topic: "hardware_regulator_settings"
+
+    # --- 服务调用方 (Clients) ---
+
+    # 调用 hardware_node 的设置服务
+    # control_node_constants::SET_HARDWARE_REGULATOR_SETTINGS_SERVICE_PARAM
+    set_hardware_regulator_settings_service: "set_hardware_regulator_settings"
+    # control_node_constants::SET_HARDWARE_CIRCUIT_SETTINGS_SERVICE_PARAM
+    set_hardware_circuit_settings_service: "set_hardware_circuit_settings"
+
+    # 调用 hardware_node 的命令服务
+    # control_node_constants::HARDWARE_REGULATOR_BREAKER_COMMAND_SERVICE_PARAM
+    hardware_regulator_breaker_command_service: "hardware_regulator_breaker_command"
+    # control_node_constants::HARDWARE_CIRCUIT_BREAKER_COMMAND_SERVICE_PARAM
+    hardware_circuit_breaker_command_service: "hardware_circuit_breaker_command"
+
+    # 调用 hardware_node 的 PLC 状态控制服务
+    # control_node_constants::HARDWARE_SET_CONTROL_MODE_SERVICE_PARAM
+    hardware_set_control_mode_service: "hardware_set_control_mode"
+
+    # control_node_constants::HARDWARE_SET_CONTROL_SOURCE_SERVICE_PARAM
+    hardware_set_control_source_service: "hardware_set_control_source"
