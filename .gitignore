@@ -19,4 +19,4 @@ ros_auto_launch.bat
 ros_auto_launch.ps1
 
 # database
-database/
+records_and_settings.db

@@ -4,8 +4,8 @@ uint8 control_mode
 float64 regulator_voltage
 float64 regulator_current
 bool regulator_breaker_closed
-bool test_loop_enabled
-bool ref_loop_enabled
+bool test_loop_is_heat
+bool ref_loop_is_heat
 float64 test_loop_current
 float64 ref_loop_current
 bool test_loop_breaker_closed

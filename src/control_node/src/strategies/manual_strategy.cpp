@@ -14,30 +14,46 @@ ManualStrategy::ManualStrategy(
 
 void ManualStrategy::reset()
 {
-    // 手动模式没有积分项，但重置一下时间戳是个好习惯
     last_check_time_ = rclcpp::Time(0, 0, RCL_SYSTEM_TIME);
 }
 
 void ManualStrategy::update()
 {
-    // 手动模式对账逻辑：
-    // 持续检查硬件是否处于 Manual 模式。如果不是，发送指令切回 Manual。
-
+    // Check synchronization with PLC (Low frequency)
     auto now = rclcpp::Clock().now();
-    if ((now - last_check_time_).seconds() < 1.0) {
-        return; // 1Hz 检查频率
+    if (now - last_check_time_ < check_interval_) {
+        return;
     }
     last_check_time_ = now;
 
-    auto hw_status = state_manager_->get_hardware_circuit_status(circuit_id_);
-
-    if (hw_status.plc_control_mode != HwStatus::PLC_MODE_MANUAL) {
+    // Enforce PLC Mode: Manual
+    // Note: PLC_MODE_MANUAL corresponds to ROS Control Mode MANUAL
+    if (current_plc_control_mode_ != HwStatus::PLC_MODE_MANUAL) {
+        // Send command to switch PLC to Manual
         hardware_coordinator_->set_circuit_control_mode(circuit_id_, HwStatus::PLC_MODE_MANUAL);
     }
 }
 
-void ManualStrategy::handle_manual_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg)
+// --- Command Handlers: Pass-through allowed in Manual Mode ---
+
+void ManualStrategy::handle_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg)
 {
-    // 直接透传命令
+    // Directly forward to hardware
     hardware_coordinator_->send_regulator_operation_command(msg);
+}
+
+void ManualStrategy::handle_regulator_breaker_command(
+    const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request>& request,
+    StrategyCallback callback)
+{
+    // Directly forward to hardware
+    hardware_coordinator_->execute_regulator_breaker_command(request, callback);
+}
+
+void ManualStrategy::handle_circuit_breaker_command(
+    const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request>& request,
+    StrategyCallback callback)
+{
+    // Directly forward to hardware
+    hardware_coordinator_->execute_circuit_breaker_command(request, callback);
 }

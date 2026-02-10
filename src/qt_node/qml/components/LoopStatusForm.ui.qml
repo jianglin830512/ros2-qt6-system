@@ -25,6 +25,8 @@ Rectangle {
     property alias tempRepeater: tempRepeater
     property alias closeBreakerButton: closeBreakerButton
     property alias openBreakerButton: openBreakerButton
+    property alias isBlocked: inputBlocker.visible
+    property alias isButtonsBlocked: buttonBlocker.visible
 
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 10; spacing: 8
@@ -175,6 +177,14 @@ Rectangle {
                     colorWhenOn: "lime"
                 }
             }
+
+            // 专门针对按钮的遮罩
+            InputBlocker {
+                id: buttonBlocker
+                radius: 5
+                statusText: "" // 不需要文字，变暗即可，或者写“自动”
+                overlayColor: "#AA000000" // 稍微深一点
+            }
         }
         Item {
             id: timePanle
@@ -247,5 +257,14 @@ Rectangle {
                 }
             }
         }
+    }
+
+    InputBlocker {
+        id: inputBlocker
+        // 继承父级的圆角，让遮罩看起来不突兀
+        radius: root.radius
+        // 这里的 statusText 可以留空，因为面板上已经有红色的“停用”字样了，
+        // 纯粹变暗在视觉上更干净。
+        statusText: ""
     }
 }

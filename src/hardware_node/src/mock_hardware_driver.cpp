@@ -9,7 +9,12 @@ MockHardwareDriver::MockHardwareDriver(rclcpp::Logger logger)
 
 MockHardwareDriver::~MockHardwareDriver() = default;
 
-// --- 服务：指令下发 ---
+void MockHardwareDriver::update()
+{
+    // MockDevice 自带线程，不需要轮询驱动
+}
+
+// --- Service Handlers ---
 
 void MockHardwareDriver::handle_regulator_breaker_command(
     const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request, AsyncCallback callback)
@@ -34,23 +39,39 @@ void MockHardwareDriver::handle_set_hardware_regulator_settings_request(
     const std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Request> request, AsyncCallback callback)
 {
     MockDevice::RegulatorState s;
+    // 映射所有设置字段
+    s.id = request->settings.regulator_id;
     s.over_voltage_limit = request->settings.over_voltage_v;
-    s.speed_percent = request->settings.voltage_up_speed_percent;
+    s.over_current_limit = request->settings.over_current_a;
+    s.speed_up_percent = request->settings.voltage_up_speed_percent;
+    s.speed_down_percent = request->settings.voltage_down_speed_percent;
     s.ovp_enabled = request->settings.over_voltage_protection_mode;
+
     device_->update_reg_settings(request->settings.regulator_id, s);
-    callback(true, "Mock: Regulator settings updated.");
+    callback(true, "Mock: Regulator settings updated completely.");
 }
 
 void MockHardwareDriver::handle_set_hardware_circuit_settings_request(
     const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitSettings::Request> request, AsyncCallback callback)
 {
-    device_->update_circ_settings(request->settings.circuit_id,
-                                  request->settings.test_loop.max_current_a,
-                                  request->settings.ref_loop.max_current_a);
-    callback(true, "Mock: Circuit settings updated.");
+    MockDevice::LoopState test_s, ref_s;
+
+    // 映射试验回路设置
+    test_s.max_current_setting = request->settings.test_loop.max_current_a;
+    test_s.start_current_setting = request->settings.test_loop.start_current_a;
+    test_s.current_change_range = request->settings.test_loop.current_change_range_percent;
+    test_s.ct_ratio = request->settings.test_loop.ct_ratio;
+
+    // 映射参考回路设置
+    ref_s.max_current_setting = request->settings.ref_loop.max_current_a;
+    ref_s.start_current_setting = request->settings.ref_loop.start_current_a;
+    ref_s.current_change_range = request->settings.ref_loop.current_change_range_percent;
+    ref_s.ct_ratio = request->settings.ref_loop.ct_ratio;
+
+    device_->update_circ_settings(request->settings.circuit_id, test_s, ref_s);
+    callback(true, "Mock: Circuit settings updated completely.");
 }
 
-// [新增] 适配 IHardwareDriver 的新接口，替代旧的 handle_circuit_mode_command
 void MockHardwareDriver::handle_set_control_mode(
     const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request, AsyncCallback callback)
 {
@@ -69,7 +90,7 @@ void MockHardwareDriver::handle_clear_alarm() {
     device_->clear_alarms();
 }
 
-// --- 数据检索：状态回传 ---
+// --- Data Getters ---
 
 bool MockHardwareDriver::get_regulator_status(uint8_t regulator_id, ros2_interfaces::msg::RegulatorStatus& status)
 {
@@ -79,7 +100,7 @@ bool MockHardwareDriver::get_regulator_status(uint8_t regulator_id, ros2_interfa
     status.current_reading = dev.current;
     status.breaker_closed_switch_ack = dev.breaker_closed;
     status.breaker_opened_switch_ack = !dev.breaker_closed;
-    status.voltage_direction = dev.direction;
+    status.voltage_direction = dev.direction; // 1, -1, 0
     status.over_voltage_on = dev.over_voltage_alarm;
     status.over_current_on = dev.over_current_alarm;
     status.upper_limit_switch_on = dev.upper_limit_on;
@@ -92,23 +113,24 @@ bool MockHardwareDriver::get_circuit_status(uint8_t circuit_id, ros2_interfaces:
     auto dev = device_->get_circ(circuit_id);
     status.circuit_id = dev.id;
 
-    // 填充 PLC 模式反馈
+    // PLC 模式反馈
     status.plc_control_mode = dev.plc_mode;
     status.plc_control_source = dev.plc_source;
 
-    // 填充试验回路
-    status.test_loop.current = dev.test_loop.current;
-    status.test_loop.breaker_closed_switch_ack = dev.test_loop.breaker_closed;
-    status.test_loop.breaker_opened_switch_ack = !dev.test_loop.breaker_closed;
-    status.test_loop.over_current_on = dev.test_loop.over_current_alarm;
-    std::copy(std::begin(dev.test_loop.temperatures), std::end(dev.test_loop.temperatures), status.test_loop.temperature_array.begin());
+    // 辅助 lambda 填充 LoopStatus
+    auto fill_loop = [](ros2_interfaces::msg::HardwareLoopStatus& loop_msg, const MockDevice::LoopState& loop_dev) {
+        loop_msg.current = loop_dev.current;
+        loop_msg.breaker_closed_switch_ack = loop_dev.breaker_closed;
+        loop_msg.breaker_opened_switch_ack = !loop_dev.breaker_closed;
+        loop_msg.over_current_on = loop_dev.over_current_alarm;
+        // 复制温度数组 (float -> double/float64)
+        for(int i=0; i<16; ++i) {
+            loop_msg.temperature_array[i] = loop_dev.temperatures[i];
+        }
+    };
 
-    // 填充参考回路
-    status.ref_loop.current = dev.ref_loop.current;
-    status.ref_loop.breaker_closed_switch_ack = dev.ref_loop.breaker_closed;
-    status.ref_loop.breaker_opened_switch_ack = !dev.ref_loop.breaker_closed;
-    status.ref_loop.over_current_on = dev.ref_loop.over_current_alarm;
-    std::copy(std::begin(dev.ref_loop.temperatures), std::end(dev.ref_loop.temperatures), status.ref_loop.temperature_array.begin());
+    fill_loop(status.test_loop, dev.test_loop);
+    fill_loop(status.ref_loop, dev.ref_loop);
 
     return true;
 }
@@ -116,16 +138,30 @@ bool MockHardwareDriver::get_circuit_status(uint8_t circuit_id, ros2_interfaces:
 bool MockHardwareDriver::get_regulator_settings(uint8_t regulator_id, ros2_interfaces::msg::RegulatorSettings& settings) {
     auto dev = device_->get_reg(regulator_id);
     settings.regulator_id = regulator_id;
+
     settings.over_voltage_v = dev.over_voltage_limit;
-    settings.voltage_up_speed_percent = dev.speed_percent;
+    settings.over_current_a = dev.over_current_limit;
+    settings.voltage_up_speed_percent = dev.speed_up_percent;
+    settings.voltage_down_speed_percent = dev.speed_down_percent;
     settings.over_voltage_protection_mode = dev.ovp_enabled;
+
     return true;
 }
 
 bool MockHardwareDriver::get_circuit_settings(uint8_t circuit_id, ros2_interfaces::msg::HardwareCircuitSettings& settings) {
     auto dev = device_->get_circ(circuit_id);
     settings.circuit_id = circuit_id;
-    settings.test_loop.max_current_a = dev.test_loop.max_current_setting;
-    settings.ref_loop.max_current_a = dev.ref_loop.max_current_setting;
+
+    // 辅助 lambda 填充 LoopSettings
+    auto fill_settings = [](ros2_interfaces::msg::HardwareLoopSettings& l_msg, const MockDevice::LoopState& l_dev) {
+        l_msg.max_current_a = l_dev.max_current_setting;
+        l_msg.start_current_a = l_dev.start_current_setting;
+        l_msg.current_change_range_percent = l_dev.current_change_range;
+        l_msg.ct_ratio = l_dev.ct_ratio;
+    };
+
+    fill_settings(settings.test_loop, dev.test_loop);
+    fill_settings(settings.ref_loop, dev.ref_loop);
+
     return true;
 }

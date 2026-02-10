@@ -54,6 +54,25 @@ CircuitSettingsPageForm {
         return Date.fromLocaleString(Qt.locale(), normalized, "yyyy-MM-dd");
     }
 
+    // 用启停控制逻辑
+    function setLoopEnableState(loopType, enableState) {
+        if (!settingsData) return;
+
+        // 1. 深拷贝当前数据（或者是直接引用，取决于你的Proxy实现，通常直接修改var对象即可）
+        var data = settingsData;
+
+        // 2. 修改对应的 enable 字段
+        if (loopType === "test") {
+            data.test_loop.enabled = enableState;
+        } else if (loopType === "ref") {
+            data.ref_loop.enabled = enableState;
+        }
+
+        // 3. 将修改后的整个配置结构体回写给后端
+        // 后端收到后，应当根据 enabled 的变化去驱动底层硬件
+        rosProxy.setCircuitSettings(circuitId, data);
+    }
+
     // ========================================================
     // 2. 数据同步 (拆分逻辑以支持还原功能)
     // ========================================================
@@ -109,7 +128,10 @@ CircuitSettingsPageForm {
         sampleType.settingValue = sample.cable_type;
         sampleSpec.settingValue = sample.cable_spec;
         sampleInsMaterial.settingValue = sample.insulation_material;
-        sampleInsThick.settingValue = sample.insulation_thickness.toString();
+
+        // 【修改】绝缘厚度：保留两位小数转为字符串
+        // 如果后端传回 0，则显示 "0.00"
+        sampleInsThick.settingValue = sample.insulation_thickness ? sample.insulation_thickness.toFixed(2) : "0.00";
     }
 
     // 总同步入口
@@ -126,6 +148,7 @@ CircuitSettingsPageForm {
         var data = settingsData;
 
         // --- Test Loop Feedback ---
+        testStartStop.isRunning = data.test_loop.enabled;
         testStartCurrent.currentValue = data.test_loop.start_current_a;
         testMaxCurrent.currentValue = data.test_loop.max_current_a;
         testChangePercent.currentValue = data.test_loop.current_change_range_percent;
@@ -137,6 +160,7 @@ CircuitSettingsPageForm {
         testHeatingDuration.currentValue = secToMin(data.test_loop.heating_duration_sec);
 
         // --- Ref Loop Feedback ---
+        refStartStop.isRunning = data.ref_loop.enabled;
         refStartCurrent.currentValue = data.ref_loop.start_current_a;
         refMaxCurrent.currentValue = data.ref_loop.max_current_a;
         refChangePercent.currentValue = data.ref_loop.current_change_range_percent;
@@ -152,6 +176,10 @@ CircuitSettingsPageForm {
 
         // --- Sample Feedback ---
         sampleType.currentValue = data.sample_params.cable_type;
+
+        // 绝缘厚度反馈：同样保留两位小数显示
+        // SettingInput 组件通常有 currentValue 属性用于显示反馈值
+        sampleInsThick.currentValue = data.sample_params.insulation_thickness ? data.sample_params.insulation_thickness.toFixed(2) : "0.00";
     }
 
     // --- 信号监听 ---
@@ -165,22 +193,6 @@ CircuitSettingsPageForm {
         function onQmlCircuitSettings2Changed() {
             if (page.circuitId === 2) refreshFeedback();
         }
-    }
-
-    // 监听 Status 变化 (运行指示灯)
-    Connections {
-        target: rosProxy
-        function onCircuitStatus1Changed() {
-            if (page.circuitId === 1) updateStatusUI(rosProxy.circuitStatus1);
-        }
-        function onCircuitStatus2Changed() {
-            if (page.circuitId === 2) updateStatusUI(rosProxy.circuitStatus2);
-        }
-    }
-
-    function updateStatusUI(status) {
-        testStartStop.isRunning = status.test_loop.breaker_closed_switch_ack;
-        refStartStop.isRunning = status.ref_loop.breaker_closed_switch_ack;
     }
 
     // 【新增】页面可见性变化时自动反填
@@ -204,11 +216,10 @@ CircuitSettingsPageForm {
     // 3. 按钮逻辑 & 下拉逻辑
     // ========================================================
 
-    testStartStop.onStartClicked: rosProxy.sendCircuitBreakerCommand(circuitId, QtNodeConstants.CMD_CIRCUIT_TEST_BREAKER_CLOSE);
-    testStartStop.onStopClicked: rosProxy.sendCircuitBreakerCommand(circuitId, QtNodeConstants.CMD_CIRCUIT_TEST_BREAKER_OPEN);
-
-    refStartStop.onStartClicked: rosProxy.sendCircuitBreakerCommand(circuitId, QtNodeConstants.CMD_CIRCUIT_SIM_BREAKER_CLOSE);
-    refStartStop.onStopClicked: rosProxy.sendCircuitBreakerCommand(circuitId, QtNodeConstants.CMD_CIRCUIT_SIM_BREAKER_OPEN);
+    testStartStop.onStartClicked: setLoopEnableState("test", true)
+    testStartStop.onStopClicked: setLoopEnableState("test", false)
+    refStartStop.onStartClicked: setLoopEnableState("ref", true)
+    refStartStop.onStopClicked: setLoopEnableState("ref", false)
 
     Connections {
         target: page.refSourceCombo
@@ -269,7 +280,9 @@ CircuitSettingsPageForm {
         sample.cable_type = sampleType.settingValue;
         sample.cable_spec = sampleSpec.settingValue;
         sample.insulation_material = sampleInsMaterial.settingValue;
-        sample.insulation_thickness = parseFloat(sampleInsThick.settingValue);
+        // 验证器保证了格式正确，但 parseFloat 是为了确保类型安全
+        var thickVal = parseFloat(sampleInsThick.settingValue);
+        sample.insulation_thickness = isNaN(thickVal) ? 0.0 : thickVal;
 
         rosProxy.setCircuitSettings(circuitId, data);
     }

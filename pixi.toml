@@ -19,6 +19,16 @@ ros-jazzy-turtlesim = ">=1.8.3,<2"
 setuptools = ">=80.9.0,<81"
 qt6-charts = ">=6.9.3,<7"
 
+# === 修正部分 ===
+# 1. 消除版本歧义警告，使用 ==
+numpy = "==1.26.4"
+
+# 2. 正确的 Pixi 语法指定 MKL
+# 必须使用 { version = "...", build = "..." } 格式
+libblas = { version = "*", build = "*mkl*" }
+libcblas = { version = "*", build = "*mkl*" }
+liblapack = { version = "*", build = "*mkl*" }
+
 [host-dependencies]
 sqlite = ">=3.50.4,<4"
 sqlitecpp = ">=3.3.3,<4"

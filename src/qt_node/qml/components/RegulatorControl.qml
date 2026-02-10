@@ -9,6 +9,7 @@ RegulatorControlForm {
     property int regulatorId: 1
     property string title: "调压器"
     property var statusData: null // Expects rosProxy.regulatorStatus1, etc.
+    property int controlMode: 0  // 接收控制模式
 
     // --- Initialization ---
     Component.onCompleted: {
@@ -57,5 +58,15 @@ RegulatorControlForm {
     }
     voltageDownButton.onReleasedCommand: {
         rosProxy.sendRegulatorOperationCommand(regulatorId, QtNodeConstants.CMD_REGULATOR_VOLTAGE_STOP)
+    }
+
+    // 逻辑绑定：如果不是手动模式，就显示遮罩
+    isBlocked: {
+        // 安全检查：如果 controlMode 为 0 (未初始化)，或者等于 MANUAL (1)，则不遮挡(false)
+        // 否则遮挡 (true)
+        if (controlMode === QtNodeConstants.CMD_CIRCUIT_SET_MANUAL_MODE) {
+            return false;
+        }
+        return true;
     }
 }

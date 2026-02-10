@@ -79,6 +79,7 @@ qt_add_qml_module(qt_node_executable
         qml/components/MessagePopup.qml
         qml/components/StartStopPanel.qml
         qml/components/SettingTextArea.qml
+        qml/components/InputBlocker.qml
         qml/pages/CircuitSettingsPageForm.ui.qml
         qml/pages/CircuitSettingsPage.qml
         qml/pages/HistoryPage.qml

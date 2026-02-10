@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 18.0.1, 2026-02-03T17:13:09. -->
+<!-- Written by QtCreator 18.0.1, 2026-02-09T16:33:10. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
-  <value type="QByteArray">{8f103d8f-0a7a-4874-a226-430351a82abf}</value>
+  <value type="QByteArray">{0f5330c5-1f30-40bb-b6f7-9431b1c16a89}</value>
  </data>
  <data>
   <variable>ProjectExplorer.Project.ActiveTarget</variable>
@@ -49,7 +49,7 @@
    <value type="int" key="EditorConfiguration.TabSize">8</value>
    <value type="bool" key="EditorConfiguration.UseGlobal">true</value>
    <value type="bool" key="EditorConfiguration.UseIndenter">false</value>
-   <value type="int" key="EditorConfiguration.Utf8BomBehavior">0</value>
+   <value type="int" key="EditorConfiguration.Utf8BomBehavior">1</value>
    <value type="bool" key="EditorConfiguration.addFinalNewLine">true</value>
    <value type="bool" key="EditorConfiguration.cleanIndentation">true</value>
    <value type="bool" key="EditorConfiguration.cleanWhitespace">true</value>
@@ -79,7 +79,7 @@
     <value type="bool" key="ClangTools.AnalyzeOpenFiles">true</value>
     <value type="bool" key="ClangTools.BuildBeforeAnalysis">true</value>
     <value type="QString" key="ClangTools.DiagnosticConfig">Builtin.DefaultTidyAndClazy</value>
-    <value type="int" key="ClangTools.ParallelJobs">20</value>
+    <value type="int" key="ClangTools.ParallelJobs">10</value>
     <value type="bool" key="ClangTools.PreferConfigFile">true</value>
     <valuelist type="QVariantList" key="ClangTools.SelectedDirs"/>
     <valuelist type="QVariantList" key="ClangTools.SelectedFiles"/>
@@ -107,20 +107,20 @@
     <valuelist type="QVariantList" key="CMake.Configure.UserEnvironmentChanges">
      <value type="QString">#CMAKE_GENERATOR_PLATFORM=x64</value>
      <value type="QString">#CMAKE_GENERATOR_TOOLSET=v143</value>
-     <value type="QString">AMENT_PREFIX_PATH=D:\WGS\.pixi\envs\default\Library</value>
+     <value type="QString">AMENT_PREFIX_PATH=E:\WGS\.pixi\envs\default\Library</value>
     </valuelist>
-    <value type="QString" key="CMake.Initial.Parameters">-DCMAKE_PREFIX_PATH:PATH=D:/WGS/.pixi/envs/default/Library
--DPython3_EXECUTABLE:STRING=D:/WGS/.pixi/envs/default/python.exe
--DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
--DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON
--DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo
--DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
--DCMAKE_GENERATOR:STRING=Ninja
--DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
+    <value type="QString" key="CMake.Initial.Parameters">-DCMAKE_PROJECT_INCLUDE_BEFORE:FILEPATH=%{BuildConfig:BuildDirectory:NativeFilePath}/.qtc/package-manager/auto-setup.cmake
 -DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
--DQT_MAINTENANCE_TOOL:FILEPATH=C:/Qt/MaintenanceTool.exe
--DCMAKE_PROJECT_INCLUDE_BEFORE:FILEPATH=%{BuildConfig:BuildDirectory:NativeFilePath}/.qtc/package-manager/auto-setup.cmake</value>
-    <value type="QString" key="ProjectExplorer.BuildConfiguration.BuildDirectory">D:\WGS\qt_build\qt_node</value>
+-DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON
+-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
+-DQT_MAINTENANCE_TOOL:FILEPATH=F:/Qt/MaintenanceTool.exe
+-DPython3_EXECUTABLE:STRING=E:/WGS/.pixi/envs/default/python.exe
+-DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
+-DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
+-DCMAKE_PREFIX_PATH:PATH=E:/WGS/.pixi/envs/default/Library
+-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo
+-DCMAKE_GENERATOR:STRING=Ninja</value>
+    <value type="QString" key="ProjectExplorer.BuildConfiguration.BuildDirectory">E:\WGS\qt_build\qt_node</value>
     <valuemap type="QVariantMap" key="ProjectExplorer.BuildConfiguration.BuildStepList.0">
      <valuemap type="QVariantMap" key="ProjectExplorer.BuildStepList.Step.0">
       <value type="QString" key="CMakeProjectManager.MakeStep.BuildPreset"></value>
@@ -225,8 +225,8 @@
      <valuelist type="QVariantList" key="CustomOutputParsers"/>
      <value type="int" key="PE.EnvironmentAspect.Base">2</value>
      <valuelist type="QVariantList" key="PE.EnvironmentAspect.Changes">
-      <value type="QString">QML_IMPORT_PATH=D:\WGS\.pixi\envs\default\Library\lib\qt6\qml</value>
-      <value type="QString">QT_PLUGIN_PATH=D:\WGS\.pixi\envs\default\Library\lib\qt6\plugins</value>
+      <value type="QString">QML_IMPORT_PATH=E:\WGS\.pixi\envs\default\Library\lib\qt6\qml</value>
+      <value type="QString">QT_PLUGIN_PATH=E:\WGS\.pixi\envs\default\Library\lib\qt6\plugins</value>
      </valuelist>
      <value type="bool" key="PE.EnvironmentAspect.PrintOnRun">false</value>
      <value type="QString" key="PerfRecordArgsId">-e cpu-cycles --call-graph &quot;dwarf,4096&quot; -F 250</value>
@@ -234,7 +234,7 @@
      <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">CMakeProjectManager.CMakeRunConfiguration.</value>
      <value type="QString" key="ProjectExplorer.RunConfiguration.BuildKey">qt_node_executable</value>
      <value type="bool" key="ProjectExplorer.RunConfiguration.Customized">true</value>
-     <value type="QString" key="ProjectExplorer.RunConfiguration.UniqueId"></value>
+     <value type="QString" key="ProjectExplorer.RunConfiguration.UniqueId">{1d2ed1fa-ab22-43ce-8fc8-3c7321f54335}</value>
      <value type="bool" key="RunConfiguration.UseCppDebuggerAuto">true</value>
      <value type="bool" key="RunConfiguration.UseLibrarySearchPath">true</value>
      <value type="bool" key="RunConfiguration.UseQmlDebuggerAuto">true</value>
@@ -299,8 +299,8 @@
     <valuelist type="QVariantList" key="CustomOutputParsers"/>
     <value type="int" key="PE.EnvironmentAspect.Base">2</value>
     <valuelist type="QVariantList" key="PE.EnvironmentAspect.Changes">
-     <value type="QString">QML_IMPORT_PATH=D:\WGS\.pixi\envs\default\Library\lib\qt6\qml</value>
-     <value type="QString">QT_PLUGIN_PATH=D:\WGS\.pixi\envs\default\Library\lib\qt6\plugins</value>
+     <value type="QString">QML_IMPORT_PATH=E:\WGS\.pixi\envs\default\Library\lib\qt6\qml</value>
+     <value type="QString">QT_PLUGIN_PATH=E:\WGS\.pixi\envs\default\Library\lib\qt6\plugins</value>
     </valuelist>
     <value type="bool" key="PE.EnvironmentAspect.PrintOnRun">false</value>
     <value type="QString" key="PerfRecordArgsId">-e cpu-cycles --call-graph &quot;dwarf,4096&quot; -F 250</value>
@@ -308,7 +308,7 @@
     <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">CMakeProjectManager.CMakeRunConfiguration.</value>
     <value type="QString" key="ProjectExplorer.RunConfiguration.BuildKey">qt_node_executable</value>
     <value type="bool" key="ProjectExplorer.RunConfiguration.Customized">true</value>
-    <value type="QString" key="ProjectExplorer.RunConfiguration.UniqueId"></value>
+    <value type="QString" key="ProjectExplorer.RunConfiguration.UniqueId">{1d2ed1fa-ab22-43ce-8fc8-3c7321f54335}</value>
     <value type="bool" key="RunConfiguration.UseCppDebuggerAuto">true</value>
     <value type="bool" key="RunConfiguration.UseLibrarySearchPath">true</value>
     <value type="bool" key="RunConfiguration.UseQmlDebuggerAuto">true</value>

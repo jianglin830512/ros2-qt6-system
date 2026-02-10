@@ -40,3 +40,17 @@
     # --- 轮询周期 (毫秒) ---
     polling_rate_ms: 200
     use_mock_driver: false
+
+    # =================================================
+    #               TCP 连接配置
+    # =================================================
+    # 1. 主控 PLC (西门子/Modbus TCP)
+    plc_ip_address: "192.168.2.100"
+    plc_port: 502
+
+    # 2. 温度监视器 (TP1100, 端口 3000, ID 1)
+    temp_monitor_ip_address: "192.168.2.95"
+    temp_monitor_port: 3000
+
+
+    

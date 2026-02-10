@@ -8,10 +8,8 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     """
-    这是系统的主启动文件，负责编排和配置所有核心节点。
-    - 它会按顺序启动 record_node, control_node, 和 qt_node。
-    - 它使用一个位于 bringup/config/ 目录下的全局参数文件
-      来覆盖各个节点的默认设置，实现集中式配置管理。
+    系统主启动文件。
+    启动顺序: record_node -> hardware_node -> control_node -> qt_node
     """
     
     # --- 1. 定位所有需要的包和配置文件路径 ---
@@ -20,53 +18,51 @@ def generate_launch_description():
     bringup_pkg_share_dir = get_package_share_directory('bringup') 
     qt_node_pkg_share_dir = get_package_share_directory('qt_node')
     control_node_pkg_share_dir = get_package_share_directory('control_node')
-    record_node_pkg_share_dir = get_package_share_directory('record_node') # 新增 record_node 路径
+    record_node_pkg_share_dir = get_package_share_directory('record_node')
+    hardware_node_pkg_share_dir = get_package_share_directory('hardware_node') # 新增 hardware_node 路径
 
-    # 定义由 bringup 包管理的【全局覆盖】参数文件
+    # 定义全局覆盖参数文件
     system_override_file = os.path.join(bringup_pkg_share_dir, 'config', 'system_params.yaml')
     
     # 定义各个节点的【默认】参数文件路径
     default_qt_params_file = os.path.join(qt_node_pkg_share_dir, 'config', 'qt_node_config.yaml')
-    # 假设 control_node 的默认配置文件名和位置如下，请根据实际情况修改
     default_control_params_file = os.path.join(control_node_pkg_share_dir, 'config', 'control_node_config.yaml')
-    # 新增 record_node 的默认配置文件路径
     default_record_params_file = os.path.join(record_node_pkg_share_dir, 'config', 'record_node_config.yaml')
+    # 新增 hardware_node 默认参数文件路径 (请确认文件名是否正确)
+    default_hardware_params_file = os.path.join(hardware_node_pkg_share_dir, 'config', 'hardware_node_config.yaml')
 
 
     # --- 2. 定义各个节点的启动动作 ---
     
-    # 定义 record_node 启动动作
-    # 我们直接定义Node，而不是IncludeLaunchDescription，以便于事件处理器引用
+    # [节点 1] record_node
     record_node = Node(
         package='record_node',
         executable='record_node_executable', 
         name='record_node',
         output='screen',
-        parameters=[
-            # 参数加载顺序：
-            # 1. 首先加载自己的默认参数文件
-            default_record_params_file,
-            # 2. 然后加载全局覆盖文件。同名参数，后加载的会生效。
-            system_override_file
-        ]
+        parameters=[default_record_params_file, system_override_file]
     )
 
-    # 定义 control_node 启动动作
-    # 同样直接定义Node，以便于事件处理器引用
-    # 注意：您需要将 'control_node_executable' 替换为 control_node 的实际可执行文件名
+    # [节点 2] hardware_node (新增)
+    # 警告：请确认 executable='hardware_node_executable' 是否与 CMakeLists.txt 中定义的目标名称一致
+    hardware_node = Node(
+        package='hardware_node',
+        executable='hardware_node_executable', 
+        name='hardware_node',
+        output='screen',
+        parameters=[default_hardware_params_file, system_override_file]
+    )
+
+    # [节点 3] control_node
     control_node = Node(
         package='control_node',
-        executable='control_node_executable', # <-- 请确认 control_node 的可执行文件名
+        executable='control_node_executable',
         name='control_node',
         output='screen',
-        parameters=[
-            default_control_params_file,
-            system_override_file
-        ]
+        parameters=[default_control_params_file, system_override_file]
     )
 
-    # 定义 qt_node 启动动作
-    # ExecuteProcess 保持不变
+    # [节点 4] qt_node (GUI)
     launch_qt_node = ExecuteProcess(
         cmd=[
             FindExecutable(name='qt_node_executable'),
@@ -78,36 +74,52 @@ def generate_launch_description():
         on_exit=Shutdown()
     )
 
-    # --- 3. 使用事件处理器编排启动顺序 ---
+    # --- 3. 使用事件处理器编排启动顺序 (链式启动) ---
 
-    # 创建一个事件处理器：当 record_node 启动后，才开始启动 control_node
-    handler_launch_control_node = RegisterEventHandler(
+    # 链条环节 1: record_node 启动后 -> 启动 hardware_node
+    handler_launch_hardware = RegisterEventHandler(
         event_handler=OnProcessStart(
-            target_action=record_node, # 监视 record_node 的启动事件
+            target_action=record_node, # 监视 record_node
             on_start=[
-                LogInfo(msg='record_node started. Launching control_node...'),
-                control_node # record_node启动后，执行此动作
+                LogInfo(msg='record_node started. Launching hardware_node...'),
+                hardware_node
             ]
         )
     )
 
-    # 创建第二个事件处理器：当 control_node 启动后，才开始启动 qt_node
-    handler_launch_qt_node = RegisterEventHandler(
+    # 链条环节 2: hardware_node 启动后 -> 启动 control_node
+    handler_launch_control = RegisterEventHandler(
         event_handler=OnProcessStart(
-            target_action=control_node, # 监视 control_node 的启动事件
+            target_action=hardware_node, # 监视 hardware_node
+            on_start=[
+                LogInfo(msg='hardware_node started. Launching control_node...'),
+                control_node
+            ]
+        )
+    )
+
+    # 链条环节 3: control_node 启动后 -> 启动 qt_node
+    handler_launch_qt = RegisterEventHandler(
+        event_handler=OnProcessStart(
+            target_action=control_node, # 监视 control_node
             on_start=[
                 LogInfo(msg='control_node started. Launching qt_node...'),
-                launch_qt_node # control_node启动后，执行此动作
+                launch_qt_node
             ]
         )
     )
 
     # --- 4. 组装并返回最终的启动描述 ---
-    # 启动描述中首先放入第一个需要启动的节点，以及所有的事件处理器。
-    # 事件处理器会根据依赖关系，在正确的时机启动后续的节点。
+    # 我们只需要将链条的第一个节点 (record_node) 和所有的事件处理器放入描述中。
+    # 处理器会自动接管后续的流程。
     return LaunchDescription([
-        LogInfo(msg='Launching record_node...'),
-        record_node, # 1. 首先启动 record_node
-        handler_launch_control_node, # 2. 然后注册事件，等待 record_node 启动后启动 control_node
-        handler_launch_qt_node       # 3. 最后注册事件，等待 control_node 启动后启动 qt_node
+        LogInfo(msg='System Bringup Started. Launching sequence: Record -> Hardware -> Control -> Qt'),
+        
+        # 1. 启动第一个节点
+        record_node,
+        
+        # 2. 注册所有事件处理器 (顺序无关，因为它们是基于事件触发的，但逻辑上如下)
+        handler_launch_hardware, # 等待 record -> 启动 hardware
+        handler_launch_control,  # 等待 hardware -> 启动 control
+        handler_launch_qt        # 等待 control -> 启动 qt
     ])

@@ -8,6 +8,7 @@ namespace {
 void convertLoopStatusRosToQt(const ros2_interfaces::msg::LoopStatus& ros_loop, LoopStatusData& qt_loop)
 {
     // common
+    qt_loop.is_heat = ros_loop.is_heat;
     qt_loop.completed_cycle_count = ros_loop.completed_cycle_count;
     qt_loop.remaining_cycle_count = ros_loop.remaining_cycle_count;
     qt_loop.elapsed_heating_time_sec = ros_loop.elapsed_heating_time.sec;
@@ -287,25 +288,22 @@ void QtROSNode::regulator_status_callback(const ros2_interfaces::msg::RegulatorS
 
 void QtROSNode::system_settings_callback(SystemSettingsMsgPtr msg)
 {
-    RCLCPP_INFO(this->get_logger(), "Forwarding system settings update.");
+    //RCLCPP_INFO(this->get_logger(), "Forwarding system settings update.");
     emit systemSettingsReceived(msg); // Directly emit the received message
 }
 
 void QtROSNode::regulator_settings_callback(RegulatorSettingsMsgPtr msg)
 {
-    RCLCPP_INFO(this->get_logger(), "Forwarding regulator settings update for ID %d.", msg->regulator_id);
+    //RCLCPP_INFO(this->get_logger(), "Forwarding regulator settings update for ID %d.", msg->regulator_id);
     emit regulatorSettingsReceived(msg);
 }
 
 void QtROSNode::circuit_settings_callback(CircuitSettingsMsgPtr msg)
 {
-    RCLCPP_INFO(this->get_logger(), "Forwarding circuit settings update for ID %d.", msg->circuit_id);
+    //RCLCPP_INFO(this->get_logger(), "Forwarding circuit settings update for ID %d.", msg->circuit_id);
+    //RCLCPP_INFO(this->get_logger(), "CircuitSettings msg:\n%s", ros2_interfaces::msg::to_yaml(*msg).c_str());
     emit circuitSettingsReceived(msg);
-    RCLCPP_INFO(
-        this->get_logger(),
-        "CircuitSettings msg:\n%s",
-        ros2_interfaces::msg::to_yaml(*msg).c_str()
-        );
+
 }
 
 // --- 命令发送槽函数的实现 ---

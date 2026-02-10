@@ -2,7 +2,7 @@
 #define AUTO_CURRENT_STRATEGY_HPP
 
 #include "control_node/i_controller_strategy.hpp"
-#include "rclcpp/rclcpp.hpp"   // IWYU pragma: keep
+#include "rclcpp/rclcpp.hpp"
 
 class AutoCurrentStrategy : public IControllerStrategy
 {
@@ -14,17 +14,23 @@ public:
 
     void reset() override;
     void update() override;
+
+    // Command Handlers (Blocked in Auto Mode)
+    void handle_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg) override;
+
+    void handle_regulator_breaker_command(
+        const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request>& request,
+        StrategyCallback callback) override;
+
+    void handle_circuit_breaker_command(
+        const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request>& request,
+        StrategyCallback callback) override;
+
     const char* get_name() const override { return "Auto Current Mode"; }
 
 private:
-    // 防止命令发送过快（命令冷却时间）
-    rclcpp::Time last_command_time_;
-    const rclcpp::Duration command_cooldown_{std::chrono::milliseconds(500)};
-
-    // 简单的控制状态
-    double last_error_ = 0.0;
-
-    double integral_error_ = 0.0;
+    rclcpp::Time last_sync_time_;
+    const rclcpp::Duration sync_interval_{std::chrono::milliseconds(500)};
 };
 
 #endif // AUTO_CURRENT_STRATEGY_HPP

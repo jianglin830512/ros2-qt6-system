@@ -1,45 +1,148 @@
-# 这个文件是最终的配置参数，可以覆盖每个 package 下面自己的 yaml 的内容
+# system_params.yaml
+# 系统全局参数配置文件
+# 该文件定义了所有节点之间通信的 Topic 和 Service 名称，确保拓扑结构的一致性。
+# 此文件由 bringup launch 加载，具有最高优先级，会覆盖各功能包内的默认配置。
 
+# ==============================================================================
+# 1. QT Node (UI 界面节点)
+# ==============================================================================
 qt_ros_node:
   ros__parameters:
-    # 定义订阅的主题名称
-    
-    # --- 订阅的主题名称 ---
-    
-    # 这个键名必须与 qt_node_constants::CIRCUIT_STATUS_TOPIC_PARAM 的值匹配
+    # --- 订阅 (接收状态显示) ---
     circuit_status_topic: "circuit_status"
-    # 这个键名必须与 qt_node_constants::REGULATOR_STATUS_TOPIC_PARAM 的值匹配
     regulator_status_topic: "voltage_regulator_status"
+    
+    system_settings_topic: "system_settings"
+    regulator_settings_topic: "regulator_settings"
+    circuit_settings_topic: "circuit_settings"
 
-    # --- 发布的主题名称 ---
+    # --- 发布 (发送操作指令) ---
+    # 调压器操作 (升/降/停)
+    regulator_operation_command_topic: "regulator_operation_command"
+    # 清除报警
+    clear_alarm_topic: "clear_alarm"
 
-    # 回路命令TOPIC -- qt_node_constants::CIRCUIT_COMMAND_TOPIC_PARAM
-    circuit_command_topic: "circuit_command"
-    # 调压器命令TOPIC -- qt_node_constants::REGULATOR_COMMAND_TOPIC_PARAM
-    regulator_command_topic: "regulator_command"
-    # 清除报警TOPIC -- qt_node_constants::CLEAR_ALARM_TOPIC_PARAM
-    clear_alarm_topic: "clear_alarm_command"
+    # --- 服务名称 (客户端调用) ---
+    # 命令类
+    regulator_breaker_command_service: "regulator_breaker_command"
+    circuit_mode_command_service: "circuit_mode_command"
+    circuit_breaker_command_service: "circuit_breaker_command"
+    
+    # 设置类
+    set_system_settings_service: "set_system_settings"
+    set_regulator_settings_service: "set_regulator_settings"
+    set_circuit_settings_service: "set_circuit_settings"
 
+# ==============================================================================
+# 2. Control Node (核心控制逻辑节点)
+# ==============================================================================
 control_node:
   ros__parameters:
-    # 注意：这些值必须与 qt_node 使用的发布话题名称完全一致，才能成功通信
+    # --- 与 QT/Record 通信 (UI侧) ---
     
-    # --- 发布器话题名称 ---
-    # control_node_constants::CIRCUIT_STATUS_TOPIC_PARAM
+    # 发布状态
     circuit_status_topic: "circuit_status"
-    # control_node_constants::REGULATOR_STATUS_TOPIC_PARAM
     regulator_status_topic: "voltage_regulator_status"
+    system_settings_topic: "system_settings"
+    regulator_settings_topic: "regulator_settings"
+    circuit_settings_topic: "circuit_settings"
 
-    # --- 订阅器话题名称 ---
+    # 订阅指令
+    regulator_operation_command_topic: "regulator_operation_command"
+    clear_alarm_topic: "clear_alarm"
 
-    # control_node_constants::REGULATOR_COMMAND_TOPIC_PARAM
-    regulator_command_topic: "regulator_command"
-    # control_node_constants::CIRCUIT_COMMAND_TOPIC_PARAM
-    circuit_command_topic: "circuit_command"
-    # control_node_constants::CLEAR_ALARM_TOPIC_PARAM
-    clear_alarm_topic: "clear_alarm_command"
+    # 提供服务
+    regulator_breaker_command_service: "regulator_breaker_command"
+    circuit_mode_command_service: "circuit_mode_command"
+    circuit_breaker_command_service: "circuit_breaker_command"
+    set_system_settings_service: "set_system_settings"
+    set_regulator_settings_service: "set_regulator_settings"
+    set_circuit_settings_service: "set_circuit_settings"
+
+    # --- 与 Record Node 通信 (数据库侧) ---
     
+    # 调用保存服务
+    save_system_settings_service: "save_system_settings"
+    save_regulator_settings_service: "save_regulator_settings"
+    save_circuit_settings_service: "save_circuit_settings"
+    
+    # 调用读取服务
+    get_system_settings_service: "get_system_settings"
+    get_regulator_settings_service: "get_regulator_settings"
+    get_circuit_settings_service: "get_circuit_settings"
+
+    # --- 与 Hardware Node 通信 (硬件侧) ---
+
+    # 发布硬件指令
+    hardware_regulator_operation_command_topic: "hardware_regulator_operation_command"
+    hardware_clear_alarm_topic: "hardware_clear_alarm"
+
+    # 订阅硬件状态
+    hardware_circuit_status_topic: "hardware_circuit_status"
+    hardware_regulator_status_topic: "hardware_regulator_status"
+    hardware_circuit_settings_topic: "hardware_circuit_settings"
+    hardware_regulator_settings_topic: "hardware_regulator_settings"
+
+    # 调用硬件服务
+    set_hardware_regulator_settings_service: "set_hardware_regulator_settings"
+    set_hardware_circuit_settings_service: "set_hardware_circuit_settings"
+    hardware_regulator_breaker_command_service: "hardware_regulator_breaker_command"
+    hardware_circuit_breaker_command_service: "hardware_circuit_breaker_command"
+    hardware_set_control_mode_service: "hardware_set_control_mode"
+    hardware_set_control_source_service: "hardware_set_control_source"
+
+# ==============================================================================
+# 3. Record Node (数据记录与存储节点)
+# ==============================================================================
 record_node:
   ros__parameters:
-    # 使用正斜杠 / 或者双反斜杠 \\
-    db_path: "D:/WGS/database/records_and_settings.db"
+    db_path: "records_and_settings.db"
+    
+    # 自动记录间隔 (分钟)
+    record_interval_min: 2
+
+    # --- 订阅 (用于记录数据) ---
+    circuit_status_topic: "circuit_status"
+    regulator_status_topic: "voltage_regulator_status"
+    system_settings_topic: "system_settings"
+    regulator_settings_topic: "regulator_settings"
+    circuit_settings_topic: "circuit_settings"
+
+    # --- 服务名称 (用于初始化加载) ---
+    get_system_settings_service: "get_system_settings"
+    get_regulator_settings_service: "get_regulator_settings"
+    get_circuit_settings_service: "get_circuit_settings"
+    get_data_records_service: "get_data_records"
+
+# ==============================================================================
+# 4. Hardware Node (硬件驱动节点)
+# ==============================================================================
+hardware_node:
+  ros__parameters:
+    # --- 网络配置 ---
+    plc_ip_address: "192.168.2.100"
+    plc_port: 502
+    temp_monitor_ip_address: "192.168.2.95"
+    temp_monitor_port: 3000
+    
+    # --- 运行参数 ---
+    polling_rate_ms: 200
+    use_mock_driver: true
+
+    # --- 发布 (发送硬件状态) ---
+    hardware_circuit_status_topic: "hardware_circuit_status"
+    hardware_regulator_status_topic: "hardware_regulator_status"
+    hardware_circuit_settings_topic: "hardware_circuit_settings"
+    hardware_regulator_settings_topic: "hardware_regulator_settings"
+
+    # --- 订阅 (接收硬件指令) ---
+    hardware_regulator_operation_command_topic: "hardware_regulator_operation_command"
+    hardware_clear_alarm_topic: "hardware_clear_alarm"
+
+    # --- 提供服务 ---
+    set_hardware_regulator_settings_service: "set_hardware_regulator_settings"
+    set_hardware_circuit_settings_service: "set_hardware_circuit_settings"
+    hardware_regulator_breaker_command_service: "hardware_regulator_breaker_command"
+    hardware_circuit_breaker_command_service: "hardware_circuit_breaker_command"
+    hardware_set_control_mode_service: "hardware_set_control_mode"
+    hardware_set_control_source_service: "hardware_set_control_source"

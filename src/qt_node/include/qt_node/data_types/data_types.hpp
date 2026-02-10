@@ -15,6 +15,7 @@ struct LoopStatusData
     Q_GADGET // 允许元对象系统处理
 
     // --- 成员变量 ---
+    Q_PROPERTY(bool is_heat MEMBER is_heat)
     Q_PROPERTY(double current MEMBER current)
     Q_PROPERTY(QVector<double> temperature_array MEMBER temperature_array)
     Q_PROPERTY(int elapsed_heating_time_sec MEMBER elapsed_heating_time_sec)
@@ -25,6 +26,7 @@ struct LoopStatusData
     Q_PROPERTY(bool breaker_opened_switch_ack MEMBER breaker_opened_switch_ack)
 
 public:
+    bool is_heat = false;
     double current = 0.0;
     QVector<double> temperature_array;
     int elapsed_heating_time_sec = 0;
@@ -39,7 +41,8 @@ public:
 inline bool operator==(const LoopStatusData& lhs, const LoopStatusData& rhs)
 {
     // 逐个比较所有成员变量
-    return lhs.current == rhs.current &&
+    return lhs.is_heat == rhs.is_heat &&
+           lhs.current == rhs.current &&
            lhs.temperature_array == rhs.temperature_array && // QVector 已经支持 '=='
            lhs.elapsed_heating_time_sec == rhs.elapsed_heating_time_sec &&
            lhs.remaining_heating_time_sec == rhs.remaining_heating_time_sec &&

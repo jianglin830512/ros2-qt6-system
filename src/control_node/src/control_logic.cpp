@@ -9,6 +9,7 @@
 // 包含消息定义
 #include "ros2_interfaces/msg/hardware_circuit_status.hpp"
 #include "ros2_interfaces/msg/system_status.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 // 构造函数：通过依赖注入接收所有依赖项
 ControlLogic::ControlLogic(
@@ -26,49 +27,42 @@ ControlLogic::ControlLogic(
     for (uint8_t i = 1; i <= StateManager::NUM_CIRCUITS; ++i) {
         switch_mode(i, ros2_interfaces::msg::HardwareCircuitStatus::PLC_MODE_MANUAL);
     }
-
-    // 注意：构造函数不进行网络IO或阻塞等待。
-    // 数据同步和连接检查完全交给 maintain_lifecycle 由外部定时器驱动。
 }
 
 // ---------------------------------------------------------
-//                核心循环与生命周期管理
+// 核心循环与生命周期管理
 // ---------------------------------------------------------
-
 // [核心] 50Hz 控制循环
 void ControlLogic::update()
 {
+    // [NEW] 处理所有回路的通用业务逻辑（计数、定时、自动启停）
+    // 只要系统不是 ERROR 状态，就进行计算
+    if (current_lifecycle_state_ != ros2_interfaces::msg::SystemStatus::STATE_ERROR) {
+        for (uint8_t i = 1; i <= StateManager::NUM_CIRCUITS; ++i) {
+            // 增加 try-catch 防止业务逻辑计算异常导致节点崩溃
+            try {
+                process_circuit_logic(i);
+            } catch (const std::exception& e) {
+                RCLCPP_ERROR(rclcpp::get_logger("ControlLogic"),
+                                      "Exception in process_circuit_logic for circuit %d: %s", i, e.what());
+            } catch (...) {
+                RCLCPP_ERROR(rclcpp::get_logger("ControlLogic"),
+                                      "Unknown exception in process_circuit_logic for circuit %d", i);
+            }
+        }
+    }
+
     // 根据当前生命周期状态，决定执行逻辑
     if (current_lifecycle_state_ == ros2_interfaces::msg::SystemStatus::STATE_NORMAL) {
-        // --- 正常运行模式 ---
+        // --- Normal Operation ---
 
-        // 1. 处理调压器数据 (硬件 -> 常规状态)
-        for (uint8_t id = 1; id <= StateManager::NUM_REGULATORS; ++id)
-        {
-            auto hw_status = state_manager_->get_hardware_regulator_status(id);
-            hw_status.regulator_id = id;  // 防止硬件发的ID是错的
-            state_manager_->update_regulator_status(id, hw_status);
-        }
-
-        // 2. 处理回路数据 (硬件 -> 常规状态)
-        for (uint8_t id = 1; id <= StateManager::NUM_CIRCUITS; ++id)
-        {
-            auto hw_status = state_manager_->get_hardware_circuit_status(id);
-            hw_status.circuit_id = id; // 防止硬件发的ID是错的
-            auto conventional_status = state_manager_->get_circuit_status(id);
-
-            // 映射底层状态
-            conventional_status.test_loop.hardware_loop_status = hw_status.test_loop;
-            conventional_status.ref_loop.hardware_loop_status = hw_status.ref_loop;
-            conventional_status.header.stamp = hw_status.header.stamp;
-            conventional_status.circuit_id = hw_status.circuit_id;
-
-            state_manager_->update_circuit_status(id, conventional_status);
-        }
-
-        // 3. 执行策略更新 (计算PID、状态对账等)
         for (auto const& [id, strategy] : active_strategies_) {
             if (strategy) {
+                // [NEW] Feed raw PLC status to strategy
+                auto plc_status = state_manager_->get_last_known_plc_status(id);
+                strategy->update_plc_status(plc_status.first, plc_status.second);
+
+                // Run strategy logic
                 strategy->update();
             }
         }
@@ -83,6 +77,132 @@ void ControlLogic::update()
         // 静默状态：不更新策略，不发送指令，等待连接建立
     }
 }
+
+// [NEW] 处理单个回路的整体业务逻辑
+void ControlLogic::process_circuit_logic(uint8_t circuit_id)
+{
+    // 使用 System Time 获取当前时间
+    rclcpp::Time now = rclcpp::Clock(RCL_SYSTEM_TIME).now();
+
+    // 获取数据副本
+    auto settings = state_manager_->get_circuit_settings(circuit_id);
+    auto status = state_manager_->get_circuit_status(circuit_id);
+
+    bool settings_changed = false;
+
+    // 处理 Test Loop
+    if (process_single_loop_logic(settings.test_loop, status.test_loop, now)) {
+        settings_changed = true;
+    }
+
+    // 处理 Ref Loop
+    if (process_single_loop_logic(settings.ref_loop, status.ref_loop, now)) {
+        settings_changed = true;
+    }
+
+    // 更新状态
+    state_manager_->update_circuit_status(circuit_id, status);
+
+    // 如果逻辑强制修改了设置 (如 enabled 变为 false)，需要回写并可能需要通知
+    if (settings_changed) {
+        state_manager_->update_circuit_settings(circuit_id, settings);
+        // 注意：这里更新了 StateManager，ControlNode 的 Settings Timer 会广播新值。
+    }
+}
+
+// [NEW] 单个 Loop 的具体计算逻辑
+bool ControlLogic::process_single_loop_logic(
+    ros2_interfaces::msg::LoopSettings& settings,
+    ros2_interfaces::msg::LoopStatus& status,
+    const rclcpp::Time& now)
+{
+    bool settings_modified = false;
+
+    // 1. 获取开始时间 (显式指定 RCL_SYSTEM_TIME)
+    rclcpp::Time start_time(settings.start_date, RCL_SYSTEM_TIME);
+
+    // 2. 计算距离开始时间流逝的秒数
+    rclcpp::Duration diff = now - start_time;
+    double seconds_elapsed = diff.seconds();
+
+    // 重置计算状态
+    status.is_heat = false;
+    status.elapsed_heating_time = rclcpp::Duration(0, 0);
+    status.remaining_heating_time = rclcpp::Duration(0, 0);
+
+    // --- 计算周期数 ---
+    // 假设 start_time 是第0天的00:00:00
+    int32_t days_passed = 0;
+
+    if (seconds_elapsed < 0) {
+        // [规则1] 在试验开启日期之前
+        days_passed = -1;
+        status.completed_cycle_count = 0;
+        status.remaining_cycle_count = (settings.cycle_count > 0) ? settings.cycle_count : 0;
+
+        // 强制 Disable
+        if (settings.enabled) {
+            settings.enabled = false;
+            settings_modified = true;
+        }
+    } else {
+        // 在开始日期之后
+        days_passed = static_cast<int32_t>(seconds_elapsed / 86400.0);
+        status.completed_cycle_count = static_cast<uint16_t>(days_passed);
+
+        int32_t remaining = settings.cycle_count - status.completed_cycle_count;
+        if (remaining < 0) remaining = 0;
+        status.remaining_cycle_count = static_cast<uint16_t>(remaining);
+
+        // [规则1] 超过了结束日期 (剩余次数为0且当天时间已过完，这里简化为剩余次数为0即结束)
+        if (status.remaining_cycle_count == 0) {
+            if (settings.enabled) {
+                settings.enabled = false;
+                settings_modified = true;
+            }
+        }
+        // [规则1]如果在起始日期和结束日期之间，那么ENABLE可以有QT_NODE设置，
+        // 这里不做任何操作，保留 settings.enabled 原值。
+    }
+
+    // [规则2] 如果LOOP 的ENABLE被设置为FALSE，必须把is_heat 设置为 FALSE
+    // 这一步非常关键，它切断了后续加热逻辑
+    if (!settings.enabled) {
+        status.is_heat = false;
+        return settings_modified; // 直接返回，不再计算加热窗口
+    }
+
+    // --- 计算加热状态 (Is Heat) ---
+    // 代码执行到这里，说明 enabled == true，且在有效期内
+
+    rclcpp::Duration heat_start_offset(settings.heating_time);
+    rclcpp::Duration heat_duration(settings.heating_duration);
+
+    auto check_window = [&](int32_t cycle_idx) -> bool {
+        if (cycle_idx < 0) return false;
+        if (cycle_idx >= settings.cycle_count) return false;
+
+        rclcpp::Duration day_offset = rclcpp::Duration::from_seconds(cycle_idx * 86400.0);
+        rclcpp::Time cycle_start = start_time + day_offset + heat_start_offset;
+        rclcpp::Time cycle_end = cycle_start + heat_duration;
+
+        if (now >= cycle_start && now < cycle_end) {
+            status.is_heat = true;
+            status.elapsed_heating_time = now - cycle_start;
+            status.remaining_heating_time = cycle_end - now;
+            return true;
+        }
+        return false;
+    };
+
+    // 检查今天和昨天（跨天）
+    if (!check_window(days_passed)) {
+        check_window(days_passed - 1);
+    }
+
+    return settings_modified;
+}
+
 
 // [核心] 1Hz 生命周期维护 (由 ControlNode 定时器调用)
 void ControlLogic::maintain_lifecycle()
@@ -154,7 +274,6 @@ void ControlLogic::maintain_lifecycle()
         RCLCPP_ERROR(rclcpp::get_logger("ControlLogic"), "System entered ERROR state! Engaging safety shutdown.");
     }
 }
-
 // 尝试从 RecordNode 同步设置
 void ControlLogic::attempt_sync_settings()
 {
@@ -190,8 +309,6 @@ void ControlLogic::attempt_sync_settings()
             });
     } else {
         // 如果已经加载过，直接检查后续
-        // 注意：此处不直接调用 check_completion 以免递归过深，仅在回调链中处理即可
-        // 实际上由于 is_syncing_ 保护，下一轮循环会处理
     }
 
     // 2. 请求调压器设置
@@ -221,15 +338,15 @@ void ControlLogic::attempt_sync_settings()
                                                            });
         }
     }
-
-    // 如果所有标志位其实都已经是 true (极少情况)，这里需要手动释放锁
-    // 为了简单起见，我们假设只要有任何一项没加载，都会触发回调来解锁 is_syncing_
-    // 如果全部已加载，settings_synced_ 早就为 true，不会进入此函数。
 }
-
 // 辅助函数：判断系统是否就绪
 bool ControlLogic::is_system_ready() const {
     return current_lifecycle_state_ == ros2_interfaces::msg::SystemStatus::STATE_NORMAL;
+}
+
+// [NEW] 辅助函数：判断设置是否已同步
+bool ControlLogic::is_settings_synced() const {
+    return settings_synced_;
 }
 
 // 安全停机逻辑 (Failsafe)
@@ -254,43 +371,53 @@ void ControlLogic::execute_safety_shutdown()
         }
     }
 }
-
 // ---------------------------------------------------------
-//                命令处理 (Gatekeeper Pattern)
+// 命令处理 (Gatekeeper Pattern)
 // ---------------------------------------------------------
-
 void ControlLogic::process_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg)
 {
-    // [Gatekeeper] 非正常状态下，拒绝手动操作
     if (!is_system_ready()) {
         RCLCPP_WARN(rclcpp::get_logger("ControlLogic"), "Ignored regulator op command: System not READY.");
         return;
     }
 
-    uint8_t circuit_id = msg->regulator_id; // 假设 1:1 映射
+    uint8_t circuit_id = msg->regulator_id; // Assuming 1:1 mapping
     if (active_strategies_.count(circuit_id)) {
-        active_strategies_[circuit_id]->handle_manual_command(msg);
+        // [CHANGED] Call renamed method
+        active_strategies_[circuit_id]->handle_regulator_operation_command(msg);
     }
 }
 
 void ControlLogic::handle_regulator_breaker_command_request(const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request>& request, LogicResultCallback callback)
 {
-    // [Gatekeeper]
-    if (!is_system_ready()) {
-        if(callback) callback(false, "System not READY (Initializing or Error)");
-        return;
-    }
-    hardware_coordinator_->execute_regulator_breaker_command(request, callback);
-}
-
-void ControlLogic::handle_circuit_breaker_command_request(const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request>& request, LogicResultCallback callback)
-{
-    // [Gatekeeper]
     if (!is_system_ready()) {
         if(callback) callback(false, "System not READY");
         return;
     }
-    hardware_coordinator_->execute_circuit_breaker_command(request, callback);
+
+    // [CHANGED] Delegate to strategy instead of calling hardware directly
+    uint8_t circuit_id = request->regulator_id; // Assuming 1:1
+    if (active_strategies_.count(circuit_id)) {
+        active_strategies_[circuit_id]->handle_regulator_breaker_command(request, callback);
+    } else {
+        if(callback) callback(false, "No active strategy for this circuit.");
+    }
+}
+
+void ControlLogic::handle_circuit_breaker_command_request(const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request>& request, LogicResultCallback callback)
+{
+    if (!is_system_ready()) {
+        if(callback) callback(false, "System not READY");
+        return;
+    }
+
+    // [CHANGED] Delegate to strategy
+    uint8_t circuit_id = request->circuit_id;
+    if (active_strategies_.count(circuit_id)) {
+        active_strategies_[circuit_id]->handle_circuit_breaker_command(request, callback);
+    } else {
+        if(callback) callback(false, "No active strategy for this circuit.");
+    }
 }
 
 void ControlLogic::handle_circuit_mode_command_request(const std::shared_ptr<ros2_interfaces::srv::CircuitModeCommand::Request>& request, LogicResultCallback callback)
@@ -308,17 +435,14 @@ void ControlLogic::handle_circuit_mode_command_request(const std::shared_ptr<ros
         if (callback) callback(false, std::string("Failed to switch strategy: ") + e.what());
     }
 }
-
 void ControlLogic::process_clear_alarm()
 {
     // 允许在 ERROR 状态下清除报警，这可能是恢复手段的一部分
     hardware_coordinator_->send_clear_alarm();
 }
-
 // ---------------------------------------------------------
-//                参数设置处理 (Gatekeeper + Chain)
+// 参数设置处理 (Gatekeeper + Chain)
 // ---------------------------------------------------------
-
 void ControlLogic::handle_set_system_settings_request(
     const std::shared_ptr<ros2_interfaces::srv::SetSystemSettings::Request>& request,
     LogicResultCallback callback)
@@ -329,19 +453,14 @@ void ControlLogic::handle_set_system_settings_request(
         return;
     }
 
+    // 1. 直接更新到 StateManager (RecordNode 会通过广播监听)
     state_manager_->update_system_settings(request->settings);
 
-    persistence_coordinator_->save_system_settings(
-        [this, callback](bool success, const std::string& message) {
-            if (callback) {
-                std::string final_message = success ?
-                                                "System settings updated and saved." :
-                                                "Settings updated in memory, but failed to save: " + message;
-                callback(success, final_message);
-            }
-        });
+    // 2. 回调成功 (不再调用 save service)
+    if (callback) {
+        callback(true, "System settings updated locally.");
+    }
 }
-
 void ControlLogic::handle_set_regulator_settings_request(
     const std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Request>& request,
     LogicResultCallback callback)
@@ -355,29 +474,18 @@ void ControlLogic::handle_set_regulator_settings_request(
     uint8_t id = request->settings.regulator_id;
     const auto& settings = request->settings;
 
-    // Chain: Hardware -> Memory -> Persistence
+    // 1. STATE_MANAGER 不做任何更新 (等待 Hardware 广播)
+
+    // 2. 调用 Hardware Service
     hardware_coordinator_->apply_regulator_settings_to_hardware(
         id, settings,
-        [this, id, settings, callback](bool hw_success, const std::string& hw_message) {
-            if (!hw_success) {
-                if (callback) callback(false, "Hardware rejected settings: " + hw_message);
-                return;
+        [callback](bool hw_success, const std::string& hw_message) {
+            // 3. 仅回调结果
+            if (callback) {
+                callback(hw_success, hw_message);
             }
-            state_manager_->update_regulator_settings(id, settings);
-
-            persistence_coordinator_->save_regulator_settings(
-                id,
-                [this, id, callback](bool ps_success, const std::string& ps_message) {
-                    if (callback) {
-                        std::string final_message = ps_success ?
-                                                        "Regulator settings applied and saved." :
-                                                        "Hardware updated, but failed to save: " + ps_message;
-                        callback(ps_success, final_message);
-                    }
-                });
         });
 }
-
 void ControlLogic::handle_set_circuit_settings_request(
     const std::shared_ptr<ros2_interfaces::srv::SetCircuitSettings::Request>& request,
     LogicResultCallback callback)
@@ -389,40 +497,39 @@ void ControlLogic::handle_set_circuit_settings_request(
     }
 
     uint8_t id = request->settings.circuit_id;
-    const auto& settings = request->settings;
+    const auto& request_settings = request->settings;
 
-    ros2_interfaces::msg::HardwareCircuitSettings hw_settings;
-    hw_settings.circuit_id = id;
-    hw_settings.test_loop = settings.test_loop.hardware_loop_settings;
-    hw_settings.ref_loop = settings.ref_loop.hardware_loop_settings;
+    // 1. 更新 StateManager 中的非Hardware部分
+    //    逻辑：读取当前 -> 覆盖非HW字段 -> 恢复旧HW字段 -> 写入
+    auto current_settings = state_manager_->get_circuit_settings(id);
+    auto temp_new_settings = request_settings;
 
-    // Chain: Hardware -> Memory -> Persistence
+    // 保持 HardwareLoopSettings 不变 (使用旧值覆盖请求中的值)
+    temp_new_settings.test_loop.hardware_loop_settings = current_settings.test_loop.hardware_loop_settings;
+    temp_new_settings.ref_loop.hardware_loop_settings = current_settings.ref_loop.hardware_loop_settings;
+
+    state_manager_->update_circuit_settings(id, temp_new_settings);
+
+
+    // 2. 准备发送给 Hardware 的 HardwareCircuitSettings (使用请求中的值)
+    ros2_interfaces::msg::HardwareCircuitSettings hw_settings_to_send;
+    hw_settings_to_send.circuit_id = id;
+    hw_settings_to_send.test_loop = request_settings.test_loop.hardware_loop_settings;
+    hw_settings_to_send.ref_loop = request_settings.ref_loop.hardware_loop_settings;
+
+    // 3. 调用 Hardware Service
     hardware_coordinator_->apply_circuit_settings_to_hardware(
-        id, hw_settings,
-        [this, id, settings, callback](bool hw_success, const std::string& hw_message) {
-            if (!hw_success) {
-                if (callback) callback(false, "Hardware rejected settings: " + hw_message);
-                return;
+        id, hw_settings_to_send,
+        [callback](bool hw_success, const std::string& hw_message) {
+            // 4. 仅回调结果 (HW 成功后不更新 StateManager, 等待 HW 广播)
+            if (callback) {
+                callback(hw_success, hw_message);
             }
-            state_manager_->update_circuit_settings(id, settings);
-
-            persistence_coordinator_->save_circuit_settings(
-                id,
-                [this, id, callback](bool ps_success, const std::string& ps_message) {
-                    if (callback) {
-                        std::string final_message = ps_success ?
-                                                        "Circuit settings applied and saved." :
-                                                        "Hardware updated, but failed to save: " + ps_message;
-                        callback(ps_success, final_message);
-                    }
-                });
         });
 }
-
 // ---------------------------------------------------------
-//                辅助函数与默认设置
+// 辅助函数与默认设置
 // ---------------------------------------------------------
-
 void ControlLogic::switch_mode(uint8_t circuit_id, uint8_t new_mode)
 {
     // 清除旧策略
@@ -453,35 +560,31 @@ void ControlLogic::switch_mode(uint8_t circuit_id, uint8_t new_mode)
 
     RCLCPP_INFO(rclcpp::get_logger("ControlLogic"), "Switched Circuit %u to Mode %u. Strategy activated.", circuit_id, new_mode);
 }
-
 // --- 系统默认设置 ---
 ros2_interfaces::msg::SystemSettings ControlLogic::create_default_system_settings() {
     ros2_interfaces::msg::SystemSettings settings;
-    settings.sample_interval_sec = 1;     // 1秒采样一次
-    settings.record_interval_min = 5;     // 5分钟存一次盘
+    settings.sample_interval_sec = 1; // 1秒采样一次
+    settings.record_interval_min = 5; // 5分钟存一次盘
     settings.keep_record_on_shutdown = true;
     return settings;
 }
-
 // --- 调压器默认设置 ---
 ros2_interfaces::msg::RegulatorSettings ControlLogic::create_default_regulator_settings(uint8_t id) {
     ros2_interfaces::msg::RegulatorSettings settings;
     settings.regulator_id = id;
-    settings.over_voltage_v = 450;        // 安全电压阈值
-    settings.over_current_a = 100;        // 安全电流阈值
+    settings.over_voltage_v = 450; // 安全电压阈值
+    settings.over_current_a = 100; // 安全电流阈值
     settings.voltage_up_speed_percent = 10;
     settings.voltage_down_speed_percent = 20;
     return settings;
 }
-
 // --- 回路默认设置 ---
 ros2_interfaces::msg::CircuitSettings ControlLogic::create_default_circuit_settings(uint8_t id) {
     ros2_interfaces::msg::CircuitSettings settings;
     settings.circuit_id = id;
-    settings.test_loop.enabled = false;   // 默认不启动
+    settings.test_loop.enabled = false; // 默认不启动
     settings.ref_loop.enabled = false;
     settings.curr_mode_use_ref = false;
-
     // 初始化内部的硬件特定参数（防止为空导致的溢出或异常）
     settings.test_loop.hardware_loop_settings.ct_ratio = 1000;
     settings.test_loop.hardware_loop_settings.start_current_a = 0;
@@ -490,7 +593,6 @@ ros2_interfaces::msg::CircuitSettings ControlLogic::create_default_circuit_setti
 
     return settings;
 }
-
 // --- 汇总初始化方法 ---
 void ControlLogic::initialize_all_default_settings() {
     // 1. 初始化 Settings (原有代码)
@@ -501,18 +603,17 @@ void ControlLogic::initialize_all_default_settings() {
     for (uint8_t i = 1; i <= StateManager::NUM_CIRCUITS; ++i) {
         state_manager_->update_circuit_settings(i, create_default_circuit_settings(i));
     }
-
     // 2. 初始化 Status 的 ID
     // 即使没有硬件数据，ID 也应该是正确的，方便 QT 识别
     for (uint8_t i = 1; i <= StateManager::NUM_REGULATORS; ++i) {
         ros2_interfaces::msg::RegulatorStatus default_status;
-        default_status.regulator_id = i; // <--- 关键修正
+        default_status.regulator_id = i;
         state_manager_->update_regulator_status(i, default_status);
     }
 
     for (uint8_t i = 1; i <= StateManager::NUM_CIRCUITS; ++i) {
         ros2_interfaces::msg::CircuitStatus default_status;
-        default_status.circuit_id = i; // <--- 关键修正
+        default_status.circuit_id = i;
         state_manager_->update_circuit_status(i, default_status);
     }
 }

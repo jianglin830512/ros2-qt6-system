@@ -45,6 +45,9 @@ public:
     void switch_mode(uint8_t circuit_id, uint8_t new_mode);
     bool is_system_ready() const;
 
+    // [NEW] 暴露设置同步状态，用于防止广播默认值覆盖数据库
+    bool is_settings_synced() const;
+
     // --- Handlers for commands from ControlNode ---
     void process_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg);
     void handle_regulator_breaker_command_request(const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request>& request, LogicResultCallback callback);
@@ -77,6 +80,13 @@ private:
     ros2_interfaces::msg::CircuitSettings   create_default_circuit_settings(uint8_t id);
     void attempt_sync_settings();   // 尝试同步设置的内部函数
     void execute_safety_shutdown(); // 安全停机逻辑
+
+    // [NEW] 业务逻辑处理 helper
+    void process_circuit_logic(uint8_t circuit_id);
+    bool process_single_loop_logic(
+        ros2_interfaces::msg::LoopSettings& settings,
+        ros2_interfaces::msg::LoopStatus& status,
+        const rclcpp::Time& now);
 
     // Use raw pointers for dependencies managed by ControlNode
     std::shared_ptr<StateManager> state_manager_;

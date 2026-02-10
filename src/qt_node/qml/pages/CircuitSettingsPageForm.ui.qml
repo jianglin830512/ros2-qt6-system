@@ -316,7 +316,14 @@ Item {
                     SettingTextArea { id: sampleType; title: "电缆类型"; Layout.fillWidth: true; inputHeight: 80 }
                     SettingTextArea { id: sampleSpec; title: "电缆规格"; Layout.fillWidth: true; inputHeight: 80 }
                     SettingTextArea { id: sampleInsMaterial; title: "绝缘类型"; Layout.fillWidth: true; inputHeight: 80 }
-                    SettingTextArea { id: sampleInsThick; title: "绝缘厚度"; Layout.fillWidth: true; inputHeight: 80 }
+                    SettingInput { id: sampleInsThick; labelText: "绝缘厚度: "; unitText: "mm"; Layout.fillWidth: true
+                        // 添加正则验证器：
+                        // ^\d* 表示匹配开头任意个数字
+                        // (\.\d{0,2})? 表示匹配可选的小数点，且小数点后最多跟2位数字
+                        inputValidator: RegularExpressionValidator {
+                            regularExpression: /^\d*(\.\d{0,2})?$/
+                        }
+                    }
                 }
             }
         }

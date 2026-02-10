@@ -10,6 +10,7 @@ class MockHardwareDriver : public IHardwareDriver
 public:
     explicit MockHardwareDriver(rclcpp::Logger logger);
     ~MockHardwareDriver() override;
+    void update() override;
 
     // --- 服务处理器 ---
     void handle_set_hardware_regulator_settings_request(const std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Request> request, AsyncCallback callback) override;

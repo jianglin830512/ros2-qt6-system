@@ -4,13 +4,14 @@
 namespace hardware_node_constants
 {
 // --- 发布器相关常量 ---
-// [无变更]
+// status
 [[maybe_unused]] constexpr const char* HARDWARE_CIRCUIT_STATUS_TOPIC_PARAM = "hardware_circuit_status_topic";
 [[maybe_unused]] constexpr const char* HARDWARE_REGULATOR_STATUS_TOPIC_PARAM = "hardware_regulator_status_topic";
-[[maybe_unused]] constexpr const char* HARDWARE_CIRCUIT_SETTINGS_TOPIC_PARAM = "hardware_circuit_settings_topic";
-[[maybe_unused]] constexpr const char* HARDWARE_REGULATOR_SETTINGS_TOPIC_PARAM = "hardware_regulator_settings_topic";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_CIRCUIT_STATUS_TOPIC = "default_hardware_circuit_status";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_REGULATOR_STATUS_TOPIC = "default_hardware_regulator_status";
+// settings
+[[maybe_unused]] constexpr const char* HARDWARE_CIRCUIT_SETTINGS_TOPIC_PARAM = "hardware_circuit_settings_topic";
+[[maybe_unused]] constexpr const char* HARDWARE_REGULATOR_SETTINGS_TOPIC_PARAM = "hardware_regulator_settings_topic";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_CIRCUIT_SETTINGS_TOPIC = "default_hardware_circuit_settings";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_REGULATOR_SETTINGS_TOPIC = "default_hardware_regulator_settings";
 
@@ -44,6 +45,14 @@ namespace hardware_node_constants
 // --- 其它参数 ---
 [[maybe_unused]] constexpr const char* POLLING_RATE_MS_PARAM = "polling_rate_ms";
 [[maybe_unused]] constexpr const char* USE_MOCK_DRIVER = "use_mock_driver";
+
+// --- TCP 连接参数 ---
+[[maybe_unused]] constexpr const char* PLC_IP_ADDRESS_PARAM = "plc_ip_address";
+[[maybe_unused]] constexpr const char* PLC_PORT_PARAM = "plc_port";
+
+[[maybe_unused]] constexpr const char* TEMP_MONITOR_IP_ADDRESS_PARAM = "temp_monitor_ip_address";
+[[maybe_unused]] constexpr const char* TEMP_MONITOR_PORT_PARAM = "temp_monitor_port";
+
 
 } // namespace hardware_node_constants
 

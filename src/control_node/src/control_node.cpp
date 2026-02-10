@@ -6,7 +6,7 @@
 #include "control_node/control_logic.hpp"
 #include <future>
 
-using namespace std::chrono_literals;
+    using namespace std::chrono_literals;
 
 ControlNode::ControlNode() : Node("control_node")
 {
@@ -320,6 +320,13 @@ void ControlNode::broadcast_status_callback()
 
 void ControlNode::broadcast_settings_callback()
 {
+    // [NEW] 守卫逻辑：如果还没有从数据库完全加载配置，则不进行广播，
+    // 防止 RecordNode 收到默认值后覆盖数据库。
+    if (!control_logic_->is_settings_synced()) {
+        RCLCPP_DEBUG(this->get_logger(), "Settings not synced from DB yet. Skipping broadcast to protect database.");
+        return;
+    }
+
     RCLCPP_DEBUG(this->get_logger(), "Broadcasting all current settings via timer.");
 
     // 1. 广播系统设置

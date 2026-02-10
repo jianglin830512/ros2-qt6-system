@@ -16,10 +16,14 @@ record_node:
     circuit_status_topic: "circuit_status"
     regulator_status_topic: "voltage_regulator_status"
 
+    system_settings_topic: "system_settings"
+    regulator_settings_topic: "regulator_settings"
+    circuit_settings_topic: "circuit_settings"
+
     # --- 服务名称配置 (客户端调用以保存设置) ---
-    save_system_settings_service: "save_system_settings"
-    save_regulator_settings_service: "save_regulator_settings"
-    save_circuit_settings_service: "save_circuit_settings"
+    # save_system_settings_service: "save_system_settings"
+    # save_regulator_settings_service: "save_regulator_settings"
+    # save_circuit_settings_service: "save_circuit_settings"
 
     # --- 查询类服务名称配置 (用于初始化加载或读取历史记录) ---
     get_system_settings_service: "get_system_settings"

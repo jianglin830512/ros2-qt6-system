@@ -183,8 +183,8 @@ void DatabaseManager::initialize_database()
               << "regulator_voltage REAL, "
               << "regulator_current REAL, "
               << "regulator_breaker_closed BOOLEAN, "
-              << "test_loop_enabled BOOLEAN, "  // 新增
-              << "ref_loop_enabled BOOLEAN, "   // 新增
+              << "test_loop_is_heat BOOLEAN, "
+              << "ref_loop_is_heat BOOLEAN, "
               << "test_loop_current REAL, "
               << "ref_loop_current REAL, "
               << "test_loop_breaker_closed BOOLEAN, "
@@ -418,7 +418,7 @@ bool DatabaseManager::insert_data_record(
     ss_sql << "INSERT INTO data_records ("
            << "record_time, circuit_id, control_mode, "
            << "regulator_voltage, regulator_current, regulator_breaker_closed, "
-           << "test_loop_enabled, ref_loop_enabled, " // 新增
+           << "test_loop_is_heat, ref_loop_is_heat, " // 新增
            << "test_loop_current, ref_loop_current, test_loop_breaker_closed, ref_loop_breaker_closed";
 
     for (int i = 1; i <= 16; ++i) ss_sql << ", test_loop_temp" << std::setfill('0') << std::setw(2) << i;
@@ -448,8 +448,8 @@ bool DatabaseManager::insert_data_record(
     sqlite3_bind_int(stmt, idx++, regulator_status.breaker_closed_switch_ack ? 1 : 0);
 
     // 3. 回路使能状态 (新增)
-    sqlite3_bind_int(stmt, idx++, circuit_status.test_loop.enabled ? 1 : 0);
-    sqlite3_bind_int(stmt, idx++, circuit_status.ref_loop.enabled ? 1 : 0);
+    sqlite3_bind_int(stmt, idx++, circuit_status.test_loop.is_heat  ? 1 : 0);
+    sqlite3_bind_int(stmt, idx++, circuit_status.ref_loop.is_heat  ? 1 : 0);
 
     // 4. 回路电流与开关
     sqlite3_bind_double(stmt, idx++, circuit_status.test_loop.hardware_loop_status.current);
@@ -586,8 +586,8 @@ std::vector<ros2_interfaces::msg::DataRecord> DatabaseManager::get_data_records(
         rec.regulator_voltage = sqlite3_column_double(stmt, idx++);
         rec.regulator_current = sqlite3_column_double(stmt, idx++);
         rec.regulator_breaker_closed = sqlite3_column_int(stmt, idx++) != 0;
-        rec.test_loop_enabled = sqlite3_column_int(stmt, idx++) != 0;
-        rec.ref_loop_enabled = sqlite3_column_int(stmt, idx++) != 0;
+        rec.test_loop_is_heat = sqlite3_column_int(stmt, idx++) != 0;
+        rec.ref_loop_is_heat = sqlite3_column_int(stmt, idx++) != 0;
         rec.test_loop_current = sqlite3_column_double(stmt, idx++);
         rec.ref_loop_current = sqlite3_column_double(stmt, idx++);
         rec.test_loop_breaker_closed = sqlite3_column_int(stmt, idx++) != 0;

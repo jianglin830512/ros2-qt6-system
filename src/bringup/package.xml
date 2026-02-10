@@ -12,6 +12,8 @@
   <depend>rclcpp</depend>
   <depend>qt_node</depend>
   <depend>control_node</depend>
+  <depend>hardware_node</depend>
+  <depend>record_node</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

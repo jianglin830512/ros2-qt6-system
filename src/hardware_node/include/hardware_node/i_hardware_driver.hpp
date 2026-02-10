@@ -23,6 +23,8 @@ class IHardwareDriver
 public:
     virtual ~IHardwareDriver() = default;
 
+    virtual void update() = 0;
+
     // --- 服务的异步处理器 ---
 
     // (设置服务)

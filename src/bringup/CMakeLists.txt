@@ -10,6 +10,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(qt_node REQUIRED)
 find_package(control_node REQUIRED)
+find_package(hardware_node REQUIRED)
+find_package(record_node REQUIRED)
 
 install(
     DIRECTORY launch

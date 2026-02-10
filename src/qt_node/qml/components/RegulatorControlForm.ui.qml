@@ -21,6 +21,8 @@ Rectangle {
     property alias openBreakerButton: openBreakerButton
     property alias voltageUpButton: voltageUpButton
     property alias voltageDownButton: voltageDownButton
+    property alias isBlocked: inputBlocker.visible // 暴露遮罩可见性
+
 
     // 电压升降指示的宽度
     property int voltageIndicatorWidth: 30
@@ -246,5 +248,26 @@ Rectangle {
                 ContinuousActionButton { id: voltageDownButton; labelText: "降压"; colorWhenOn: "lime" }
             }
         }
+    }
+
+    // 【新增】遮罩层
+    // 这里我们使用 anchored 布局来遮住下半部分的控制按钮
+    // 假设 titleLabel 所在的第一行不需要遮挡（可以看数值）
+    InputBlocker {
+        id: inputBlocker
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+
+        // 高度设置为遮住下面两个按钮行 + 图表下方的显示区
+        // 或者为了简单，直接遮住除了标题栏以外的所有区域
+        anchors.top: parent.top
+        anchors.topMargin: 50 // 让出标题栏和状态灯
+
+        radius: root.radius
+        statusText: "非手动模式" // 提示文字
+
+        // 初始设为 false，由逻辑层控制
+        visible: false
     }
 }

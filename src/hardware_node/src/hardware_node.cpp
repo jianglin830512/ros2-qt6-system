@@ -28,8 +28,23 @@ void HardwareNode::initialize_components()
     }
     else
     {
-        hardware_driver_ = std::make_unique<TcpHardwareDriver>(this->get_logger());
-        RCLCPP_WARN(this->get_logger(), "Using TcpHardwareDriver. This assumes a connection to physical hardware.");
+        // [新增] 读取两组设备参数
+        std::string plc_ip = this->declare_parameter<std::string>(
+            hardware_node_constants::PLC_IP_ADDRESS_PARAM, "192.168.2.100");
+        int plc_port = this->declare_parameter<int>(
+            hardware_node_constants::PLC_PORT_PARAM, 502);
+
+        std::string temp_ip = this->declare_parameter<std::string>(
+            hardware_node_constants::TEMP_MONITOR_IP_ADDRESS_PARAM, "192.168.2.95");
+        int temp_port = this->declare_parameter<int>(
+            hardware_node_constants::TEMP_MONITOR_PORT_PARAM, 3000);
+
+        // [修改] 传递 4 个连接参数
+        hardware_driver_ = std::make_unique<TcpHardwareDriver>(
+            this->get_logger(), plc_ip, plc_port, temp_ip, temp_port);
+
+        RCLCPP_WARN(this->get_logger(), "Using TcpHardwareDriver. PLC[%s:%d], TempMon[%s:%d]",
+                    plc_ip.c_str(), plc_port, temp_ip.c_str(), temp_port);
     }
 
     // --- 初始化 Publishers ---
@@ -262,7 +277,9 @@ void HardwareNode::hardware_set_control_source_callback(
 }
 void HardwareNode::poll_hardware_data()
 {
-    // Rclcpp logging omitted for high frequency polling unless debug
+    // RCLCPP_INFO(this->get_logger(), "polling...");
+    hardware_driver_->update();
+
     // 假设我们有 ID 为 1 和 2 的两个回路和两个调压器
     for (uint8_t id = 1; id <= 2; ++id)
     {

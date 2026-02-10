@@ -9,27 +9,27 @@ namespace {
 void convertAndApply(const ros2_interfaces::msg::SystemSettings::SharedPtr& msg, SystemSettingsData* target) {
     if (!msg || !target) return;
 
-    target->blockSignals(true);
+    //target->blockSignals(true);
     target->setSample_interval_sec(msg->sample_interval_sec);
     target->setRecord_interval_min(msg->record_interval_min);
     target->setKeep_record_on_shutdown(msg->keep_record_on_shutdown);
-    target->blockSignals(false);
+    //target->blockSignals(false);
 }
 
 void convertAndApply(const ros2_interfaces::msg::RegulatorSettings::SharedPtr& msg, RegulatorSettingsData* target) {
     if (!msg || !target) return;
 
-    target->blockSignals(true);
+    //target->blockSignals(true);
     target->setOver_current_a(msg->over_current_a);
     target->setOver_voltage_v(msg->over_voltage_v);
     target->setVoltage_up_speed_percent(msg->voltage_up_speed_percent);
     target->setVoltage_down_speed_percent(msg->voltage_down_speed_percent);
     target->setOver_voltage_protection_mode(msg->over_voltage_protection_mode);
-    target->blockSignals(false);
+    //target->blockSignals(false);
 }
 // Helper for the helper
 void convertAndApplyLoop(const ros2_interfaces::msg::LoopSettings& ros_loop, LoopSettingsData* qt_loop) {
-    qt_loop->blockSignals(true);
+    //qt_loop->blockSignals(true);
     qt_loop->setStart_current_a(ros_loop.hardware_loop_settings.start_current_a);
     qt_loop->setMax_current_a(ros_loop.hardware_loop_settings.max_current_a);
     qt_loop->setCurrent_change_range_percent(ros_loop.hardware_loop_settings.current_change_range_percent);
@@ -40,17 +40,17 @@ void convertAndApplyLoop(const ros2_interfaces::msg::LoopSettings& ros_loop, Loo
 
     qt_loop->setHeating_duration_sec(ros_loop.heating_duration.sec);
     qt_loop->setEnabled(ros_loop.enabled);
-    qt_loop->blockSignals(false);
+    //qt_loop->blockSignals(false);
 }
 
 // Helper for the helper
 void convertAndApplySample(const ros2_interfaces::msg::SampleSettings& ros_sample, SampleSettingsData* qt_sample) {
-    qt_sample->blockSignals(true);
+    //qt_sample->blockSignals(true);
     qt_sample->setCable_type(QString::fromStdString(ros_sample.cable_type));
     qt_sample->setCable_spec(QString::fromStdString(ros_sample.cable_spec));
     qt_sample->setInsulation_material(QString::fromStdString(ros_sample.insulation_material));
     qt_sample->setInsulation_thickness(ros_sample.insulation_thickness);
-    qt_sample->blockSignals(false);
+    //qt_sample->blockSignals(false);
 }
 
 void convertAndApply(const ros2_interfaces::msg::CircuitSettings::SharedPtr& msg, CircuitSettingsData* target) {

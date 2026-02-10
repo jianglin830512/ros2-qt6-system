@@ -1,7 +1,6 @@
 ﻿#ifndef STATE_MANAGER_HPP
 #define STATE_MANAGER_HPP
 
-// --- 包含所有需要的数据类型 ---
 #include "ros2_interfaces/msg/system_status.hpp"
 #include "ros2_interfaces/msg/circuit_status.hpp"
 #include "ros2_interfaces/msg/regulator_status.hpp"
@@ -12,19 +11,17 @@
 #include "ros2_interfaces/msg/hardware_circuit_settings.hpp"
 #include <mutex>
 #include <array>
+#include <utility> // for std::pair
 
-// 管理系统的所有状态，提供线程安全的访问
 class StateManager
 {
 public:
-    // 定义系统中硬件组件的数量，便于维护
     static constexpr size_t NUM_CIRCUITS = 2;
     static constexpr size_t NUM_REGULATORS = 2;
 
     StateManager();
 
-    // === 写方法 (带锁) ===
-    // --- 常规数据 ---
+    // === Write Methods ===
     void update_system_status(const ros2_interfaces::msg::SystemStatus& status);
     void update_circuit_status(uint8_t id, const ros2_interfaces::msg::CircuitStatus& status);
     void update_regulator_status(uint8_t id, const ros2_interfaces::msg::RegulatorStatus& status);
@@ -32,15 +29,10 @@ public:
     void update_circuit_settings(uint8_t id, const ros2_interfaces::msg::CircuitSettings& settings);
     void update_regulator_settings(uint8_t id, const ros2_interfaces::msg::RegulatorSettings& settings);
 
-    // --- 硬件原始数据 ---
-    void update_hardware_circuit_status(uint8_t id, const ros2_interfaces::msg::HardwareCircuitStatus& status);
-    void update_hardware_regulator_status(uint8_t id, const ros2_interfaces::msg::RegulatorStatus& status);
-    void update_hardware_circuit_settings(uint8_t id, const ros2_interfaces::msg::HardwareCircuitSettings& settings);
-    void update_hardware_regulator_settings(uint8_t id, const ros2_interfaces::msg::RegulatorSettings& settings);
+    void update_circuit_status_from_hardware(uint8_t id, const ros2_interfaces::msg::HardwareCircuitStatus& hw_status);
+    void update_circuit_settings_from_hardware(uint8_t id, const ros2_interfaces::msg::HardwareCircuitSettings& hw_settings);
 
-
-    // === 读方法 (带锁) ===
-    // --- 常规数据 ---
+    // === Read Methods ===
     ros2_interfaces::msg::SystemStatus get_system_status() const;
     ros2_interfaces::msg::CircuitStatus get_circuit_status(uint8_t id) const;
     ros2_interfaces::msg::RegulatorStatus get_regulator_status(uint8_t id) const;
@@ -48,12 +40,9 @@ public:
     ros2_interfaces::msg::CircuitSettings get_circuit_settings(uint8_t id) const;
     ros2_interfaces::msg::RegulatorSettings get_regulator_settings(uint8_t id) const;
 
-    // --- 硬件原始数据 ---
-    ros2_interfaces::msg::HardwareCircuitStatus get_hardware_circuit_status(uint8_t id) const;
-    ros2_interfaces::msg::RegulatorStatus get_hardware_regulator_status(uint8_t id) const;
-    ros2_interfaces::msg::HardwareCircuitSettings get_hardware_circuit_settings(uint8_t id) const;
-    ros2_interfaces::msg::RegulatorSettings get_hardware_regulator_settings(uint8_t id) const;
-
+    // [NEW] Get raw PLC status (Mode, Source) that is not in the standard CircuitStatus
+    // Returns {mode, source}
+    std::pair<uint8_t, uint8_t> get_last_known_plc_status(uint8_t id) const;
 
 private:
     size_t circuit_id_to_index(uint8_t id) const;
@@ -61,7 +50,6 @@ private:
 
     mutable std::mutex state_mutex_;
 
-    // --- 常规数据存储 ---
     ros2_interfaces::msg::SystemStatus system_status_;
     std::array<ros2_interfaces::msg::CircuitStatus, NUM_CIRCUITS> circuit_statuses_;
     std::array<ros2_interfaces::msg::RegulatorStatus, NUM_REGULATORS> regulator_statuses_;
@@ -69,11 +57,11 @@ private:
     std::array<ros2_interfaces::msg::CircuitSettings, NUM_CIRCUITS> circuit_settings_;
     std::array<ros2_interfaces::msg::RegulatorSettings, NUM_REGULATORS> regulator_settings_;
 
-    // --- 硬件原始数据存储 ---
-    std::array<ros2_interfaces::msg::HardwareCircuitStatus, NUM_CIRCUITS> hardware_circuit_statuses_;
-    std::array<ros2_interfaces::msg::RegulatorStatus, NUM_REGULATORS> hardware_regulator_statuses_;
-    std::array<ros2_interfaces::msg::HardwareCircuitSettings, NUM_CIRCUITS> hardware_circuit_settings_;
-    std::array<ros2_interfaces::msg::RegulatorSettings, NUM_REGULATORS> hardware_regulator_settings_;
+    // [NEW] Cache for raw PLC status
+    struct PlcStatusCache {
+        uint8_t plc_control_mode = 0;
+        uint8_t plc_control_source = 0;
+    };
+    std::array<PlcStatusCache, NUM_CIRCUITS> plc_status_cache_;
 };
-
 #endif // STATE_MANAGER_HPP
