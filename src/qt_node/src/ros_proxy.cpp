@@ -1,6 +1,7 @@
 ﻿#include <QDebug>
 #include <QVariantMap>
 #include <QVariantList>
+#include <QPointF>
 
 #include "qt_node/ros_proxy.hpp"
 
@@ -269,3 +270,22 @@ void ROSProxy::onCommandResult(const QString &service_name, bool success, const 
     emit commandResult(service_name, success, message);
 }
 
+// --- History ---
+void ROSProxy::queryHistory(const QString& dateStr, const QString& timeStr, int spanHours, const QStringList& cols)
+{
+    // 简单的拼接： Date "2023-10-01" + Time "09:00" -> "2023-10-01 09:00:00"
+    QString startDateTime = QString("%1 %2:00").arg(dateStr, timeStr);
+
+    // 转发请求到 Node 线程
+    emit historyQueryRequested(startDateTime, spanHours, cols);
+}
+
+void ROSProxy::onHistoryDataFetched(const QVariantMap& data)
+{
+    emit historyDataReady(data);
+}
+
+void ROSProxy::onHistoryQueryFailed(const QString& msg)
+{
+    emit historyQueryError(msg);
+}

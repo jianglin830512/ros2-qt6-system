@@ -30,3 +30,4 @@ record_node:
     get_regulator_settings_service: "get_regulator_settings"
     get_circuit_settings_service: "get_circuit_settings"
     get_data_records_service: "get_data_records"
+    query_data_records_service: "query_data_records"

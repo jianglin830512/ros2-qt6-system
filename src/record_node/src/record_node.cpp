@@ -84,7 +84,15 @@ RecordNode::RecordNode() : Node("record_node")
     get_data_records_service_ = this->create_service<ros2_interfaces::srv::GetDataRecords>(
         get_data_name, std::bind(&RecordNode::get_data_records_callback, this, _1, _2));
 
-    // 7. 启动时间对齐逻辑
+    // 7. 创建高级查询服务 (动态列)
+    auto query_service_name = this->declare_parameter<std::string>(
+        record_node_constants::QUERY_DATA_RECORDS_SERVICE_PARAM,
+        record_node_constants::DEFAULT_QUERY_DATA_RECORDS_SERVICE);
+    query_data_records_service_ = this->create_service<ros2_interfaces::srv::QueryDataRecords>(
+        query_service_name, std::bind(&RecordNode::query_data_records_callback, this, _1, _2));
+    RCLCPP_INFO(this->get_logger(), "Service %s created.", query_service_name.c_str());
+
+    // 8. 启动时间对齐逻辑
     reschedule_timers();
 
     RCLCPP_INFO(this->get_logger(), "RecordNode initialization complete.");
@@ -254,6 +262,55 @@ void RecordNode::get_data_records_callback(
     response->message = "Retrieved " + std::to_string(results.size()) + " records.";
 }
 
+void RecordNode::query_data_records_callback(
+    const std::shared_ptr<ros2_interfaces::srv::QueryDataRecords::Request> request,
+    std::shared_ptr<ros2_interfaces::srv::QueryDataRecords::Response> response)
+{
+    RCLCPP_INFO(this->get_logger(), "Received query request: %lu columns, Filter ID: %d, Time: %s to %s",
+                request->column_names.size(), request->circuit_id_filter,
+                request->start_time.c_str(), request->end_time.c_str());
+
+    std::vector<std::string> headers;
+    std::vector<std::string> rows;
+
+    bool result = db_manager_->query_data_records(
+        request->column_names,
+        request->start_time,
+        request->end_time,
+        request->circuit_id_filter,
+        headers,
+        rows
+        );
+
+    if (result) {
+        response->success = true;
+        response->header = headers;
+        response->data_rows = rows;
+        response->message = "Query successful. Retrieved " + std::to_string(rows.size()) + " rows.";
+
+        // ==========================================
+        // [新增 LOG 3] 打印返回给客户端的数据详情
+        // ==========================================
+        std::string header_str;
+        for (const auto& h : headers) { header_str += h + ", "; }
+
+        RCLCPP_INFO(this->get_logger(), "[Service Response] Success: True. Returned Rows: %zu", rows.size());
+        RCLCPP_INFO(this->get_logger(), "[Service Response] Headers parsed: [%s]", header_str.c_str());
+
+        if (!rows.empty()) {
+            RCLCPP_INFO(this->get_logger(), "[Service Response] Sample First Row: %s", rows.front().c_str());
+            RCLCPP_INFO(this->get_logger(), "[Service Response] Sample Last Row: %s", rows.back().c_str());
+        } else {
+            RCLCPP_WARN(this->get_logger(), "[Service Response] 0 rows returned! Please check if the 'record_time' in the database exactly matches the format and falls between the requested time range.");
+        }
+
+    } else {
+        response->success = false;
+        response->message = "Database query failed or no valid columns provided.";
+        RCLCPP_ERROR(this->get_logger(), "[Service Response] Query Failed!");
+    }
+}
+
 // --- Recording Logic ---
 void RecordNode::reschedule_timers()
 {
@@ -280,9 +337,9 @@ void RecordNode::reschedule_timers()
     time_t t = std::chrono::system_clock::to_time_t(now);
     struct tm tm_struct;
 #ifdef _MSC_VER
-    gmtime_s(&tm_struct, &t);
+    localtime_s(&tm_struct, &t);
 #else
-    gmtime_r(&t, &tm_struct);
+    localtime_r(&t, &tm_struct);
 #endif
 
     // 当前小时内的分钟数 * 60 + 当前秒数 = 当前小时已过的秒数
@@ -327,11 +384,12 @@ void RecordNode::record_timer_callback()
     time_t t = std::chrono::system_clock::to_time_t(now_sys);
     struct tm tm_struct;
 #ifdef _MSC_VER
-    gmtime_s(&tm_struct, &t);
+    localtime_s(&tm_struct, &t); // Windows: 获取本地时间
 #else
-    gmtime_r(&t, &tm_struct);
+    localtime_r(&t, &tm_struct); // Linux: 获取本地时间
 #endif
-    tm_struct.tm_sec = 0;
+
+    tm_struct.tm_sec = 0; // 秒数归零，保证是对齐到整分钟
 
     std::stringstream ss;
     ss << std::put_time(&tm_struct, "%Y-%m-%d %H:%M:%S");

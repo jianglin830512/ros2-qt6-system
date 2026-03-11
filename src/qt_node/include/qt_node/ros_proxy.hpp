@@ -60,6 +60,10 @@ public slots:
     void updateRegulatorSettings(RegulatorSettingsMsgPtr msg);
     void updateCircuitSettings(CircuitSettingsMsgPtr msg);
 
+    // 历史数据：内部槽，用于接收 Node 的信号
+    void onHistoryDataFetched(const QVariantMap& data);
+    void onHistoryQueryFailed(const QString& msg);
+
     // QML可调用的命令发送函数
     Q_INVOKABLE void sendRegulatorOperationCommand(quint8 regulator_id, qt_node_constants::RegulatorOperationCommand command);
     Q_INVOKABLE void sendRegulatorBreakerCommand(quint8 regulator_id, qt_node_constants::RegulatorBreakerCommand command);
@@ -72,6 +76,9 @@ public slots:
     Q_INVOKABLE void setRegulatorSettings(quint8 regulator_id, RegulatorSettingsData* data);
     Q_INVOKABLE void setCircuitSettings(quint8 circuit_id, CircuitSettingsData* data);
     Q_INVOKABLE void setCircuitReferenceSource(quint8 circuit_id, bool use_ref);
+
+    // QML 调用的接口
+    Q_INVOKABLE void queryHistory(const QString& dateStr, const QString& timeStr, int spanHours, const QStringList& cols);
 
     // --- Slot to receive service call results from ROS node ---
     void onSettingsUpdateResult(const QString &service_name, bool success, const QString &message);
@@ -108,6 +115,13 @@ signals:
     // --- Signal to notify QML about the result ---
     void settingsUpdateResult(const QString &service_name, bool success, const QString &message);
     void commandResult(const QString &service_name, bool success, const QString &message);
+
+    // 历史数据：给 Node 的信号
+    void historyQueryRequested(const QString& start_time_str, int duration, const QStringList& columns);
+
+    // 历史数据：给 QML 的信号
+    void historyDataReady(const QVariantMap& data);
+    void historyQueryError(const QString& msg);
 
 private:
     // 存储数据的成员变量

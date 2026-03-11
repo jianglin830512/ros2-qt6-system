@@ -13,6 +13,7 @@
 #include "ros2_interfaces/srv/get_regulator_settings.hpp"
 #include "ros2_interfaces/srv/get_circuit_settings.hpp"
 #include "ros2_interfaces/srv/get_data_records.hpp"
+#include "ros2_interfaces/srv/query_data_records.hpp"
 
 #include "record_node/database_manager.hpp"
 #include <memory>
@@ -60,6 +61,11 @@ private:
     void reschedule_timers();
     void record_timer_callback();
 
+    // 新增：查询动态数据的服务回调
+    void query_data_records_callback(
+        const std::shared_ptr<ros2_interfaces::srv::QueryDataRecords::Request> request,
+        std::shared_ptr<ros2_interfaces::srv::QueryDataRecords::Response> response);
+
     // --- 核心组件 ---
     std::unique_ptr<DatabaseManager> db_manager_;
 
@@ -77,6 +83,9 @@ private:
     rclcpp::Service<ros2_interfaces::srv::GetRegulatorSettings>::SharedPtr get_regulator_settings_service_;
     rclcpp::Service<ros2_interfaces::srv::GetCircuitSettings>::SharedPtr get_circuit_settings_service_;
     rclcpp::Service<ros2_interfaces::srv::GetDataRecords>::SharedPtr get_data_records_service_;
+
+    // 新增：服务对象
+    rclcpp::Service<ros2_interfaces::srv::QueryDataRecords>::SharedPtr query_data_records_service_;
 
     // --- 内存数据存储 (状态) ---
     std::map<uint8_t, ros2_interfaces::msg::CircuitStatus> latest_circuit_status_;

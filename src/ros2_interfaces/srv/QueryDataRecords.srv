@@ -1,0 +1,12 @@
+# 请求
+string start_time       # ISO格式开始时间，例如 "2023-10-27 09:00:00"
+string end_time         # ISO格式结束时间
+string[] column_names   # 需要查询的列名列表，例如 ["regulator_current", "test_loop_temp01"]
+int32 circuit_id_filter # 可选：如果 > 0，则只返回特定回路的数据；如果 == 0，返回所有回路数据
+
+---
+# 响应
+bool success
+string message
+string[] header         # 返回实际查询到的列名
+string[] data_rows      # 数据行。每一行是一个以逗号分隔的字符串 (CSV格式)，例如 "10.5, 23.4, 1"

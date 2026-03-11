@@ -3,6 +3,7 @@
 #include <sstream>
 #include <ctime>
 #include <cstdio>
+#include <set>
 
 namespace{
 
@@ -600,4 +601,141 @@ std::vector<ros2_interfaces::msg::DataRecord> DatabaseManager::get_data_records(
     }
     sqlite3_finalize(stmt);
     return results;
+}
+
+// 辅助：检查列名是否在允许的白名单中，防止SQL注入
+bool DatabaseManager::is_valid_column(const std::string& col_name)
+{
+    static const std::set<std::string> valid_columns = {
+        "record_id", "record_time", "circuit_id", "control_mode",
+        "regulator_voltage", "regulator_current", "regulator_breaker_closed",
+        "test_loop_is_heat", "ref_loop_is_heat",
+        "test_loop_current", "ref_loop_current",
+        "test_loop_breaker_closed", "ref_loop_breaker_closed"
+    };
+
+    // 1. 检查基础列
+    if (valid_columns.count(col_name)) return true;
+
+    // ==========================================
+    // [修改点] 修正这里的长度判断逻辑
+    // ==========================================
+    // test_loop_temp 加上两位数字 (例如 test_loop_temp01) 长度是 16
+    if (col_name.find("test_loop_temp") == 0 && col_name.length() == 16) {
+        return true;
+    }
+    // ref_loop_temp 加上两位数字 (例如 ref_loop_temp01) 长度是 15
+    if (col_name.find("ref_loop_temp") == 0 && col_name.length() == 15) {
+        return true;
+    }
+
+    return false;
+}
+
+bool DatabaseManager::query_data_records(
+    const std::vector<std::string>& column_names,
+    const std::string& start_time,
+    const std::string& end_time,
+    int circuit_id_filter,
+    std::vector<std::string>& result_header,
+    std::vector<std::string>& result_rows)
+{
+    if (!db_) return false;
+
+    // 1. 构建 SELECT 子句
+    std::stringstream sql_ss;
+    sql_ss << "SELECT ";
+
+    std::vector<std::string> safe_cols;
+
+    // 如果请求为空，默认查询所有(或基础)列，这里建议返回空或报错，
+    // 为了健壮性，若为空则查询 record_time 和 circuit_id
+    if (column_names.empty()) {
+        safe_cols.push_back("record_time");
+        safe_cols.push_back("circuit_id");
+    } else {
+        for (const auto& col : column_names) {
+            if (is_valid_column(col)) {
+                safe_cols.push_back(col);
+            } else {
+                RCLCPP_WARN(logger_, "Ignored invalid or unknown column request: %s", col.c_str());
+            }
+        }
+    }
+
+    if (safe_cols.empty()) {
+        RCLCPP_ERROR(logger_, "No valid columns provided for query.");
+        return false;
+    }
+
+    // 拼接列名
+    for (size_t i = 0; i < safe_cols.size(); ++i) {
+        sql_ss << safe_cols[i];
+        if (i < safe_cols.size() - 1) sql_ss << ", ";
+    }
+
+    // 保存 Header 用于返回
+    result_header = safe_cols;
+
+    // 2. 构建 WHERE 子句
+    sql_ss << " FROM data_records WHERE record_time BETWEEN ? AND ?";
+
+    if (circuit_id_filter > 0) {
+        sql_ss << " AND circuit_id = " << circuit_id_filter;
+    }
+
+    sql_ss << " ORDER BY record_time ASC;";
+
+    std::string sql_str = sql_ss.str();
+
+    // ==========================================
+    // [新增 LOG 1] 打印最终拼接的 SQL 语句和时间参数
+    // ==========================================
+    RCLCPP_INFO(logger_, "--------------------------------------------------");
+    RCLCPP_INFO(logger_, "[DB Query] Executing SQL: %s", sql_str.c_str());
+    RCLCPP_INFO(logger_, "[DB Query] Binding Params -> start: '%s', end: '%s'",
+                start_time.c_str(), end_time.c_str());
+    RCLCPP_INFO(logger_, "--------------------------------------------------");
+
+    // 3. 准备语句
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql_str.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        RCLCPP_ERROR(logger_, "Failed to prepare query SQL: %s", sqlite3_errmsg(db_));
+        return false;
+    }
+
+    // 4. 绑定时间参数
+    sqlite3_bind_text(stmt, 1, start_time.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, end_time.c_str(), -1, SQLITE_TRANSIENT);
+
+    // 5. 执行并提取数据
+    result_rows.clear();
+    int col_count = static_cast<int>(safe_cols.size());
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        std::stringstream row_ss;
+        for (int i = 0; i < col_count; ++i) {
+            // 利用 sqlite3_column_text 获取所有类型的字符串表示，
+            // SQLite 会自动处理 int/float 到 string 的转换，这对于生成 CSV 非常方便
+            const char* text = (const char*)sqlite3_column_text(stmt, i);
+            if (text) {
+                row_ss << text;
+            } else {
+                row_ss << "NULL";
+            }
+
+            if (i < col_count - 1) {
+                row_ss << ","; // CSV 分隔符
+            }
+        }
+        result_rows.push_back(row_ss.str());
+    }
+
+    // ==========================================
+    // [新增 LOG 2] 打印底层 SQLite 提取到的实际行数
+    // ==========================================
+    RCLCPP_INFO(logger_, "[DB Query] SQLite step finished. Fetched %zu rows from DB.", result_rows.size());
+
+    sqlite3_finalize(stmt);
+    return true;
 }

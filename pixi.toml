@@ -24,6 +24,7 @@ numpy = "==1.26.4"
 libblas = { version = "*", build = "*mkl*" }
 libcblas = { version = "*", build = "*mkl*" }
 liblapack = { version = "*", build = "*mkl*" }
+nodejs = ">=25.7.0,<25.8"
 
 [host-dependencies]
 sqlite = ">=3.50.4,<4"

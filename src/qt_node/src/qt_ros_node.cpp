@@ -1,6 +1,7 @@
 ﻿#include "qt_node/qt_ros_node.hpp"
 #include "qt_node/qt_node_constants.hpp"
 #include <QDebug>
+#include <QPointF>
 
 // Helper function to avoid code duplication (optional but recommended)
 namespace {
@@ -210,6 +211,15 @@ QtROSNode::QtROSNode(const std::string &node_name, QObject *parent)
     set_circuit_settings_client_ =
         this->create_client<ros2_interfaces::srv::SetCircuitSettings>(set_circuit_settings_service_name_);
 
+    // 初始化 Query Data Records Service Client
+    query_data_records_service_name_ = this->declare_parameter<std::string>(
+        qt_node_constants::QUERY_DATA_RECORDS_SERVICE_PARAM,
+        qt_node_constants::DEFAULT_QUERY_DATA_RECORDS_SERVICE);
+    RCLCPP_INFO(this->get_logger(), "Using QueryDataRecords service: '%s'", query_data_records_service_name_.c_str());
+
+    query_data_records_client_ =
+        this->create_client<ros2_interfaces::srv::QueryDataRecords>(query_data_records_service_name_);
+
     // --- 启动ROS事件循环的Qt定时器 ---
     m_ros_timer = new QTimer(this);
     connect(m_ros_timer, &QTimer::timeout, this, &QtROSNode::spin_some);
@@ -240,6 +250,9 @@ void QtROSNode::onShutdownRequested()
 void QtROSNode::startTimer()
 {
     m_ros_timer->start(50); // 每 100 毫秒 spin 一次
+
+    // [新增] 启动 2 秒后执行一次查询测试，给 record_node 一点准备时间
+    QTimer::singleShot(2000, this, &QtROSNode::testQueryData);
 }
 
 void QtROSNode::spin_some()
@@ -489,4 +502,205 @@ void QtROSNode::onSetCircuitSettings(quint8 circuit_id, CircuitSettingsData* dat
     };
 
     set_circuit_settings_client_->async_send_request(request, response_callback);
+}
+
+void QtROSNode::testQueryData()
+{
+    RCLCPP_INFO(this->get_logger(), ">>> STARTING QUERY DATA TEST <<<");
+
+    // 1. 检查服务是否在线
+    if (!query_data_records_client_->wait_for_service(std::chrono::seconds(1))) {
+        RCLCPP_ERROR(this->get_logger(), "Query service '%s' is NOT ready via wait_for_service.", query_data_records_service_name_.c_str());
+        return;
+    }
+
+    // 2. 构建请求
+    auto request = std::make_shared<ros2_interfaces::srv::QueryDataRecords::Request>();
+
+    // 2.1 设置时间范围 (这里为了演示，获取当前时间的前后24小时，或者您可以写死一个具体的测试时间)
+    // 假设数据库里有最近的数据
+    QDateTime now = QDateTime::currentDateTime();
+    QDateTime startTime = now.addDays(-2); // 前天
+    QDateTime endTime = now;    // 今天
+
+    // 格式化为 SQL 兼容格式: "yyyy-MM-dd HH:mm:ss"
+    request->start_time = startTime.toString("yyyy-MM-dd HH:mm:ss").toStdString();
+    request->end_time = endTime.toString("yyyy-MM-dd HH:mm:ss").toStdString();
+
+    // 2.2 设置要查询的列 (根据接口文档)
+    // 比如：查询 时间、回路ID、试验支路电流、调压器电压
+    request->column_names = {
+        "record_time",
+        "circuit_id",
+        "test_loop_current",
+        "regulator_voltage"
+    };
+
+    // 2.3 设置过滤器 (0表示不过滤，查所有回路)
+    request->circuit_id_filter = 0;
+
+    RCLCPP_INFO(this->get_logger(), "Sending Request -> Start: %s, End: %s, Cols: %lu",
+                request->start_time.c_str(), request->end_time.c_str(), request->column_names.size());
+
+    // 3. 发送异步请求
+    auto response_callback = [this](rclcpp::Client<ros2_interfaces::srv::QueryDataRecords>::SharedFuture future) {
+        auto response = future.get();
+        if (response->success) {
+            RCLCPP_INFO(this->get_logger(), ">>> QUERY SUCCESS <<<");
+            RCLCPP_INFO(this->get_logger(), "Message: %s", response->message.c_str());
+
+            // --- [修复的部分] ---
+            QStringList headerList;
+            for (const std::string& h : response->header) {
+                headerList.append(QString::fromStdString(h));
+            }
+            QString headerStr = headerList.join(" | ");
+            // -------------------
+
+            RCLCPP_INFO(this->get_logger(), "Header: [ %s ]", headerStr.toStdString().c_str());
+            RCLCPP_INFO(this->get_logger(), "Rows Count: %lu", response->data_rows.size());
+
+            // 打印前 5 行数据示例
+            int count = 0;
+            for (const std::string& row_std_str : response->data_rows) {
+                if (count >= 5) break;
+
+                QString row_str = QString::fromStdString(row_std_str);
+                // 这里不需要复杂的分割逻辑，只是打印演示
+                RCLCPP_INFO(this->get_logger(), "Row %d: %s", count + 1, row_str.toStdString().c_str());
+                count++;
+            }
+            if (response->data_rows.size() > 5) {
+                RCLCPP_INFO(this->get_logger(), "... (Remaining %lu rows omitted)", response->data_rows.size() - 5);
+            }
+
+        } else {
+            RCLCPP_ERROR(this->get_logger(), ">>> QUERY FAILED <<<");
+            RCLCPP_ERROR(this->get_logger(), "Reason: %s", response->message.c_str());
+        }
+    };
+
+    query_data_records_client_->async_send_request(request, response_callback);
+}
+
+void QtROSNode::queryHistoryData(const QString& start_time_str, int duration_hours, const QStringList& requested_keys)
+{
+    if (!query_data_records_client_->service_is_ready()) {
+        emit historyQueryFailed("Query service is not ready.");
+        return;
+    }
+
+    QDateTime startDt = QDateTime::fromString(start_time_str, "yyyy-MM-dd HH:mm:ss");
+    if (!startDt.isValid()) {
+        emit historyQueryFailed("Invalid start time format.");
+        return;
+    }
+    QDateTime endDt = startDt.addSecs(duration_hours * 3600);
+
+    auto request = std::make_shared<ros2_interfaces::srv::QueryDataRecords::Request>();
+    request->start_time = startDt.toString("yyyy-MM-dd HH:mm:ss").toStdString();
+    request->end_time = endDt.toString("yyyy-MM-dd HH:mm:ss").toStdString();
+
+    // 1. 解析 QML 传来的带有 ID 的 key (例如 "1|regulator_voltage")，提取出实际的数据库列名
+    QSet<QString> db_columns;
+    db_columns.insert("record_time");
+    db_columns.insert("circuit_id"); // 必须请求 ID，以便区分数据属于哪条曲线
+
+    for(const QString& key : requested_keys) {
+        QStringList parts = key.split('|');
+        if(parts.size() == 2) {
+            db_columns.insert(parts[1]); // 提取实际列名
+        }
+    }
+
+    // 填充请求
+    for(const QString& col : db_columns) {
+        request->column_names.push_back(col.toStdString());
+    }
+
+    request->circuit_id_filter = 0; // 0 表示查询全部回路，我们在收到数据后再按 ID 拆分
+
+    RCLCPP_INFO(this->get_logger(), "Querying History: %s -> %s, Cols: %lu",
+                request->start_time.c_str(), request->end_time.c_str(), request->column_names.size());
+
+    // 2. 异步回调与数据解析
+    auto callback = [this, requested_keys](rclcpp::Client<ros2_interfaces::srv::QueryDataRecords>::SharedFuture future) {
+        auto response = future.get();
+        if (!response->success) {
+            emit historyQueryFailed(QString::fromStdString(response->message));
+            return;
+        }
+
+        // 获取列索引映射
+        QMap<QString, int> col_indices;
+        for (int i = 0; i < (int)response->header.size(); ++i) {
+            col_indices[QString::fromStdString(response->header[i])] = i;
+        }
+
+        int time_idx = col_indices.value("record_time", -1);
+        int cid_idx = col_indices.value("circuit_id", -1);
+
+        if (time_idx == -1 || cid_idx == -1) {
+            emit historyQueryFailed("Response missing record_time or circuit_id.");
+            return;
+        }
+
+        // 使用 QVariantList 存放 QVariant::fromValue(QPointF)，这是 QML 最容易接受的格式
+        // 【修改点 1】: 将 QPointF 替换为纯粹的 QVariantMap，确保 QML 能够毫无障碍地读取
+        QMap<QString, QVariantList> temp_points;
+
+        // 遍历所有数据行
+        for (const std::string& row_std : response->data_rows) {
+            QString row_str = QString::fromStdString(row_std);
+            QStringList values = row_str.split(',');
+
+            // 获取时间和回路ID
+            QString time_str = values[time_idx].trimmed();
+            QString cid_str = values[cid_idx].trimmed();
+
+            QDateTime dt = QDateTime::fromString(time_str, "yyyy-MM-dd HH:mm:ss");
+            if (!dt.isValid()) continue;
+            qint64 x_ms = dt.toMSecsSinceEpoch(); // X轴要求毫秒时间戳
+
+            // 遍历 QML 请求的 keys (例如 "1|regulator_voltage")
+            for (const QString& req_key : requested_keys) {
+                QStringList parts = req_key.split('|');
+                if (parts.size() != 2) continue;
+
+                QString target_cid = parts[0];
+                QString target_col = parts[1];
+
+                // 只有当当前行的 circuit_id 与请求的 circuit_id 匹配时，才提取数据
+                if (cid_str == target_cid) {
+                    int val_idx = col_indices.value(target_col, -1);
+                    if (val_idx != -1 && val_idx < values.size()) {
+                        double y_val = values[val_idx].toDouble();
+
+                        // 【修改点 2】: 使用 QVariantMap ("x", "y") 取代 QPointF
+                        QVariantMap point_map;
+                        point_map["x"] = x_ms;
+                        point_map["y"] = y_val;
+                        temp_points[req_key].append(point_map);
+                    }
+                }
+            }
+        }
+
+        // 打印调试信息，确认 C++ 提取到了数据
+        for(auto it = temp_points.begin(); it != temp_points.end(); ++it) {
+            RCLCPP_INFO(this->get_logger(), "Parsed Column: %s, Point Count: %d", it.key().toStdString().c_str(), it.value().size());
+        }
+
+        // 转换为 QVariantMap 发送给 QML
+        QVariantMap result_map;
+        QMapIterator<QString, QVariantList> i(temp_points);
+        while (i.hasNext()) {
+            i.next();
+            result_map[i.key()] = i.value();
+        }
+
+        emit historyDataFetched(result_map);
+    };
+
+    query_data_records_client_->async_send_request(request, callback);
 }

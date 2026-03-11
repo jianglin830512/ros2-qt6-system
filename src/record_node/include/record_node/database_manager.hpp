@@ -69,6 +69,25 @@ public:
     std::vector<ros2_interfaces::msg::DataRecord> get_data_records(
         const std::string& start_time, const std::string& end_time);
 
+    /**
+     * @brief 根据指定的列名和时间范围查询数据
+     * @param column_names 需要查询的数据库列名列表
+     * @param start_time 开始时间
+     * @param end_time 结束时间
+     * @param circuit_id_filter 回路ID过滤 (0表示不过滤)
+     * @param result_header [输出] 实际返回的列头
+     * @param result_rows [输出] 数据行，每行数据转换为 "val1,val2,val3" 的CSV字符串格式
+     * @return 成功返回 true
+     */
+    bool query_data_records(
+        const std::vector<std::string>& column_names,
+        const std::string& start_time,
+        const std::string& end_time,
+        int circuit_id_filter,
+        std::vector<std::string>& result_header,
+        std::vector<std::string>& result_rows
+        );
+
 private:
     /**
      * @brief 初始化数据库，创建所有需要的表，并插入初始数据
@@ -89,6 +108,7 @@ private:
      */
     bool execute_sql(const char* sql, const char* context_msg);
 
+    bool is_valid_column(const std::string& col_name);
 
     sqlite3* db_;
     rclcpp::Logger logger_;

@@ -41,6 +41,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetCircuitSettings.srv"
   "srv/SetHardwareCircuitControlMode.srv"
   "srv/SetHardwareCircuitControlSource.srv"
+  "srv/QueryDataRecords.srv"
   # 声明这些 msg 文件内部所依赖的其他消息包
   DEPENDENCIES std_msgs builtin_interfaces
 )

@@ -3,6 +3,9 @@
 
 #include <QObject>
 #include <QTimer>
+#include <QVariantMap>
+#include <QDateTime>
+
 #include "rclcpp/rclcpp.hpp"  // IWYU pragma: keep
 #include "std_msgs/msg/empty.hpp"
 
@@ -33,6 +36,8 @@
 #include "ros2_interfaces/srv/set_system_settings.hpp"
 #include "ros2_interfaces/srv/set_regulator_settings.hpp"
 #include "ros2_interfaces/srv/set_circuit_settings.hpp"
+// 历史
+#include "ros2_interfaces/srv/query_data_records.hpp"
 
 using SystemSettingsMsgPtr = ros2_interfaces::msg::SystemSettings::SharedPtr;
 using RegulatorSettingsMsgPtr = ros2_interfaces::msg::RegulatorSettings::SharedPtr;
@@ -44,6 +49,12 @@ class QtROSNode : public QObject, public rclcpp::Node
 public:
     explicit QtROSNode(const std::string &node_name, QObject *parent = nullptr);
     ~QtROSNode();
+
+    // 发起历史数据查询
+    // start_time_str: "yyyy-MM-dd HH:mm:ss"
+    // duration_hours: 2, 4, 8, etc.
+    // columns: ["test_loop_current", "regulator_voltage", ...]
+    void queryHistoryData(const QString& start_time_str, int duration_hours, const QStringList& columns);
 
 public slots:
     void onShutdownRequested();
@@ -60,6 +71,8 @@ public slots:
     void onSetSystemSettings(SystemSettingsData* data);
     void onSetRegulatorSettings(quint8 regulator_id, RegulatorSettingsData* data);
     void onSetCircuitSettings(quint8 circuit_id, CircuitSettingsData* data);
+
+    void testQueryData();
 
 private slots:
     void spin_some();
@@ -79,6 +92,15 @@ signals:
     void systemSettingsReceived(SystemSettingsMsgPtr msg);
     void regulatorSettingsReceived(RegulatorSettingsMsgPtr msg);
     void circuitSettingsReceived(CircuitSettingsMsgPtr msg);
+
+    // 历史数据查询结果信号
+    // key: 列名 (如 "test_loop_current")
+    // value: QList<QPointF> (x=时间戳ms, y=数值)
+    void historyDataFetched(const QVariantMap& series_data);
+
+    // 查询失败信号
+    void historyQueryFailed(const QString& message);
+
 private:
     // --- 回调函数 ---
     void circuit_status_callback(const ros2_interfaces::msg::CircuitStatus::SharedPtr msg);
@@ -120,6 +142,9 @@ private:
     std::string set_regulator_settings_service_name_;
     rclcpp::Client<ros2_interfaces::srv::SetCircuitSettings>::SharedPtr set_circuit_settings_client_;
     std::string set_circuit_settings_service_name_;
+    // 查询历史数据
+    rclcpp::Client<ros2_interfaces::srv::QueryDataRecords>::SharedPtr query_data_records_client_;
+    std::string query_data_records_service_name_;
 
     QTimer* m_ros_timer;
 };

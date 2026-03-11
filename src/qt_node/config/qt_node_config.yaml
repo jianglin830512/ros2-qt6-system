@@ -38,3 +38,6 @@ qt_ros_node:
     set_system_settings_service: "set_system_settings"
     set_regulator_settings_service: "set_regulator_settings"
     set_circuit_settings_service: "set_circuit_settings"
+
+    # 历史数据查询服务 -- FROM qt_node
+    query_data_records_service: "query_data_records"

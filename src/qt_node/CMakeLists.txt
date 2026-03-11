@@ -82,6 +82,7 @@ qt_add_qml_module(qt_node_executable
         qml/components/InputBlocker.qml
         qml/pages/CircuitSettingsPageForm.ui.qml
         qml/pages/CircuitSettingsPage.qml
+        qml/pages/HistoryPageForm.ui.qml
         qml/pages/HistoryPage.qml
         qml/pages/SystemSettingsPage.qml
         qml/pages/SystemSettingsPageForm.ui.qml

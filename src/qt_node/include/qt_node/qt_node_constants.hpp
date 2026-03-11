@@ -77,6 +77,10 @@ constexpr const char* DEFAULT_SET_SYSTEM_SETTINGS_SERVICE = "default_set_system_
 constexpr const char* DEFAULT_SET_REGULATOR_SETTINGS_SERVICE = "default_set_regulator_settings";
 constexpr const char* DEFAULT_SET_CIRCUIT_SETTINGS_SERVICE = "default_set_circuit_settings";
 
+// 历史数据查询服务
+constexpr const char* QUERY_DATA_RECORDS_SERVICE_PARAM = "query_data_records_service";
+constexpr const char* DEFAULT_QUERY_DATA_RECORDS_SERVICE = "default_query_data_records";
+
 } // namespace qt_node_constants
 
 #endif // QT_NODE_CONSTANTS_HPP

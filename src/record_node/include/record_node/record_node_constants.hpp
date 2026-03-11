@@ -11,14 +11,6 @@ namespace record_node_constants
 [[maybe_unused]] constexpr const char* RECORD_INTERVAL_MIN_PARAM = "record_interval_min";
 [[maybe_unused]] constexpr int DEFAULT_RECORD_INTERVAL_MIN = 1;
 
-// 服务名称 - 保存/设置类
-// [[maybe_unused]] constexpr const char* SAVE_SYSTEM_SETTINGS_SERVICE_PARAM = "save_system_settings_service";
-// [[maybe_unused]] constexpr const char* SAVE_REGULATOR_SETTINGS_SERVICE_PARAM = "save_regulator_settings_service";
-// [[maybe_unused]] constexpr const char* SAVE_CIRCUIT_SETTINGS_SERVICE_PARAM = "save_circuit_settings_service";
-// [[maybe_unused]] constexpr const char* DEFAULT_SAVE_SYSTEM_SETTINGS_SERVICE = "default_save_system_settings";
-// [[maybe_unused]] constexpr const char* DEFAULT_SAVE_REGULATOR_SETTINGS_SERVICE = "default_save_regulator_settings";
-// [[maybe_unused]] constexpr const char* DEFAULT_SAVE_CIRCUIT_SETTINGS_SERVICE = "default_save_circuit_settings";
-
 // 服务名称 - 查询/获取类
 [[maybe_unused]] constexpr const char* GET_SYSTEM_SETTINGS_SERVICE_PARAM = "get_system_settings_service";
 [[maybe_unused]] constexpr const char* GET_REGULATOR_SETTINGS_SERVICE_PARAM = "get_regulator_settings_service";
@@ -28,6 +20,9 @@ namespace record_node_constants
 [[maybe_unused]] constexpr const char* DEFAULT_GET_REGULATOR_SETTINGS_SERVICE = "default_get_regulator_settings";
 [[maybe_unused]] constexpr const char* DEFAULT_GET_CIRCUIT_SETTINGS_SERVICE = "default_get_circuit_settings";
 [[maybe_unused]] constexpr const char* DEFAULT_GET_DATA_RECORDS_SERVICE = "default_get_data_records";
+
+[[maybe_unused]] constexpr const char* QUERY_DATA_RECORDS_SERVICE_PARAM = "query_data_records_service";
+[[maybe_unused]] constexpr const char* DEFAULT_QUERY_DATA_RECORDS_SERVICE = "default_query_data_records";
 
 // Topic 名称参数 (必须与 Control Node 保持一致)
 // status

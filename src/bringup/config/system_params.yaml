@@ -32,6 +32,9 @@ qt_ros_node:
     set_system_settings_service: "set_system_settings"
     set_regulator_settings_service: "set_regulator_settings"
     set_circuit_settings_service: "set_circuit_settings"
+    
+    # 历史数据查询服务 -- FROM qt_node
+    query_data_records_service: "query_data_records"
 
 # ==============================================================================
 # 2. Control Node (核心控制逻辑节点)
@@ -113,6 +116,7 @@ record_node:
     get_regulator_settings_service: "get_regulator_settings"
     get_circuit_settings_service: "get_circuit_settings"
     get_data_records_service: "get_data_records"
+    query_data_records_service: "query_data_records"
 
 # ==============================================================================
 # 4. Hardware Node (硬件驱动节点)

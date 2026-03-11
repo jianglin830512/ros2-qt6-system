@@ -6,7 +6,6 @@
 
 #include "include/qt_node/qt_ros_node.hpp" // 引入我们的节点头文件
 #include "qt_node/ros_proxy.hpp"
-//#include "rclcpp/rclcpp.hpp" // 在节点头文件里面包含了
 
 void _qmlMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
@@ -125,6 +124,21 @@ int main(int argc, char *argv[])
                      Qt::QueuedConnection);
     QObject::connect(ros_proxy.get(), &ROSProxy::circuitSettingsUpdateRequest,
                      ros_node.get(), &QtROSNode::onSetCircuitSettings,
+                     Qt::QueuedConnection);
+
+    // --- History Query 连接 ---
+    // Proxy -> Node (Request)
+    QObject::connect(ros_proxy.get(), &ROSProxy::historyQueryRequested,
+                     ros_node.get(), &QtROSNode::queryHistoryData,
+                     Qt::QueuedConnection);
+
+    // Node -> Proxy (Result)
+    QObject::connect(ros_node.get(), &QtROSNode::historyDataFetched,
+                     ros_proxy.get(), &ROSProxy::onHistoryDataFetched,
+                     Qt::QueuedConnection);
+
+    QObject::connect(ros_node.get(), &QtROSNode::historyQueryFailed,
+                     ros_proxy.get(), &ROSProxy::onHistoryQueryFailed,
                      Qt::QueuedConnection);
 
     // --- 关闭程序的连接：GUI -> ROS ---
