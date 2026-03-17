@@ -21,8 +21,17 @@ Rectangle {
     property alias openBreakerButton: openBreakerButton
     property alias voltageUpButton: voltageUpButton
     property alias voltageDownButton: voltageDownButton
-    property alias isBlocked: inputBlocker.visible // 暴露遮罩可见性
+    property alias isBlocked: inputBlocker.visible
 
+    // --- Chart Aliases 暴露给逻辑层 ---
+    property alias voltageAxis: voltageAxis
+    property alias currentAxis: currentAxis
+    property alias volBaseSet: volBaseSet
+    property alias volWarnSet: volWarnSet
+    property alias volDangerSet: volDangerSet
+    property alias curBaseSet: curBaseSet
+    property alias curWarnSet: curWarnSet
+    property alias curDangerSet: curDangerSet
 
     // 电压升降指示的宽度
     property int voltageIndicatorWidth: 30
@@ -86,99 +95,70 @@ Rectangle {
             }
         }
 
-        // --- Placeholder for Chart ---
+        // --- Chart ---
         Rectangle {
             Layout.fillWidth: true
             Layout.minimumHeight: 200
             Layout.fillHeight: true
-            color: "white"
+            color: "transparent"
             border.color: Theme.highlightColor
             ChartView {
                 id: chartView
                 anchors.fill: parent
                 anchors.bottomMargin: 15
                 antialiasing: true
-                legend.visible: false // 隐藏图例
+                legend.visible: false
                 backgroundColor: Theme.controlBgColor
 
-                axes: [
+                // 移除原有的 axes: [ ... ] 写法，直接嵌套！
+                BarCategoryAxis {
+                    id: barCategoryAxis
+                    categories: ["V", "A"]
+                    labelsVisible: false
+                    gridVisible: false
+                }
+                ValueAxis {
+                    id: voltageAxis
+                    min: 0
+                    max: 450 // 电压固定为 450V
+                    tickCount: 6
+                    labelsColor: "#A0B0C0"
+                    labelFormat: "%.0f"
+                    gridVisible: false
+                    lineVisible: true
+                }
+                ValueAxis {
+                    id: currentAxis
+                    min: 0
+                    max: 450 // 默认450，逻辑层会根据主辅重新赋值
+                    tickCount: 6
+                    labelsColor: "#A0B0C0"
+                    labelFormat: "%.0f"
+                    gridVisible: false
+                    lineVisible: true
+                }
 
-                    // 使用横向的条形图类别来并列显示两个柱状图
-                    BarCategoryAxis {
-                        id: barCategoryAxis
-                        categories: ["V", "A"] // 定义两个类别
-                        labelsVisible: false // 我们不需要显示 "V", "A" 标签
-                        gridVisible: false
-                    },
-                    ValueAxis {
-                        id: voltageAxis
-                        min: 0
-                        max: 500
-                        tickCount: 6
-                        labelsColor: "#A0B0C0" // 浅蓝色字体
-                        labelFormat: "%.1f"   // 显示一位小数
-                        gridVisible: false
-                        lineVisible: true // 显示轴线
-                    },
-
-                    ValueAxis {
-                        id: currentAxis
-                        min: 0
-                        max: 250
-                        tickCount: 6
-                        labelsColor: "#A0B0C0" // 浅蓝色字体
-                        labelFormat: "%.1f"   // 显示一位小数
-                        gridVisible: false
-                        lineVisible: true // 显示轴线
-                    }
-                ]
-
-                // 电压的堆叠条形图系列
+                // 电压的堆叠条形图
                 StackedBarSeries {
                     id: voltageSeries
                     axisX: barCategoryAxis
-                    axisY: voltageAxis // 关联到左边的电压Y轴
-                    // 设置柱子的宽度，1.0为最大宽度，可以调整这个值
-                    barWidth: 0.9
-                    BarSet {
-                        label: "Voltage Base"
-                        values: [380] // 第一个柱子的第一个分段值
-                        color: "#008080" // 蓝绿色
-                    }
-                    BarSet {
-                        label: "Voltage Warning"
-                        values: [40] // 第一个柱子的第二个分段值
-                        color: "orange"
-                    }
-                    BarSet {
-                        label: "Voltage Danger"
-                        values: [30] // 第一个柱子的第三个分段值
-                        color: "red"
-                    }
+                    axisY: voltageAxis
+                    barWidth: 0.8
+                    BarSet { id: volBaseSet; label: "V Base"; values: [0]; color: "#008080" }
+                    BarSet { id: volWarnSet; label: "V Warning"; values: [0]; color: "orange" }
+                    BarSet { id: volDangerSet; label: "V Danger"; values: [0]; color: "red" }
                 }
 
-                // 电流的堆叠条形图系列
+                // 电流的堆叠条形图
                 StackedBarSeries {
                     id: currentSeries
                     axisX: barCategoryAxis
-                    axisYRight: currentAxis // 关联到右边的电流Y轴
-                    // 设置柱子的宽度，1.0为最大宽度，可以调整这个值
-                    barWidth: 0.9
-                    BarSet {
-                        label: "Current Base"
-                        values: [0, 220] // 第二个柱子的第一个分段值 (第一个值用0占位)
-                        color: "#008080" // 蓝绿色
-                    }
-                    BarSet {
-                        label: "Current Warning"
-                        values: [0, 15] // 第二个柱子的第二个分段值
-                        color: "orange"
-                    }
-                    BarSet {
-                        label: "Current Danger"
-                        values: [0, 10] // 第二个柱子的第三个分段值
-                        color: "red"
-                    }
+                    axisYRight: currentAxis
+                    barWidth: 0.8
+                    // 注意：电流是第二列(类别"A")，所以用 [0, 0] 占位，之后在索引 1 处修改值
+                    BarSet { id: curBaseSet; label: "A Base"; values: [0, 0]; color: "#008080" }
+                    BarSet { id: curWarnSet; label: "A Warning"; values: [0, 0]; color: "orange" }
+                    BarSet { id: curDangerSet; label: "A Danger"; values: [0, 0]; color: "red" }
                 }
             }
 
@@ -250,24 +230,15 @@ Rectangle {
         }
     }
 
-    // 【新增】遮罩层
-    // 这里我们使用 anchored 布局来遮住下半部分的控制按钮
-    // 假设 titleLabel 所在的第一行不需要遮挡（可以看数值）
     InputBlocker {
         id: inputBlocker
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-
-        // 高度设置为遮住下面两个按钮行 + 图表下方的显示区
-        // 或者为了简单，直接遮住除了标题栏以外的所有区域
         anchors.top: parent.top
-        anchors.topMargin: 50 // 让出标题栏和状态灯
-
+        anchors.topMargin: 50
         radius: root.radius
-        statusText: "非手动模式" // 提示文字
-
-        // 初始设为 false，由逻辑层控制
+        statusText: "非手动模式"
         visible: false
     }
 }

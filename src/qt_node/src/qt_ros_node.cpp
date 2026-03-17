@@ -250,9 +250,6 @@ void QtROSNode::onShutdownRequested()
 void QtROSNode::startTimer()
 {
     m_ros_timer->start(50); // 每 100 毫秒 spin 一次
-
-    // [新增] 启动 2 秒后执行一次查询测试，给 record_node 一点准备时间
-    QTimer::singleShot(2000, this, &QtROSNode::testQueryData);
 }
 
 void QtROSNode::spin_some()
@@ -504,85 +501,6 @@ void QtROSNode::onSetCircuitSettings(quint8 circuit_id, CircuitSettingsData* dat
     set_circuit_settings_client_->async_send_request(request, response_callback);
 }
 
-void QtROSNode::testQueryData()
-{
-    RCLCPP_INFO(this->get_logger(), ">>> STARTING QUERY DATA TEST <<<");
-
-    // 1. 检查服务是否在线
-    if (!query_data_records_client_->wait_for_service(std::chrono::seconds(1))) {
-        RCLCPP_ERROR(this->get_logger(), "Query service '%s' is NOT ready via wait_for_service.", query_data_records_service_name_.c_str());
-        return;
-    }
-
-    // 2. 构建请求
-    auto request = std::make_shared<ros2_interfaces::srv::QueryDataRecords::Request>();
-
-    // 2.1 设置时间范围 (这里为了演示，获取当前时间的前后24小时，或者您可以写死一个具体的测试时间)
-    // 假设数据库里有最近的数据
-    QDateTime now = QDateTime::currentDateTime();
-    QDateTime startTime = now.addDays(-2); // 前天
-    QDateTime endTime = now;    // 今天
-
-    // 格式化为 SQL 兼容格式: "yyyy-MM-dd HH:mm:ss"
-    request->start_time = startTime.toString("yyyy-MM-dd HH:mm:ss").toStdString();
-    request->end_time = endTime.toString("yyyy-MM-dd HH:mm:ss").toStdString();
-
-    // 2.2 设置要查询的列 (根据接口文档)
-    // 比如：查询 时间、回路ID、试验支路电流、调压器电压
-    request->column_names = {
-        "record_time",
-        "circuit_id",
-        "test_loop_current",
-        "regulator_voltage"
-    };
-
-    // 2.3 设置过滤器 (0表示不过滤，查所有回路)
-    request->circuit_id_filter = 0;
-
-    RCLCPP_INFO(this->get_logger(), "Sending Request -> Start: %s, End: %s, Cols: %lu",
-                request->start_time.c_str(), request->end_time.c_str(), request->column_names.size());
-
-    // 3. 发送异步请求
-    auto response_callback = [this](rclcpp::Client<ros2_interfaces::srv::QueryDataRecords>::SharedFuture future) {
-        auto response = future.get();
-        if (response->success) {
-            RCLCPP_INFO(this->get_logger(), ">>> QUERY SUCCESS <<<");
-            RCLCPP_INFO(this->get_logger(), "Message: %s", response->message.c_str());
-
-            // --- [修复的部分] ---
-            QStringList headerList;
-            for (const std::string& h : response->header) {
-                headerList.append(QString::fromStdString(h));
-            }
-            QString headerStr = headerList.join(" | ");
-            // -------------------
-
-            RCLCPP_INFO(this->get_logger(), "Header: [ %s ]", headerStr.toStdString().c_str());
-            RCLCPP_INFO(this->get_logger(), "Rows Count: %lu", response->data_rows.size());
-
-            // 打印前 5 行数据示例
-            int count = 0;
-            for (const std::string& row_std_str : response->data_rows) {
-                if (count >= 5) break;
-
-                QString row_str = QString::fromStdString(row_std_str);
-                // 这里不需要复杂的分割逻辑，只是打印演示
-                RCLCPP_INFO(this->get_logger(), "Row %d: %s", count + 1, row_str.toStdString().c_str());
-                count++;
-            }
-            if (response->data_rows.size() > 5) {
-                RCLCPP_INFO(this->get_logger(), "... (Remaining %lu rows omitted)", response->data_rows.size() - 5);
-            }
-
-        } else {
-            RCLCPP_ERROR(this->get_logger(), ">>> QUERY FAILED <<<");
-            RCLCPP_ERROR(this->get_logger(), "Reason: %s", response->message.c_str());
-        }
-    };
-
-    query_data_records_client_->async_send_request(request, response_callback);
-}
-
 void QtROSNode::queryHistoryData(const QString& start_time_str, int duration_hours, const QStringList& requested_keys)
 {
     if (!query_data_records_client_->service_is_ready()) {
@@ -700,6 +618,98 @@ void QtROSNode::queryHistoryData(const QString& start_time_str, int duration_hou
         }
 
         emit historyDataFetched(result_map);
+    };
+
+    query_data_records_client_->async_send_request(request, callback);
+}
+
+void QtROSNode::queryTableData(const QString& start_time_str, int duration_hours, int circuit_id)
+{
+    if (!query_data_records_client_->service_is_ready()) {
+        emit tableQueryFailed("Query service is not ready.");
+        return;
+    }
+
+    QDateTime startDt = QDateTime::fromString(start_time_str, "yyyy-MM-dd HH:mm:ss");
+    if (!startDt.isValid()) {
+        emit tableQueryFailed("Invalid start time format.");
+        return;
+    }
+    QDateTime endDt = startDt.addSecs(duration_hours * 3600);
+
+    auto request = std::make_shared<ros2_interfaces::srv::QueryDataRecords::Request>();
+    request->start_time = startDt.toString("yyyy-MM-dd HH:mm:ss").toStdString();
+    request->end_time = endDt.toString("yyyy-MM-dd HH:mm:ss").toStdString();
+
+    // 设定要查询的列 (所有非 Bool 类型数据)
+    QStringList target_columns = {
+        "record_time", "regulator_voltage", "regulator_current",
+        "test_loop_current", "ref_loop_current"
+    };
+    for (int i = 1; i <= 16; ++i) {
+        target_columns.append(QString("test_loop_temp%1").arg(i, 2, 10, QChar('0')));
+    }
+    for (int i = 1; i <= 8; ++i) {
+        target_columns.append(QString("ref_loop_temp%1").arg(i, 2, 10, QChar('0')));
+    }
+
+    for (const QString& col : target_columns) {
+        request->column_names.push_back(col.toStdString());
+    }
+
+    // 根据下拉菜单过滤回路ID
+    request->circuit_id_filter = circuit_id;
+
+    RCLCPP_INFO(this->get_logger(), "Querying Table Data for Circuit %d: %s -> %s",
+                circuit_id, request->start_time.c_str(), request->end_time.c_str());
+
+    auto callback = [this, target_columns](rclcpp::Client<ros2_interfaces::srv::QueryDataRecords>::SharedFuture future) {
+        auto response = future.get();
+        if (!response->success) {
+            emit tableQueryFailed(QString::fromStdString(response->message));
+            return;
+        }
+
+        // 构造友好的表头给 QML
+        QStringList headers = { "记录时间", "调压器电压(V)", "调压器电流(A)", "试验电流(A)", "参考电流(A)" };
+        for (int i = 1; i <= 16; ++i) headers.append(QString("试温%1(℃)").arg(i, 2, 10, QChar('0')));
+        for (int i = 1; i <= 8; ++i) headers.append(QString("参温%1(℃)").arg(i, 2, 10, QChar('0')));
+
+        // 建立列索引映射
+        QMap<QString, int> col_indices;
+        for (int i = 0; i < (int)response->header.size(); ++i) {
+            col_indices[QString::fromStdString(response->header[i])] = i;
+        }
+
+        QVariantList rows;
+        // 遍历提取数据
+        for (const std::string& row_std : response->data_rows) {
+            QString row_str = QString::fromStdString(row_std);
+            QStringList values = row_str.split(',');
+
+            QVariantList row_data;
+            for (const QString& col_name : target_columns) {
+                int idx = col_indices.value(col_name, -1);
+                if (idx != -1 && idx < values.size()) {
+                    // 如果是时间字段，保留原样；如果是数值字段，格式化为1位小数以保证表格整洁
+                    if (col_name == "record_time") {
+                        row_data.append(values[idx].trimmed());
+                    } else {
+                        double val = values[idx].toDouble();
+                        row_data.append(QString::number(val, 'f', 1));
+                    }
+                } else {
+                    row_data.append("-"); // 数据缺失占位符
+                }
+            }
+            rows.append(QVariant::fromValue(row_data));
+        }
+
+        QVariantMap result_map;
+        result_map["headers"] = headers;
+        result_map["rows"] = rows;
+
+        emit tableDataFetched(result_map);
     };
 
     query_data_records_client_->async_send_request(request, callback);

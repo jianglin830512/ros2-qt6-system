@@ -43,6 +43,20 @@ SystemSettingsPageForm {
         syncAuxRegInputs();
     }
 
+    function clampAndApplyInput(inputComponent, min, max) {
+        var val = parseInt(inputComponent.settingValue);
+        // 如果输入为空或非法字符，默认为最小值
+        if (isNaN(val)) val = min;
+        // 限制下限和上限
+        if (val < min) val = min;
+        if (val > max) val = max;
+
+        // 将修正后的合法值直接反填回 UI 输入框，让用户直观看到被限制了
+        inputComponent.settingValue = val.toString();
+
+        return val;
+    }
+
     // 【新增】页面进入时自动反填
     onVisibleChanged: {
         if (visible) syncAllInputs();
@@ -105,44 +119,51 @@ SystemSettingsPageForm {
     // ============================================================
 
     // 按钮 1: 系统参数
-    applySystemBtn.onClicked: {
-        if (rosProxy.qmlSystemSettings) {
-            var sysData = rosProxy.qmlSystemSettings
-            sysData.sample_interval_sec = parseInt(sampleIntervalInput.settingValue)
-            sysData.record_interval_min = parseInt(recordIntervalInput.settingValue)
-            sysData.keep_record_on_shutdown = keepRecordSwitch.isSettingOn
+        applySystemBtn.onClicked: {
+            if (rosProxy.qmlSystemSettings) {
+                var sysData = rosProxy.qmlSystemSettings
 
-            rosProxy.setSystemSettings(sysData)
+                // 限制：记录间隔 1 ~ 10 分钟
+                sysData.record_interval_min = clampAndApplyInput(recordIntervalInput, 1, 10);
+                sysData.keep_record_on_shutdown = keepRecordSwitch.isSettingOn
+
+                rosProxy.setSystemSettings(sysData)
+            }
         }
-    }
 
-    // 按钮 2: 主调压器
-    applyMainBtn.onClicked: {
-        if (rosProxy.qmlRegulatorSettings1) {
-            var reg1Data = rosProxy.qmlRegulatorSettings1
-            reg1Data.over_current_a = parseInt(mainOverCurrentInput.settingValue)
-            reg1Data.over_voltage_v = parseInt(mainOverVoltageInput.settingValue)
-            reg1Data.voltage_up_speed_percent = parseInt(mainVolUpSpeedInput.settingValue)
-            reg1Data.voltage_down_speed_percent = parseInt(mainVolDownSpeedInput.settingValue)
-            reg1Data.over_voltage_protection_mode = mainProtectModeSwitch.isSettingOn
+        // 按钮 2: 主调压器
+        applyMainBtn.onClicked: {
+            if (rosProxy.qmlRegulatorSettings1) {
+                var reg1Data = rosProxy.qmlRegulatorSettings1
 
-            rosProxy.setRegulatorSettings(1, reg1Data)
+                // 限制：过流 100~500, 过压 100~500, 升压 10~100, 降压 10~100
+                reg1Data.over_current_a = clampAndApplyInput(mainOverCurrentInput, 100, 500);
+                reg1Data.over_voltage_v = clampAndApplyInput(mainOverVoltageInput, 100, 500);
+                reg1Data.voltage_up_speed_percent = clampAndApplyInput(mainVolUpSpeedInput, 10, 100);
+                reg1Data.voltage_down_speed_percent = clampAndApplyInput(mainVolDownSpeedInput, 10, 100);
+
+                reg1Data.over_voltage_protection_mode = mainProtectModeSwitch.isSettingOn
+
+                rosProxy.setRegulatorSettings(1, reg1Data)
+            }
         }
-    }
 
-    // 按钮 3: 辅调压器
-    applyAuxBtn.onClicked: {
-        if (rosProxy.qmlRegulatorSettings2) {
-            var reg2Data = rosProxy.qmlRegulatorSettings2
-            reg2Data.over_current_a = parseInt(auxOverCurrentInput.settingValue)
-            reg2Data.over_voltage_v = parseInt(auxOverVoltageInput.settingValue)
-            reg2Data.voltage_up_speed_percent = parseInt(auxVolUpSpeedInput.settingValue)
-            reg2Data.voltage_down_speed_percent = parseInt(auxVolDownSpeedInput.settingValue)
-            reg2Data.over_voltage_protection_mode = auxProtectModeSwitch.isSettingOn
+        // 按钮 3: 辅调压器
+        applyAuxBtn.onClicked: {
+            if (rosProxy.qmlRegulatorSettings2) {
+                var reg2Data = rosProxy.qmlRegulatorSettings2
 
-            rosProxy.setRegulatorSettings(2, reg2Data)
+                // 限制：过流 100~500, 过压 100~500, 升压 10~100, 降压 10~100
+                reg2Data.over_current_a = clampAndApplyInput(auxOverCurrentInput, 100, 500);
+                reg2Data.over_voltage_v = clampAndApplyInput(auxOverVoltageInput, 100, 500);
+                reg2Data.voltage_up_speed_percent = clampAndApplyInput(auxVolUpSpeedInput, 10, 100);
+                reg2Data.voltage_down_speed_percent = clampAndApplyInput(auxVolDownSpeedInput, 10, 100);
+
+                reg2Data.over_voltage_protection_mode = auxProtectModeSwitch.isSettingOn
+
+                rosProxy.setRegulatorSettings(2, reg2Data)
+            }
         }
-    }
 
     // --- 还原按钮 ---
     restoreSystemBtn.onClicked: syncSystemInputs()

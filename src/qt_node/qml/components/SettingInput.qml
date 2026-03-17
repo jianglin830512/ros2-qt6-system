@@ -14,16 +14,12 @@ RowLayout {
 
     spacing: 10
 
-    // 【新增】左侧弹性占位符 (把内容往中间挤)
-    // Item { Layout.fillWidth: true }
-
-    // 1. 标签 (固定宽度，右对齐，确保上下行对齐)
+    // 1. 标签
     Label {
         text: root.labelText
         color: Theme.textColor
         font: Theme.defaultFont
         Layout.alignment: Qt.AlignVCenter
-        // 【修改】固定宽度，不再填充
         Layout.preferredWidth: 120
         horizontalAlignment: Text.AlignRight
     }
@@ -50,6 +46,7 @@ RowLayout {
         border.color: Theme.highlightColor
         border.width: 2
         radius: 15
+
         TextInput {
             id: inputField
             anchors.fill: parent
@@ -60,7 +57,30 @@ RowLayout {
             font: Theme.defaultFont
             selectByMouse: true
             validator: root.inputValidator
+
+            // 边框高亮效果
             onActiveFocusChanged: parent.border.color = activeFocus ? Theme.orange : Theme.highlightColor
+
+            // 【核心修复】：当输入完毕（失去焦点或按回车）时，主动强制限制在上下限范围内
+            onEditingFinished: {
+                if (validator !== null) {
+                    var min = validator.bottom;
+                    var max = validator.top;
+
+                    // 确保是具有 bottom 和 top 属性的验证器 (排除正则验证器)
+                    if (min !== undefined && max !== undefined) {
+                        var val = parseFloat(text);
+                        // 如果用户删光了输入框，或者数值小于最小值，强制设为最小值
+                        if (isNaN(val) || val < min) {
+                            text = min.toString();
+                        }
+                        // 如果数值大于最大值，强制设为最大值
+                        else if (val > max) {
+                            text = max.toString();
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -73,6 +93,5 @@ RowLayout {
         Layout.preferredWidth: 40
     }
 
-    // 【新增】右侧弹性占位符
     Item { Layout.fillWidth: true }
 }

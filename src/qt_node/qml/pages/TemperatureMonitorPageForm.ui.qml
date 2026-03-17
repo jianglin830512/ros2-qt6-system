@@ -126,15 +126,14 @@ Rectangle{
                 Layout.preferredWidth: 120
                 textRole: "text"
                 valueRole: "value"
+                // === 修改此处：去掉5分钟，只保留 10、30、60 分钟 ===
                 model: [
-                    { text: "2小时", value: 2 },
-                    { text: "4小时", value: 4 },
-                    { text: "8小时", value: 8 },
-                    { text: "12小时", value: 12 },
-                    { text: "24小时", value: 24 }
+                    { text: "10分钟", value: 10 },
+                    { text: "30分钟", value: 30 },
+                    { text: "1小时", value: 60 }
                 ]
                 font: Theme.smallLabelFont
-                currentIndex: 0 // 默认2小时
+                currentIndex: 0 // 默认选中 10分钟
             }
 
             Item { Layout.fillWidth: true } // 占位符

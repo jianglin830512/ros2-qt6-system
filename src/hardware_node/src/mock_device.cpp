@@ -24,9 +24,9 @@ void MockDevice::init_data() {
     circ1.id = 1;
     circ2.id = 2;
 
-    // 定义一个通用的初始化 Lambda，增加 valid_count 参数
-    auto init_loop = [](LoopState& l, int valid_count) {
-        l.max_current_setting = 3500;
+    // [修改] 定义一个通用的初始化 Lambda，增加 max_curr 参数
+    auto init_loop =[](LoopState& l, int valid_count, int32_t max_curr) {
+        l.max_current_setting = max_curr;
         l.start_current_setting = 1000;
         l.current_change_range = 5;
         l.ct_ratio = 1000;
@@ -46,13 +46,13 @@ void MockDevice::init_data() {
     // Test Loop -> 16 个数据
     // Ref Loop  -> 8 个数据
 
-    // 回路 1
-    init_loop(circ1.test_loop, 16);
-    init_loop(circ1.ref_loop, 8);
+    // 回路 1：TEST 和 REF 分别初始化为最大 7200A
+    init_loop(circ1.test_loop, 16, 7200);
+    init_loop(circ1.ref_loop, 8, 7200);
 
-    // 回路 2
-    init_loop(circ2.test_loop, 16);
-    init_loop(circ2.ref_loop, 8);
+    // 回路 2：TEST 和 REF 分别初始化为最大 3600A
+    init_loop(circ2.test_loop, 16, 3600);
+    init_loop(circ2.ref_loop, 8, 3600);
 }
 
 void MockDevice::plc_cycle() {
@@ -70,7 +70,7 @@ void MockDevice::plc_cycle() {
 void MockDevice::update_regulator(RegulatorState& reg, CircuitState& circ) {
     // 1. 电压变化逻辑 (区分升/降压速度)
     if (reg.breaker_closed) {
-        double max_step = 4.0; // 假设100ms内最大变化4V (40V/s)
+        double max_step = 4.5; // [修改] 假设100ms内最大变化4.5V (45V/s) 适配 450V 满量程
 
         if (reg.direction == 1) {
             // 升压
@@ -84,11 +84,11 @@ void MockDevice::update_regulator(RegulatorState& reg, CircuitState& circ) {
         }
     }
 
-    // 2. 物理限位
-    reg.upper_limit_on = (reg.voltage >= 400.0);
+    // 2. 物理限位 [修改为 450V]
+    reg.upper_limit_on = (reg.voltage >= 450.0);
     reg.lower_limit_on = (reg.voltage <= 0.0);
 
-    if (reg.voltage > 400.0) { reg.voltage = 400.0; if(reg.direction == 1) reg.direction = 0; }
+    if (reg.voltage > 450.0) { reg.voltage = 450.0; if(reg.direction == 1) reg.direction = 0; }
     if (reg.voltage < 0.0)   { reg.voltage = 0.0;   if(reg.direction == -1) reg.direction = 0; }
 
     // 3. 过压保护 (仅当启用时)
@@ -100,12 +100,14 @@ void MockDevice::update_regulator(RegulatorState& reg, CircuitState& circ) {
     // 4. 回路耦合与过流保护
     auto update_loop = [&](LoopState& loop) {
         if (loop.breaker_closed && reg.breaker_closed) {
-            // 简化的物理模型：电流与电压成正比
-            // 注意：CT比率在真实PLC中可能用于计算，这里简单模拟
-            loop.current = (reg.voltage / 400.0) * 3200.0;
+            // [修改] 根据调节器 ID 动态设置满载电压对应的电流
+            double max_loop_current = (reg.id == 1) ? 7200.0 : 3600.0;
+
+            // [修改] 电流与电压成正比 (按 450V 量程比例计算)
+            loop.current = (reg.voltage / 450.0) * max_loop_current;
 
             // 温度跟随电流变化
-            float base_temp = 20.0f + (float)(reg.voltage / 400.0) * 80.0f;
+            float base_temp = 20.0f + (float)(reg.voltage / 450.0) * 80.0f;
             for (int i = 0; i < 16; ++i) {
                 if (std::isnan(loop.temperatures[i])) continue;
                 // 添加一点随机扰动
@@ -132,8 +134,10 @@ void MockDevice::update_regulator(RegulatorState& reg, CircuitState& circ) {
     update_loop(circ.test_loop);
     update_loop(circ.ref_loop);
 
-    // 总电流为两支路之和
-    reg.current = (circ.test_loop.current + circ.ref_loop.current);
+    // 5. [修改] 总电流 = （TEST_LOOP + REF_LOOP）电流 / 32
+    // Regulator 1 (7200 + 7200) / 32 -> 最大 450A
+    // Regulator 2 (3600 + 3600) / 32 -> 最大 225A
+    reg.current = (circ.test_loop.current + circ.ref_loop.current) / 32.0;
 }
 
 // --- 命令处理 ---

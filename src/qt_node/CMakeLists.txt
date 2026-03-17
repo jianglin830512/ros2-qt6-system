@@ -89,6 +89,7 @@ qt_add_qml_module(qt_node_executable
         qml/pages/TemperatureMonitorPage.qml
         qml/pages/TemperatureMonitorPageForm.ui.qml
         qml/pages/TestDataPage.qml
+        qml/pages/TestDataPageForm.ui.qml
     SOURCES
         include/qt_node/qt_node_constants.hpp # hpp only
         include/qt_node/qt_ros_node.hpp

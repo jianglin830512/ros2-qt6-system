@@ -72,7 +72,8 @@ public slots:
     void onSetRegulatorSettings(quint8 regulator_id, RegulatorSettingsData* data);
     void onSetCircuitSettings(quint8 circuit_id, CircuitSettingsData* data);
 
-    void testQueryData();
+    // 发起表格数据查询 (试验数据页)
+    void queryTableData(const QString& start_time_str, int duration_hours, int circuit_id);
 
 private slots:
     void spin_some();
@@ -100,6 +101,10 @@ signals:
 
     // 查询失败信号
     void historyQueryFailed(const QString& message);
+
+    // 表格数据查询结果信号
+    void tableDataFetched(const QVariantMap& result_map);
+    void tableQueryFailed(const QString& message);
 
 private:
     // --- 回调函数 ---

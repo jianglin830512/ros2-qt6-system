@@ -46,6 +46,22 @@ public:
     CircuitSettingsData *qmlCircuitSettings1() const;
     CircuitSettingsData *qmlCircuitSettings2() const;
 
+    // QML可调用的命令发送函数
+    Q_INVOKABLE void sendRegulatorOperationCommand(quint8 regulator_id, qt_node_constants::RegulatorOperationCommand command);
+    Q_INVOKABLE void sendRegulatorBreakerCommand(quint8 regulator_id, qt_node_constants::RegulatorBreakerCommand command);
+    Q_INVOKABLE void sendCircuitModeCommand(quint8 circuit_id, qt_node_constants::CircuitModeCommand command);
+    Q_INVOKABLE void sendCircuitBreakerCommand(quint8 circuit_id, qt_node_constants::CircuitBreakerCommand command);
+    Q_INVOKABLE void sendClearAlarm();
+
+    // QML设定参数
+    Q_INVOKABLE void setSystemSettings(SystemSettingsData* data);
+    Q_INVOKABLE void setRegulatorSettings(quint8 regulator_id, RegulatorSettingsData* data);
+    Q_INVOKABLE void setCircuitSettings(quint8 circuit_id, CircuitSettingsData* data);
+    Q_INVOKABLE void setCircuitReferenceSource(quint8 circuit_id, bool use_ref);
+
+    // QML 调用的接口
+    Q_INVOKABLE void queryHistory(const QString& dateStr, const QString& timeStr, int spanHours, const QStringList& cols);
+    Q_INVOKABLE void queryTable(const QString& dateStr, const QString& timeStr, int spanHours, int circuitId);
 
 public slots:
     // QML 将调用这个槽来启动关闭流程
@@ -63,22 +79,8 @@ public slots:
     // 历史数据：内部槽，用于接收 Node 的信号
     void onHistoryDataFetched(const QVariantMap& data);
     void onHistoryQueryFailed(const QString& msg);
-
-    // QML可调用的命令发送函数
-    Q_INVOKABLE void sendRegulatorOperationCommand(quint8 regulator_id, qt_node_constants::RegulatorOperationCommand command);
-    Q_INVOKABLE void sendRegulatorBreakerCommand(quint8 regulator_id, qt_node_constants::RegulatorBreakerCommand command);
-    Q_INVOKABLE void sendCircuitModeCommand(quint8 circuit_id, qt_node_constants::CircuitModeCommand command);
-    Q_INVOKABLE void sendCircuitBreakerCommand(quint8 circuit_id, qt_node_constants::CircuitBreakerCommand command);
-    Q_INVOKABLE void sendClearAlarm();
-
-    // QML设定参数
-    Q_INVOKABLE void setSystemSettings(SystemSettingsData* data);
-    Q_INVOKABLE void setRegulatorSettings(quint8 regulator_id, RegulatorSettingsData* data);
-    Q_INVOKABLE void setCircuitSettings(quint8 circuit_id, CircuitSettingsData* data);
-    Q_INVOKABLE void setCircuitReferenceSource(quint8 circuit_id, bool use_ref);
-
-    // QML 调用的接口
-    Q_INVOKABLE void queryHistory(const QString& dateStr, const QString& timeStr, int spanHours, const QStringList& cols);
+    void onTableDataFetched(const QVariantMap& data);
+    void onTableQueryFailed(const QString& msg);
 
     // --- Slot to receive service call results from ROS node ---
     void onSettingsUpdateResult(const QString &service_name, bool success, const QString &message);
@@ -122,6 +124,11 @@ signals:
     // 历史数据：给 QML 的信号
     void historyDataReady(const QVariantMap& data);
     void historyQueryError(const QString& msg);
+
+    // 表格数据信号
+    void tableQueryRequested(const QString& start_time_str, int duration, int circuit_id);
+    void tableDataReady(const QVariantMap& data);
+    void tableQueryError(const QString& msg);
 
 private:
     // 存储数据的成员变量

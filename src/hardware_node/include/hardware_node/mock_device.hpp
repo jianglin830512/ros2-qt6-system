@@ -1,8 +1,4 @@
-﻿// ============================================================
-// FILE: E:\WGS\SRC\HARDWARE_NODE\include\hardware_node\mock_device.hpp
-// ============================================================
-
-#ifndef MOCK_DEVICE_HPP_
+﻿#ifndef MOCK_DEVICE_HPP_
 #define MOCK_DEVICE_HPP_
 #include <thread>
 #include <atomic>
@@ -25,11 +21,11 @@ public:
         bool lower_limit_on = true;
 
         // --- 参数设置 ---
-        // [新增/修改] 对应 RegulatorSettings.msg
-        int32_t over_current_limit = 100;       // over_current_a
-        int32_t over_voltage_limit = 400;       // over_voltage_v
+        // 对应 RegulatorSettings.msg
+        int32_t over_current_limit = 450;       // [修改] 调压器最大过流默认改为 450A
+        int32_t over_voltage_limit = 450;       // [修改] 最大过压默认改为 450V
         int32_t speed_up_percent = 50;          // voltage_up_speed_percent
-        int32_t speed_down_percent = 50;        // [新增] voltage_down_speed_percent
+        int32_t speed_down_percent = 50;        // voltage_down_speed_percent
         bool ovp_enabled = true;                // over_voltage_protection_mode
     };
 
@@ -41,11 +37,11 @@ public:
         bool over_current_alarm = false;
 
         // --- 参数设置 ---
-        // [新增/修改] 对应 HardwareLoopSettings.msg
-        int32_t max_current_setting = 3500;     // max_current_a
-        int32_t start_current_setting = 0;      // [新增] start_current_a (恒流设定值)
-        int32_t current_change_range = 10;      // [新增] current_change_range_percent
-        int32_t ct_ratio = 1;                   // [新增] ct_ratio
+        // 对应 HardwareLoopSettings.msg
+        int32_t max_current_setting = 7200;     // [修改] 最大电流默认改为 7200A
+        int32_t start_current_setting = 0;      // start_current_a (恒流设定值)
+        int32_t current_change_range = 10;      // current_change_range_percent
+        int32_t ct_ratio = 1;                   // ct_ratio
     };
 
     struct CircuitState {
@@ -71,7 +67,7 @@ public:
     void set_plc_mode(uint8_t circ_id, uint8_t mode);
     void set_plc_source(uint8_t circ_id, uint8_t source);
 
-    // [修改] 更新设置接口，传递完整结构体
+    // 更新设置接口，传递完整结构体
     void update_reg_settings(uint8_t id, const RegulatorState& new_settings);
     void update_circ_settings(uint8_t id, const LoopState& test_settings, const LoopState& ref_settings);
 

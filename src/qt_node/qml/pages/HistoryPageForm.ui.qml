@@ -161,7 +161,6 @@ Item {
                 }
             }
 
-            // 2. 图表区域
             ChartView {
                 id: chartView
                 Layout.fillWidth: true
@@ -172,48 +171,45 @@ Item {
                 legend.alignment: Qt.AlignBottom
                 legend.labelColor: "white"
 
-                // --- 明确声明所有可用的坐标轴 ---
-                axes: [
-                    // X 轴：时间
-                    DateTimeAxis {
-                        id: axisX
-                        format: "MM-dd hh:mm"
-                        tickCount: 8
-                        labelsColor: "white"
-                        gridLineColor: Theme.gridLineColor
-                    },
+                // --- 移除 axes: [ 和 ]，直接放置坐标轴 ---
 
-                    // 左侧 Y 轴 1：温度 (橙色)
-                    ValueAxis {
-                        id: axisYTemp
-                        labelsColor: Theme.orange
-                        // 【修改】删除 titleBrush，使用 HTML 标签包裹标题文本
-                        titleText: "<font color='" + Theme.orange + "'>温度 (°C)</font>"
-                        gridLineColor: Theme.gridLineColor
-                        visible: false // 默认隐藏
-                    },
+                // X 轴：时间
+                DateTimeAxis {
+                    id: axisX
+                    format: "MM-dd hh:mm"
+                    tickCount: 8
+                    labelsColor: "white"
+                    gridLineColor: Theme.gridLineColor
+                }
 
-                    // 左侧 Y 轴 2：电压 (黄色)
-                    ValueAxis {
-                        id: axisYVoltage
-                        labelsColor: "#E0E000" // 明黄色
-                        // 【修改】删除 titleBrush，使用 HTML 标签包裹标题文本
-                        titleText: "<font color='#E0E000'>电压 (V)</font>"
-                        gridVisible: false // 隐藏副轴网格线
-                        visible: false
-                    },
+                // 左侧 Y 轴 1：温度 (橙色)
+                ValueAxis {
+                    id: axisYTemp
+                    labelsColor: Theme.orange
+                    titleText: "<font color='" + Theme.orange + "'>温度 (°C)</font>"
+                    gridLineColor: Theme.gridLineColor
+                    visible: false
+                }
 
-                    // 右侧 Y 轴：电流 (青蓝色)
-                    ValueAxis {
-                        id: axisYCurrent
-                        labelsColor: Theme.titleColor
-                        // 【修改】删除 titleBrush，使用 HTML 标签包裹标题文本
-                        titleText: "<font color='" + Theme.titleColor + "'>电流 (A)</font>"
-                        gridVisible: false
-                        visible: false
-                    }
-                ]
+                // 左侧 Y 轴 2：电压 (黄色)
+                ValueAxis {
+                    id: axisYVoltage
+                    labelsColor: "#E0E000"
+                    titleText: "<font color='#E0E000'>电压 (V)</font>"
+                    gridVisible: false
+                    visible: false
+                }
+
+                // 右侧 Y 轴：电流 (青蓝色)
+                ValueAxis {
+                    id: axisYCurrent
+                    labelsColor: Theme.titleColor
+                    titleText: "<font color='" + Theme.titleColor + "'>电流 (A)</font>"
+                    gridVisible: false
+                    visible: false
+                }
             }
+
         }
     }
 }

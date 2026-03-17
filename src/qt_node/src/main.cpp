@@ -141,6 +141,19 @@ int main(int argc, char *argv[])
                      ros_proxy.get(), &ROSProxy::onHistoryQueryFailed,
                      Qt::QueuedConnection);
 
+    // --- Table Data Query 连接 ---
+    QObject::connect(ros_proxy.get(), &ROSProxy::tableQueryRequested,
+                     ros_node.get(), &QtROSNode::queryTableData,
+                     Qt::QueuedConnection);
+
+    QObject::connect(ros_node.get(), &QtROSNode::tableDataFetched,
+                     ros_proxy.get(), &ROSProxy::onTableDataFetched,
+                     Qt::QueuedConnection);
+
+    QObject::connect(ros_node.get(), &QtROSNode::tableQueryFailed,
+                     ros_proxy.get(), &ROSProxy::onTableQueryFailed,
+                     Qt::QueuedConnection);
+
     // --- 关闭程序的连接：GUI -> ROS ---
     QObject::connect(ros_proxy.get(), &ROSProxy::shutdownRequested,
                      ros_node.get(), &QtROSNode::onShutdownRequested,

@@ -289,3 +289,20 @@ void ROSProxy::onHistoryQueryFailed(const QString& msg)
 {
     emit historyQueryError(msg);
 }
+
+// --- Data Table ---
+void ROSProxy::queryTable(const QString& dateStr, const QString& timeStr, int spanHours, int circuitId)
+{
+    QString startDateTime = QString("%1 %2:00").arg(dateStr, timeStr);
+    emit tableQueryRequested(startDateTime, spanHours, circuitId);
+}
+
+void ROSProxy::onTableDataFetched(const QVariantMap& data)
+{
+    emit tableDataReady(data);
+}
+
+void ROSProxy::onTableQueryFailed(const QString& msg)
+{
+    emit tableQueryError(msg);
+}

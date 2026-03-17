@@ -46,17 +46,18 @@ Item {
             Layout.fillWidth: true
             title: "系统参数"
 
-            // 内部不需要再写 Spacer 了，Group 自己会居中
-
             SettingInput {
                 id: sampleIntervalInput
                 labelText: "采样间隔:"
                 unitText: "秒"
+                visible: false // 1. 隐藏采样间隔设置
             }
             SettingInput {
                 id: recordIntervalInput
                 labelText: "记录间隔:"
                 unitText: "分"
+                // 2. 记录间隔设定最小值1，最大值10
+                inputValidator: IntValidator { bottom: 1; top: 10 }
             }
             Item{Layout.preferredHeight: 40}  // 占位
             Item{Layout.preferredHeight: 40}  // 占位
@@ -76,10 +77,22 @@ Item {
             Layout.fillWidth: true
             title: "主调压器"
 
-            SettingInput { id: mainOverCurrentInput; labelText: "过流保护:"; unitText: "A" }
-            SettingInput { id: mainOverVoltageInput; labelText: "过压保护:"; unitText: "V" }
-            SettingInput { id: mainVolUpSpeedInput; labelText: "升压速度:"; unitText: "%" }
-            SettingInput { id: mainVolDownSpeedInput; labelText: "降压速度:"; unitText: "%" }
+            SettingInput {
+                id: mainOverCurrentInput; labelText: "过流保护:"; unitText: "A"
+                inputValidator: IntValidator { bottom: 100; top: 500 } // 3. 最小值100，最大值500
+            }
+            SettingInput {
+                id: mainOverVoltageInput; labelText: "过压保护:"; unitText: "V"
+                inputValidator: IntValidator { bottom: 100; top: 500 } // 3. 最小值100，最大值500
+            }
+            SettingInput {
+                id: mainVolUpSpeedInput; labelText: "升压速度:"; unitText: "%"
+                inputValidator: IntValidator { bottom: 10; top: 100 }  // 4. 最小值10，最大值100
+            }
+            SettingInput {
+                id: mainVolDownSpeedInput; labelText: "降压速度:"; unitText: "%"
+                inputValidator: IntValidator { bottom: 10; top: 100 }  // 4. 最小值10，最大值100
+            }
             Item{Layout.fillHeight: true}
             SettingSwitch { id: mainProtectModeSwitch; labelText: "过压模式:"; leftText: "限幅"; rightText: "分闸" }
             Item{Layout.fillHeight: true}
@@ -91,10 +104,22 @@ Item {
             Layout.fillWidth: true
             title: "辅调压器"
 
-            SettingInput { id: auxOverCurrentInput; labelText: "过流保护:"; unitText: "A" }
-            SettingInput { id: auxOverVoltageInput; labelText: "过压保护:"; unitText: "V" }
-            SettingInput { id: auxVolUpSpeedInput; labelText: "升压速度:"; unitText: "%" }
-            SettingInput { id: auxVolDownSpeedInput; labelText: "降压速度:"; unitText: "%" }
+            SettingInput {
+                id: auxOverCurrentInput; labelText: "过流保护:"; unitText: "A"
+                inputValidator: IntValidator { bottom: 100; top: 500 } // 3. 最小值100，最大值500
+            }
+            SettingInput {
+                id: auxOverVoltageInput; labelText: "过压保护:"; unitText: "V"
+                inputValidator: IntValidator { bottom: 100; top: 500 } // 3. 最小值100，最大值500
+            }
+            SettingInput {
+                id: auxVolUpSpeedInput; labelText: "升压速度:"; unitText: "%"
+                inputValidator: IntValidator { bottom: 10; top: 100 }  // 4. 最小值10，最大值100
+            }
+            SettingInput {
+                id: auxVolDownSpeedInput; labelText: "降压速度:"; unitText: "%"
+                inputValidator: IntValidator { bottom: 10; top: 100 }  // 4. 最小值10，最大值100
+            }
             Item{Layout.fillHeight: true}
             SettingSwitch { id: auxProtectModeSwitch; labelText: "过压模式:"; leftText: "限幅"; rightText: "分闸" }
             Item{Layout.fillHeight: true}

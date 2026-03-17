@@ -14,7 +14,6 @@ HistoryPageForm {
     function generateColumns() {
         var cols = [];
 
-        // --- 提取公共逻辑，减少重复代码 ---
         function addCircuitColumns(cid, titlePrefix) {
             // 调压器
             cols.push({ key: cid + "|regulator_voltage", label: titlePrefix + "调压器 电压(V)" });
@@ -37,8 +36,8 @@ HistoryPageForm {
             }
         }
 
-        addCircuitColumns(1, "主"); // 回路1 / 主调压器
-        addCircuitColumns(2, "辅"); // 回路2 / 辅调压器
+        addCircuitColumns(1, "主");
+        addCircuitColumns(2, "辅");
 
         return cols;
     }
@@ -97,7 +96,16 @@ HistoryPageForm {
         var timeStr = timeInput.text;
         var span = parseInt(spanCombo.currentValue);
 
-        chartView.removeAllSeries();
+        // 【安全修复】绝对不要使用 chartView.removeAllSeries() ！
+        // 我们通过遍历将现有的曲线清空数据并隐藏，这样可以保留所有坐标轴的命
+        for (var idx = 0; idx < chartView.count; idx++) {
+            var s = chartView.series(idx);
+            if (s) {
+                s.clear();
+                s.visible = false;
+            }
+        }
+
         rosProxy.queryHistory(dateStr, timeStr, span, selectedCols);
     }
 
@@ -116,7 +124,6 @@ HistoryPageForm {
         function onHistoryDataReady(dataMap) {
             console.log("=== Received History Data in QML ===");
 
-            // ... (时间范围和极值变量保持不变) ...
             var dateParts = dateInput.text.split("-");
             var timeParts = timeInput.text.split(":");
             var startDate = new Date(dateParts[0], dateParts[1]-1, dateParts[2], timeParts[0], timeParts[1], 0);
@@ -132,7 +139,7 @@ HistoryPageForm {
 
             var dataFound = false;
 
-            // 3. 遍历数据生成曲线
+            // 遍历数据生成或重用曲线
             for (var colKey in dataMap) {
                 var pointsArray = dataMap[colKey];
                 if (!pointsArray || pointsArray.length === 0) continue;
@@ -145,23 +152,41 @@ HistoryPageForm {
                 var seriesName = getLabelByKey(colKey);
                 var series = null;
 
-                // --- 【核心修改】：不同类型绑定到不同的方向 ---
-                if (isCurrent) {
-                    // 电流：绑定到右侧。
-                    // 创建时不传 Y 轴参数，随后通过 axisYRight 手动绑定
-                    series = chartView.createSeries(ChartView.SeriesTypeLine, seriesName, axisX);
-                    series.axisYRight = axisYCurrent;
-                } else if (isVoltage) {
-                    // 电压：绑定到左侧
-                    series = chartView.createSeries(ChartView.SeriesTypeLine, seriesName, axisX, axisYVoltage);
-                } else {
-                    // 温度：绑定到左侧
-                    series = chartView.createSeries(ChartView.SeriesTypeLine, seriesName, axisX, axisYTemp);
+                // 1. 查找图表中是否已经存在同名的曲线 (复用逻辑)
+                for (var sIdx = 0; sIdx < chartView.count; sIdx++) {
+                    if (chartView.series(sIdx).name === seriesName) {
+                        series = chartView.series(sIdx);
+                        break;
+                    }
                 }
 
-                series.width = 2;
+                // 2. 如果之前没有创建过这条曲线，则新建它并绑定对应的坐标轴
+                if (!series) {
+                    series = chartView.createSeries(ChartView.SeriesTypeLine, seriesName);
 
-                // 将数据填充到曲线并统计极值
+                    if (!series) {
+                        console.error("Failed to create series for: " + seriesName);
+                        continue;
+                    }
+
+                    series.axisX = axisX;
+
+                    // 根据类型绑定 Y 轴
+                    if (isCurrent) {
+                        series.axisYRight = axisYCurrent;
+                    } else if (isVoltage) {
+                        series.axisY = axisYVoltage;
+                    } else {
+                        series.axisY = axisYTemp;
+                    }
+
+                    series.width = 2;
+                }
+
+                // 3. 唤醒并显示曲线
+                series.visible = true;
+
+                // 4. 将数据点填充到曲线中，并统计极值
                 for (var i = 0; i < pointsArray.length; i++) {
                     var pt = pointsArray[i];
                     series.append(pt.x, pt.y);
@@ -175,7 +200,7 @@ HistoryPageForm {
                         hasVol = true;
                         if (val < minVol) minVol = val;
                         if (val > maxVol) maxVol = val;
-                    } else { // 温度
+                    } else {
                         hasTemp = true;
                         if (val < minTemp) minTemp = val;
                         if (val > maxTemp) maxTemp = val;
@@ -183,7 +208,7 @@ HistoryPageForm {
                 }
             }
 
-            // ... (下方判断 hasTemp, hasVol, hasCur 控制轴范围和可见性的逻辑保持不变) ...
+            // --- 更新坐标轴范围和可见性 ---
             if (!dataFound) {
                 axisYTemp.visible = false;
                 axisYVoltage.visible = false;
@@ -194,7 +219,6 @@ HistoryPageForm {
                 return;
             }
 
-            // 更新独立 Y 轴的可见性和范围
             axisYTemp.visible = hasTemp;
             if (hasTemp) {
                 var marginT = (maxTemp - minTemp) * 0.1;
