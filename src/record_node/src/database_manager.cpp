@@ -149,7 +149,7 @@ void DatabaseManager::initialize_database()
         "update_time DATETIME DEFAULT CURRENT_TIMESTAMP);";
     if (!execute_sql(create_regulator_settings_sql, "create regulator_settings table")) return;
 
-    // 3. 创建 circuit_settings 表
+    // 3. 创建 circuit_settings 表 (新增了 enabled 和 curr_mode_use_ref)
     const char* create_circuit_settings_sql =
         "CREATE TABLE IF NOT EXISTS circuit_settings ("
         "circuit_id INTEGER PRIMARY KEY,"
@@ -158,15 +158,16 @@ void DatabaseManager::initialize_database()
         "test_ct_ratio INTEGER, "
         "test_start_date TEXT, "
         "test_heating_time REAL, "
-        "test_cycle_count INTEGER, test_heating_duration REAL, "
+        "test_cycle_count INTEGER, test_heating_duration REAL, test_loop_enabled BOOLEAN, "
         // 参照回路参数
         "ref_start_current_a INTEGER, ref_max_current_a INTEGER, ref_current_change_range_percent INTEGER, "
         "ref_ct_ratio INTEGER, "
         "ref_start_date TEXT, "
         "ref_heating_time REAL, "
-        "ref_cycle_count INTEGER, ref_heating_duration REAL, "
-        // 试样参数
+        "ref_cycle_count INTEGER, ref_heating_duration REAL, ref_loop_enabled BOOLEAN, "
+        // 试样参数及全局参数
         "cable_type TEXT, cable_spec TEXT, insulation_material TEXT, insulation_thickness REAL, "
+        "curr_mode_use_ref BOOLEAN, "
         "update_time DATETIME DEFAULT CURRENT_TIMESTAMP);";
     if (!execute_sql(create_circuit_settings_sql, "create circuit_settings table")) return;
 
@@ -174,7 +175,6 @@ void DatabaseManager::initialize_database()
     ensure_default_settings();
 
     // 5. 创建 data_records 表
-    // 修改说明: 增加了 test_loop_enabled 和 ref_loop_enabled 列
     std::stringstream ss_create;
     ss_create << "CREATE TABLE IF NOT EXISTS data_records ("
               << "record_id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -209,7 +209,6 @@ void DatabaseManager::initialize_database()
 void DatabaseManager::ensure_default_settings()
 {
     // 1. 补全 System Settings (ID=1)
-    // 默认: 采样1秒, 记录1分钟, 关机继续记录 True
     const char* sys_sql =
         "INSERT OR IGNORE INTO system_settings "
         "(id, sample_interval_sec, record_interval_min, keep_record_on_shutdown) "
@@ -217,7 +216,6 @@ void DatabaseManager::ensure_default_settings()
     execute_sql(sys_sql, "ensure default system_settings");
 
     // 2. 补全 Regulator Settings (ID=1, ID=2)
-    // 默认: 过流100A, 过压250V, 升降速10%, 保护模式开启
     const char* reg_sql =
         "INSERT OR IGNORE INTO regulator_settings "
         "(regulator_id, over_current_a, over_voltage_v, voltage_up_speed_percent, voltage_down_speed_percent, over_voltage_protection_mode) "
@@ -238,21 +236,21 @@ void DatabaseManager::ensure_default_settings()
     }
 
     // 3. 补全 Circuit Settings (ID=1, ID=2)
-    // 默认: 电流0, 时间0, 文本为空, CT变比默认1(防止除0), 默认日期1970
+    // 新增了 test_loop_enabled, ref_loop_enabled, curr_mode_use_ref 的默认值 (0)
     const char* cir_sql =
         "INSERT OR IGNORE INTO circuit_settings ("
         "circuit_id, "
         "test_start_current_a, test_max_current_a, test_current_change_range_percent, test_ct_ratio, "
-        "test_start_date, test_heating_time, test_cycle_count, test_heating_duration, "
+        "test_start_date, test_heating_time, test_cycle_count, test_heating_duration, test_loop_enabled, "
         "ref_start_current_a, ref_max_current_a, ref_current_change_range_percent, ref_ct_ratio, "
-        "ref_start_date, ref_heating_time, ref_cycle_count, ref_heating_duration, "
-        "cable_type, cable_spec, insulation_material, insulation_thickness) "
+        "ref_start_date, ref_heating_time, ref_cycle_count, ref_heating_duration, ref_loop_enabled, "
+        "cable_type, cable_spec, insulation_material, insulation_thickness, curr_mode_use_ref) "
         "VALUES (?, "
         "0, 0, 0, 1, " // Test params (CT=1)
-        "'1970-01-01T00:00:00Z', 0.0, 0, 0.0, "
+        "'1970-01-01T00:00:00Z', 0.0, 0, 0.0, 0, "
         "0, 0, 0, 1, " // Ref params (CT=1)
-        "'1970-01-01T00:00:00Z', 0.0, 0, 0.0, "
-        "'', '', '', 0.0);"; // Sample params
+        "'1970-01-01T00:00:00Z', 0.0, 0, 0.0, 0, "
+        "'', '', '', 0.0, 0);"; // Sample params + curr_mode_use_ref
 
     sqlite3_stmt* cir_stmt;
     if (sqlite3_prepare_v2(db_, cir_sql, -1, &cir_stmt, nullptr) == SQLITE_OK) {
@@ -335,20 +333,21 @@ bool DatabaseManager::save_circuit_settings(uint8_t circuit_id, const ros2_inter
 {
     if (!db_) return false;
 
+    // 修改点：SQL语句添加了3个新字段
     const char* sql = "INSERT OR REPLACE INTO circuit_settings "
                       "(circuit_id, "
                       "test_start_current_a, test_max_current_a, test_current_change_range_percent, test_ct_ratio, "
                       "test_start_date, test_heating_time, "
-                      "test_cycle_count, test_heating_duration, "
+                      "test_cycle_count, test_heating_duration, test_loop_enabled, "
                       "ref_start_current_a, ref_max_current_a, ref_current_change_range_percent, ref_ct_ratio, "
                       "ref_start_date, ref_heating_time, "
-                      "ref_cycle_count, ref_heating_duration, "
-                      "cable_type, cable_spec, insulation_material, insulation_thickness, "
+                      "ref_cycle_count, ref_heating_duration, ref_loop_enabled, "
+                      "cable_type, cable_spec, insulation_material, insulation_thickness, curr_mode_use_ref, "
                       "update_time) "
                       "VALUES (?, "
-                      "?, ?, ?, ?, ?, ?, ?, ?, "
-                      "?, ?, ?, ?, ?, ?, ?, ?, "
-                      "?, ?, ?, ?, "
+                      "?, ?, ?, ?, ?, ?, ?, ?, ?, "  // Test params (9个占位符)
+                      "?, ?, ?, ?, ?, ?, ?, ?, ?, "  // Ref params (9个占位符)
+                      "?, ?, ?, ?, ?, "              // Sample params + curr_mode_use_ref (5个占位符)
                       "CURRENT_TIMESTAMP);";
 
     sqlite3_stmt* stmt;
@@ -379,6 +378,7 @@ bool DatabaseManager::save_circuit_settings(uint8_t circuit_id, const ros2_inter
     sqlite3_bind_double(stmt, idx++, test_heating_time_sec);
     sqlite3_bind_int(stmt, idx++, settings.test_loop.cycle_count);
     sqlite3_bind_double(stmt, idx++, test_duration_sec);
+    sqlite3_bind_int(stmt, idx++, settings.test_loop.enabled ? 1 : 0); // 新增
 
     // Ref Loop
     sqlite3_bind_int(stmt, idx++, settings.ref_loop.hardware_loop_settings.start_current_a);
@@ -389,12 +389,14 @@ bool DatabaseManager::save_circuit_settings(uint8_t circuit_id, const ros2_inter
     sqlite3_bind_double(stmt, idx++, ref_heating_time_sec);
     sqlite3_bind_int(stmt, idx++, settings.ref_loop.cycle_count);
     sqlite3_bind_double(stmt, idx++, ref_duration_sec);
+    sqlite3_bind_int(stmt, idx++, settings.ref_loop.enabled ? 1 : 0); // 新增
 
-    // Sample Params
+    // Sample Params + Global
     sqlite3_bind_text(stmt, idx++, settings.sample_params.cable_type.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, idx++, settings.sample_params.cable_spec.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, idx++, settings.sample_params.insulation_material.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_double(stmt, idx++, settings.sample_params.insulation_thickness);
+    sqlite3_bind_int(stmt, idx++, settings.curr_mode_use_ref ? 1 : 0); // 新增
 
     bool success = (sqlite3_step(stmt) == SQLITE_DONE);
     if (!success) {
@@ -530,38 +532,36 @@ bool DatabaseManager::get_circuit_settings(uint8_t circuit_id, ros2_interfaces::
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         settings.circuit_id = circuit_id;
 
-        // --- Test Loop ---
+        // --- Test Loop (索引 1 ~ 9) ---
         settings.test_loop.hardware_loop_settings.start_current_a = sqlite3_column_int(stmt, 1);
         settings.test_loop.hardware_loop_settings.max_current_a = sqlite3_column_int(stmt, 2);
         settings.test_loop.hardware_loop_settings.current_change_range_percent = sqlite3_column_int(stmt, 3);
         settings.test_loop.hardware_loop_settings.ct_ratio = sqlite3_column_int(stmt, 4);
-
-        // 修改点：使用 safe_column_text 防止 NULL 崩溃
         settings.test_loop.start_date = iso_string_to_time(safe_column_text(stmt, 5));
-
         settings.test_loop.heating_time.sec = (int32_t)sqlite3_column_double(stmt, 6);
         settings.test_loop.cycle_count = sqlite3_column_int(stmt, 7);
         settings.test_loop.heating_duration.sec = (int32_t)sqlite3_column_double(stmt, 8);
+        settings.test_loop.enabled = (sqlite3_column_int(stmt, 9) != 0); // 新增
 
-        // --- Ref Loop ---
-        settings.ref_loop.hardware_loop_settings.start_current_a = sqlite3_column_int(stmt, 9);
-        settings.ref_loop.hardware_loop_settings.max_current_a = sqlite3_column_int(stmt, 10);
-        settings.ref_loop.hardware_loop_settings.current_change_range_percent = sqlite3_column_int(stmt, 11);
-        settings.ref_loop.hardware_loop_settings.ct_ratio = sqlite3_column_int(stmt, 12);
+        // --- Ref Loop (索引 10 ~ 18) ---
+        settings.ref_loop.hardware_loop_settings.start_current_a = sqlite3_column_int(stmt, 10);
+        settings.ref_loop.hardware_loop_settings.max_current_a = sqlite3_column_int(stmt, 11);
+        settings.ref_loop.hardware_loop_settings.current_change_range_percent = sqlite3_column_int(stmt, 12);
+        settings.ref_loop.hardware_loop_settings.ct_ratio = sqlite3_column_int(stmt, 13);
+        settings.ref_loop.start_date = iso_string_to_time(safe_column_text(stmt, 14));
+        settings.ref_loop.heating_time.sec = (int32_t)sqlite3_column_double(stmt, 15);
+        settings.ref_loop.cycle_count = sqlite3_column_int(stmt, 16);
+        settings.ref_loop.heating_duration.sec = (int32_t)sqlite3_column_double(stmt, 17);
+        settings.ref_loop.enabled = (sqlite3_column_int(stmt, 18) != 0); // 新增
 
-        // 修改点：安全转换
-        settings.ref_loop.start_date = iso_string_to_time(safe_column_text(stmt, 13));
+        // --- Sample Params (索引 19 ~ 22) ---
+        settings.sample_params.cable_type = safe_column_text(stmt, 19);
+        settings.sample_params.cable_spec = safe_column_text(stmt, 20);
+        settings.sample_params.insulation_material = safe_column_text(stmt, 21);
+        settings.sample_params.insulation_thickness = sqlite3_column_double(stmt, 22);
 
-        settings.ref_loop.heating_time.sec = (int32_t)sqlite3_column_double(stmt, 14);
-        settings.ref_loop.cycle_count = sqlite3_column_int(stmt, 15);
-        settings.ref_loop.heating_duration.sec = (int32_t)sqlite3_column_double(stmt, 16);
-
-        // --- Sample Params ---
-        // 修改点：安全转换
-        settings.sample_params.cable_type = safe_column_text(stmt, 17);
-        settings.sample_params.cable_spec = safe_column_text(stmt, 18);
-        settings.sample_params.insulation_material = safe_column_text(stmt, 19);
-        settings.sample_params.insulation_thickness = sqlite3_column_double(stmt, 20);
+        // --- 全局控制参数 (索引 23) ---
+        settings.curr_mode_use_ref = (sqlite3_column_int(stmt, 23) != 0); // 新增
 
         found = true;
     }
