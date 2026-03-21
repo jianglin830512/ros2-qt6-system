@@ -11,6 +11,8 @@ qt_ros_node:
     # 这个键名必须与 qt_node_constants::REGULATOR_STATUS_TOPIC_PARAM 的值匹配
     regulator_status_topic: "voltage_regulator_status"
 
+    system_status_topic: "system_status"
+
     system_settings_topic: "system_settings"
     regulator_settings_topic: "regulator_settings"
     circuit_settings_topic: "circuit_settings"

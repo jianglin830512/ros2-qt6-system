@@ -7,22 +7,18 @@ import "../components"
 Item {
     id: root
 
-    // --- 输入框 Aliases (保持不变) ---
+    // --- 输入框 Aliases ---
     property alias sampleIntervalInput: sampleIntervalInput
     property alias recordIntervalInput: recordIntervalInput
     property alias keepRecordSwitch: keepRecordSwitch
 
     property alias mainOverCurrentInput: mainOverCurrentInput
-    property alias mainOverVoltageInput: mainOverVoltageInput
     property alias mainVolUpSpeedInput: mainVolUpSpeedInput
     property alias mainVolDownSpeedInput: mainVolDownSpeedInput
-    property alias mainProtectModeSwitch: mainProtectModeSwitch
 
     property alias auxOverCurrentInput: auxOverCurrentInput
-    property alias auxOverVoltageInput: auxOverVoltageInput
     property alias auxVolUpSpeedInput: auxVolUpSpeedInput
     property alias auxVolDownSpeedInput: auxVolDownSpeedInput
-    property alias auxProtectModeSwitch: auxProtectModeSwitch
 
     // --- 按钮 Aliases  ---
     property alias applySystemBtn: systemGroup.applyButton
@@ -82,10 +78,6 @@ Item {
                 inputValidator: IntValidator { bottom: 100; top: 500 } // 3. 最小值100，最大值500
             }
             SettingInput {
-                id: mainOverVoltageInput; labelText: "过压保护:"; unitText: "V"
-                inputValidator: IntValidator { bottom: 100; top: 500 } // 3. 最小值100，最大值500
-            }
-            SettingInput {
                 id: mainVolUpSpeedInput; labelText: "升压速度:"; unitText: "%"
                 inputValidator: IntValidator { bottom: 10; top: 100 }  // 4. 最小值10，最大值100
             }
@@ -93,8 +85,6 @@ Item {
                 id: mainVolDownSpeedInput; labelText: "降压速度:"; unitText: "%"
                 inputValidator: IntValidator { bottom: 10; top: 100 }  // 4. 最小值10，最大值100
             }
-            Item{Layout.fillHeight: true}
-            SettingSwitch { id: mainProtectModeSwitch; labelText: "过压模式:"; leftText: "限幅"; rightText: "分闸" }
             Item{Layout.fillHeight: true}
         }
 
@@ -109,10 +99,6 @@ Item {
                 inputValidator: IntValidator { bottom: 100; top: 500 } // 3. 最小值100，最大值500
             }
             SettingInput {
-                id: auxOverVoltageInput; labelText: "过压保护:"; unitText: "V"
-                inputValidator: IntValidator { bottom: 100; top: 500 } // 3. 最小值100，最大值500
-            }
-            SettingInput {
                 id: auxVolUpSpeedInput; labelText: "升压速度:"; unitText: "%"
                 inputValidator: IntValidator { bottom: 10; top: 100 }  // 4. 最小值10，最大值100
             }
@@ -120,8 +106,6 @@ Item {
                 id: auxVolDownSpeedInput; labelText: "降压速度:"; unitText: "%"
                 inputValidator: IntValidator { bottom: 10; top: 100 }  // 4. 最小值10，最大值100
             }
-            Item{Layout.fillHeight: true}
-            SettingSwitch { id: auxProtectModeSwitch; labelText: "过压模式:"; leftText: "限幅"; rightText: "分闸" }
             Item{Layout.fillHeight: true}
         }
     }

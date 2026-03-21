@@ -13,6 +13,8 @@ namespace control_node_constants
 [[maybe_unused]] constexpr const char* REGULATOR_STATUS_TOPIC_PARAM = "regulator_status_topic";
 [[maybe_unused]] constexpr const char* DEFAULT_CIRCUIT_STATUS_TOPIC = "default_circuit_status";
 [[maybe_unused]] constexpr const char* DEFAULT_REGULATOR_STATUS_TOPIC = "default_voltage_regulator_status";
+[[maybe_unused]] constexpr const char* SYSTEM_STATUS_TOPIC_PARAM = "system_status_topic";
+[[maybe_unused]] constexpr const char* DEFAULT_SYSTEM_STATUS_TOPIC = "default_system_status";
 
 // 发布当前设置给 qt_node
 [[maybe_unused]] constexpr const char* SYSTEM_SETTINGS_TOPIC_PARAM = "system_settings_topic";
@@ -73,6 +75,8 @@ namespace control_node_constants
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_REGULATOR_STATUS_TOPIC = "default_hardware_regulator_status";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_CIRCUIT_SETTINGS_TOPIC = "default_hardware_circuit_settings";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_REGULATOR_SETTINGS_TOPIC = "default_hardware_regulator_settings";
+[[maybe_unused]] constexpr const char* HARDWARE_SYSTEM_STATUS_TOPIC_PARAM = "hardware_system_status_topic";
+[[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_SYSTEM_STATUS_TOPIC = "default_hardware_system_status";
 
 // Client (settings)
 [[maybe_unused]] constexpr const char* SET_HARDWARE_REGULATOR_SETTINGS_SERVICE_PARAM = "set_hardware_regulator_settings_service";

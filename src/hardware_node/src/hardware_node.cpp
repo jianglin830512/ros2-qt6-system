@@ -7,6 +7,7 @@
 using namespace std::chrono_literals;
 using std::placeholders::_1;
 using std::placeholders::_2;
+
 HardwareNode::HardwareNode() : Node("hardware_node")
 {
     RCLCPP_INFO(this->get_logger(), "HardwareNode is starting up.");
@@ -28,7 +29,6 @@ void HardwareNode::initialize_components()
     }
     else
     {
-        // [新增] 读取两组设备参数
         std::string plc_ip = this->declare_parameter<std::string>(
             hardware_node_constants::PLC_IP_ADDRESS_PARAM, "192.168.2.100");
         int plc_port = this->declare_parameter<int>(
@@ -39,7 +39,6 @@ void HardwareNode::initialize_components()
         int temp_port = this->declare_parameter<int>(
             hardware_node_constants::TEMP_MONITOR_PORT_PARAM, 3000);
 
-        // [修改] 传递 4 个连接参数
         hardware_driver_ = std::make_unique<TcpHardwareDriver>(
             this->get_logger(), plc_ip, plc_port, temp_ip, temp_port);
 
@@ -68,6 +67,12 @@ void HardwareNode::initialize_components()
         hardware_node_constants::DEFAULT_HARDWARE_REGULATOR_SETTINGS_TOPIC);
     hardware_regulator_settings_pub_ = this->create_publisher<ros2_interfaces::msg::RegulatorSettings>(regulator_settings_topic, 10);
 
+    // [新增] HardwareSystemStatus Publisher
+    auto system_status_topic = this->declare_parameter<std::string>(
+        hardware_node_constants::HARDWARE_SYSTEM_STATUS_TOPIC_PARAM,
+        hardware_node_constants::DEFAULT_HARDWARE_SYSTEM_STATUS_TOPIC);
+    hardware_system_status_pub_ = this->create_publisher<ros2_interfaces::msg::HardwareSystemStatus>(system_status_topic, 10);
+
     // --- 初始化 Subscribers ---
     auto regulator_operation_command_topic = this->declare_parameter<std::string>(
         hardware_node_constants::HARDWARE_REGULATOR_OPERATION_COMMAND_TOPIC_PARAM,
@@ -82,7 +87,6 @@ void HardwareNode::initialize_components()
         clear_alarm_topic, 10, std::bind(&HardwareNode::hardware_clear_alarm_callback, this, _1));
 
     // --- 初始化 Services ---
-    // 1. Settings
     auto set_regulator_settings_service = this->declare_parameter<std::string>(
         hardware_node_constants::SET_HARDWARE_REGULATOR_SETTINGS_SERVICE_PARAM,
         hardware_node_constants::DEFAULT_SET_HARDWARE_REGULATOR_SETTINGS_SERVICE);
@@ -95,7 +99,6 @@ void HardwareNode::initialize_components()
     set_hardware_circuit_settings_service_ = this->create_service<ros2_interfaces::srv::SetHardwareCircuitSettings>(
         set_circuit_settings_service, std::bind(&HardwareNode::set_hardware_circuit_settings_callback, this, _1, _2));
 
-    // 2. Commands
     auto regulator_breaker_command_service = this->declare_parameter<std::string>(
         hardware_node_constants::HARDWARE_REGULATOR_BREAKER_COMMAND_SERVICE_PARAM,
         hardware_node_constants::DEFAULT_HARDWARE_REGULATOR_BREAKER_COMMAND_SERVICE);
@@ -108,7 +111,6 @@ void HardwareNode::initialize_components()
     hardware_circuit_breaker_command_service_ = this->create_service<ros2_interfaces::srv::CircuitBreakerCommand>(
         circuit_breaker_command_service, std::bind(&HardwareNode::hardware_circuit_breaker_command_callback, this, _1, _2));
 
-    // 3. PLC Mode/Source (New)
     auto set_mode_service = this->declare_parameter<std::string>(
         hardware_node_constants::HARDWARE_SET_CONTROL_MODE_SERVICE_PARAM,
         hardware_node_constants::DEFAULT_HARDWARE_SET_CONTROL_MODE_SERVICE);
@@ -131,6 +133,7 @@ void HardwareNode::initialize_components()
 
     RCLCPP_INFO(this->get_logger(), "HardwareNode initialization complete. System is running.");
 }
+
 // --- Topic Callbacks ---
 void HardwareNode::hardware_regulator_operation_command_callback(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg)
 {
@@ -143,19 +146,18 @@ void HardwareNode::hardware_clear_alarm_callback(const std_msgs::msg::Empty::Sha
     RCLCPP_INFO(this->get_logger(), "Received clear alarm command.");
     hardware_driver_->handle_clear_alarm();
 }
+
 // --- Service Callbacks: Settings ---
 void HardwareNode::set_hardware_regulator_settings_callback(
     const std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Request> request,
     std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Response> response)
 {
-    if (is_request_throttled("set_regulator_settings", response)) {
-        return;
-    }
+    if (is_request_throttled("set_regulator_settings", response)) { return; }
 
     RCLCPP_INFO(this->get_logger(), "SetRegulatorSettings service called for ID %u.", request->settings.regulator_id);
     auto promise = std::make_shared<std::promise<void>>();
     auto future = promise->get_future();
-    hardware_driver_->handle_set_hardware_regulator_settings_request(request, [response, promise](bool success, const std::string& message) {
+    hardware_driver_->handle_set_hardware_regulator_settings_request(request,[response, promise](bool success, const std::string& message) {
         response->success = success;
         response->message = message;
         promise->set_value();
@@ -170,14 +172,12 @@ void HardwareNode::set_hardware_circuit_settings_callback(
     const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitSettings::Request> request,
     std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitSettings::Response> response)
 {
-    if (is_request_throttled("set_circuit_settings", response)) {
-        return;
-    }
+    if (is_request_throttled("set_circuit_settings", response)) { return; }
 
     RCLCPP_INFO(this->get_logger(), "SetCircuitSettings service called for ID %u.", request->settings.circuit_id);
     auto promise = std::make_shared<std::promise<void>>();
     auto future = promise->get_future();
-    hardware_driver_->handle_set_hardware_circuit_settings_request(request, [response, promise](bool success, const std::string& message) {
+    hardware_driver_->handle_set_hardware_circuit_settings_request(request,[response, promise](bool success, const std::string& message) {
         response->success = success;
         response->message = message;
         promise->set_value();
@@ -192,14 +192,12 @@ void HardwareNode::hardware_regulator_breaker_command_callback(
     const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request,
     std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Response> response)
 {
-    if (is_request_throttled("regulator_breaker_command", response)) {
-        return;
-    }
+    if (is_request_throttled("regulator_breaker_command", response)) { return; }
 
     RCLCPP_INFO(this->get_logger(), "RegulatorBreakerCommand service called for ID %u.", request->regulator_id);
     auto promise = std::make_shared<std::promise<void>>();
     auto future = promise->get_future();
-    hardware_driver_->handle_regulator_breaker_command(request, [response, promise](bool success, const std::string& message) {
+    hardware_driver_->handle_regulator_breaker_command(request,[response, promise](bool success, const std::string& message) {
         response->success = success;
         response->message = message;
         promise->set_value();
@@ -214,9 +212,7 @@ void HardwareNode::hardware_circuit_breaker_command_callback(
     const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request> request,
     std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Response> response)
 {
-    if (is_request_throttled("circuit_breaker_command", response)) {
-        return;
-    }
+    if (is_request_throttled("circuit_breaker_command", response)) { return; }
 
     RCLCPP_INFO(this->get_logger(), "CircuitBreakerCommand service called for ID %u.", request->circuit_id);
     auto promise = std::make_shared<std::promise<void>>();
@@ -236,9 +232,7 @@ void HardwareNode::hardware_set_control_mode_callback(
     const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request,
     std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Response> response)
 {
-    if (is_request_throttled("set_control_mode", response)) {
-        return;
-    }
+    if (is_request_throttled("set_control_mode", response)) { return; }
 
     RCLCPP_INFO(this->get_logger(), "SetControlMode service called for Circuit %u, Mode %u.", request->circuit_id, request->mode);
     auto promise = std::make_shared<std::promise<void>>();
@@ -258,9 +252,7 @@ void HardwareNode::hardware_set_control_source_callback(
     const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Request> request,
     std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Response> response)
 {
-    if (is_request_throttled("set_control_source", response)) {
-        return;
-    }
+    if (is_request_throttled("set_control_source", response)) { return; }
 
     RCLCPP_INFO(this->get_logger(), "SetControlSource service called for Circuit %u, Source %u.", request->circuit_id, request->source);
     auto promise = std::make_shared<std::promise<void>>();
@@ -275,12 +267,19 @@ void HardwareNode::hardware_set_control_source_callback(
         response->message = "Timeout waiting for driver.";
     }
 }
+
 void HardwareNode::poll_hardware_data()
 {
-    // RCLCPP_INFO(this->get_logger(), "polling...");
     hardware_driver_->update();
 
-    // 假设我们有 ID 为 1 和 2 的两个回路和两个调压器
+    // 1. 获取并发布系统状态 (包含远方、急停)
+    ros2_interfaces::msg::HardwareSystemStatus system_status;
+    if (hardware_driver_->get_system_status(system_status)) {
+        system_status.header.stamp = this->get_clock()->now();
+        hardware_system_status_pub_->publish(system_status);
+    }
+
+    // 2. 轮询 ID 为 1 和 2 的两个回路和两个调压器
     for (uint8_t id = 1; id <= 2; ++id)
     {
         // 轮询并发布调压器数据

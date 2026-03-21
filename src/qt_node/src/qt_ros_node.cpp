@@ -124,6 +124,13 @@ QtROSNode::QtROSNode(const std::string &node_name, QObject *parent)
     regulator_status_sub_ = this->create_subscription<ros2_interfaces::msg::RegulatorStatus>(
         regulator_status_topic_, qos, std::bind(&QtROSNode::regulator_status_callback, this, std::placeholders::_1));
 
+    system_status_topic_ = this->declare_parameter<std::string>(
+        qt_node_constants::SYSTEM_STATUS_TOPIC_PARAM,
+        qt_node_constants::DEFAULT_SYSTEM_STATUS_TOPIC);
+    RCLCPP_INFO(this->get_logger(), "Subscribing to System Status Topic: '%s'", system_status_topic_.c_str());
+    system_status_sub_ = this->create_subscription<ros2_interfaces::msg::SystemStatus>(
+        system_status_topic_, qos, std::bind(&QtROSNode::system_status_callback, this, std::placeholders::_1));
+
     // System Settings Subscriber
     system_settings_topic_ = this->declare_parameter<std::string>(
         qt_node_constants::SYSTEM_SETTINGS_TOPIC_PARAM,
@@ -292,6 +299,15 @@ void QtROSNode::regulator_status_callback(const ros2_interfaces::msg::RegulatorS
     data.over_voltage_on = msg->over_voltage_on;
     //RCLCPP_INFO(this->get_logger(), "received regulator_id = %d",  msg->regulator_id);
     emit regulatorStatusReceived(data); // 信号名变更
+}
+
+void QtROSNode::system_status_callback(const ros2_interfaces::msg::SystemStatus::SharedPtr msg)
+{
+    SystemStatusData data;
+    data.is_remote = msg->hardware_system_status.is_remote;
+    data.emergency_stop_on = msg->hardware_system_status.emergency_stop_on;
+    data.system_state = msg->system_state;
+    emit systemStatusReceived(data);
 }
 
 // --- 回调函数实现: Settings ---

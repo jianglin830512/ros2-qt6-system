@@ -9,6 +9,7 @@
 #include "ros2_interfaces/msg/regulator_settings.hpp"
 #include "ros2_interfaces/msg/hardware_circuit_status.hpp"
 #include "ros2_interfaces/msg/hardware_circuit_settings.hpp"
+#include "ros2_interfaces/msg/hardware_system_status.hpp"
 #include <mutex>
 #include <array>
 #include <utility> // for std::pair
@@ -31,6 +32,7 @@ public:
 
     void update_circuit_status_from_hardware(uint8_t id, const ros2_interfaces::msg::HardwareCircuitStatus& hw_status);
     void update_circuit_settings_from_hardware(uint8_t id, const ros2_interfaces::msg::HardwareCircuitSettings& hw_settings);
+    void update_system_status_from_hardware(const ros2_interfaces::msg::HardwareSystemStatus& hw_status);
 
     // === Read Methods ===
     ros2_interfaces::msg::SystemStatus get_system_status() const;

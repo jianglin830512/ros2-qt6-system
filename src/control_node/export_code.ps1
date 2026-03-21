@@ -1,6 +1,6 @@
 ﻿# ===== 工程目录 =====
 $root = "E:\WGS\SRC\CONTROL_NODE"
-$output = "$root\ALL_CODE_UPLOAD.txt"
+$output = "$root\CONTROL_NODE.txt"
 
 # 删除旧文件
 if (Test-Path $output) { Remove-Item $output }

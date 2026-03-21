@@ -20,6 +20,7 @@
 // 状态
 #include "ros2_interfaces/msg/circuit_status.hpp"
 #include "ros2_interfaces/msg/regulator_status.hpp"
+#include "ros2_interfaces/msg/system_status.hpp"
 // 设置
 #include "ros2_interfaces/msg/system_settings.hpp"
 #include "ros2_interfaces/msg/regulator_settings.hpp"
@@ -84,6 +85,7 @@ signals:
     // --- 传递状态数据的信号 ---
     void circuitStatusReceived(const CircuitStatusData &data);
     void regulatorStatusReceived(const RegulatorStatusData &data);
+    void systemStatusReceived(const SystemStatusData &data);
 
     // --- 将服务调用结果返回给Proxy的信号 ---
     void settingsUpdateResult(const QString &service_name, bool success, const QString &message);
@@ -113,12 +115,16 @@ private:
     void system_settings_callback(SystemSettingsMsgPtr msg);
     void regulator_settings_callback(RegulatorSettingsMsgPtr msg);
     void circuit_settings_callback(CircuitSettingsMsgPtr msg);
+    void system_status_callback(const ros2_interfaces::msg::SystemStatus::SharedPtr msg);
+
 
     // --- 订阅者 ---
     rclcpp::Subscription<ros2_interfaces::msg::CircuitStatus>::SharedPtr circuit_status_sub_;
     std::string circuit_status_topic_;
     rclcpp::Subscription<ros2_interfaces::msg::RegulatorStatus>::SharedPtr regulator_status_sub_; // 类型名变更
     std::string regulator_status_topic_;
+    rclcpp::Subscription<ros2_interfaces::msg::SystemStatus>::SharedPtr system_status_sub_;
+    std::string system_status_topic_;
     rclcpp::Subscription<ros2_interfaces::msg::SystemSettings>::SharedPtr system_settings_sub_;
     std::string system_settings_topic_;
     rclcpp::Subscription<ros2_interfaces::msg::RegulatorSettings>::SharedPtr regulator_settings_sub_;

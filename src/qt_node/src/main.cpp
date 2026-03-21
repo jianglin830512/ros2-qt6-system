@@ -85,6 +85,9 @@ int main(int argc, char *argv[])
     QObject::connect(ros_node.get(), &QtROSNode::regulatorStatusReceived, // 变更
                      ros_proxy.get(), &ROSProxy::updateRegulatorStatus,
                      Qt::QueuedConnection);
+    QObject::connect(ros_node.get(), &QtROSNode::systemStatusReceived,
+                     ros_proxy.get(), &ROSProxy::updateSystemStatus,
+                     Qt::QueuedConnection);
 
     // Settings 更新连接 (ROS -> GUI) - 之前漏掉了这些！
     QObject::connect(ros_node.get(), &QtROSNode::systemSettingsReceived,

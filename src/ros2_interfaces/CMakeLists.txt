@@ -28,6 +28,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SampleSettings.msg"
   "msg/SystemSettings.msg"
   "msg/DataRecord.msg"
+  "msg/HardwareSystemStatus.msg"
   "srv/CircuitBreakerCommand.srv"
   "srv/CircuitModeCommand.srv"
   "srv/RegulatorBreakerCommand.srv"

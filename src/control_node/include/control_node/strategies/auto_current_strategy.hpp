@@ -30,6 +30,7 @@ public:
 
 private:
     rclcpp::Time last_sync_time_;
+    rclcpp::Time last_plc_sync_time_; // [NEW] 用于限制同步 PLC 参数的频率，防 Service 风暴
     const rclcpp::Duration sync_interval_{std::chrono::milliseconds(500)};
 };
 

@@ -11,6 +11,7 @@
 #include "ros2_interfaces/msg/system_settings.hpp"
 #include "ros2_interfaces/msg/regulator_settings.hpp"
 #include "ros2_interfaces/msg/circuit_settings.hpp"
+#include "ros2_interfaces/msg/system_status.hpp"
 // Commands (订阅用)
 #include "ros2_interfaces/msg/regulator_operation_command.hpp"
 #include "std_msgs/msg/empty.hpp"
@@ -76,6 +77,7 @@ private:
     // Publishers
     rclcpp::Publisher<ros2_interfaces::msg::CircuitStatus>::SharedPtr circuit_status_pub_;
     rclcpp::Publisher<ros2_interfaces::msg::RegulatorStatus>::SharedPtr regulator_status_pub_;
+    rclcpp::Publisher<ros2_interfaces::msg::SystemStatus>::SharedPtr system_status_pub_;
     // Settings Publishers
     rclcpp::Publisher<ros2_interfaces::msg::SystemSettings>::SharedPtr system_settings_pub_;
     rclcpp::Publisher<ros2_interfaces::msg::RegulatorSettings>::SharedPtr regulator_settings_pub_;

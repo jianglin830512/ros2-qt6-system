@@ -7,8 +7,10 @@ namespace hardware_node_constants
 // status
 [[maybe_unused]] constexpr const char* HARDWARE_CIRCUIT_STATUS_TOPIC_PARAM = "hardware_circuit_status_topic";
 [[maybe_unused]] constexpr const char* HARDWARE_REGULATOR_STATUS_TOPIC_PARAM = "hardware_regulator_status_topic";
+[[maybe_unused]] constexpr const char* HARDWARE_SYSTEM_STATUS_TOPIC_PARAM = "hardware_system_status_topic";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_CIRCUIT_STATUS_TOPIC = "default_hardware_circuit_status";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_REGULATOR_STATUS_TOPIC = "default_hardware_regulator_status";
+[[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_SYSTEM_STATUS_TOPIC = "default_hardware_system_status";
 // settings
 [[maybe_unused]] constexpr const char* HARDWARE_CIRCUIT_SETTINGS_TOPIC_PARAM = "hardware_circuit_settings_topic";
 [[maybe_unused]] constexpr const char* HARDWARE_REGULATOR_SETTINGS_TOPIC_PARAM = "hardware_regulator_settings_topic";
@@ -36,7 +38,7 @@ namespace hardware_node_constants
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_CIRCUIT_MODE_COMMAND_SERVICE = "default_hardware_circuit_mode_command";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_CIRCUIT_BREAKER_COMMAND_SERVICE = "default_hardware_circuit_breaker_command";
 
-// [新增] PLC 控制模式服务
+// PLC 控制模式服务
 [[maybe_unused]] constexpr const char* HARDWARE_SET_CONTROL_MODE_SERVICE_PARAM = "hardware_set_control_mode_service";
 [[maybe_unused]] constexpr const char* HARDWARE_SET_CONTROL_SOURCE_SERVICE_PARAM = "hardware_set_control_source_service";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_SET_CONTROL_MODE_SERVICE = "default_hardware_set_control_mode";
@@ -52,7 +54,6 @@ namespace hardware_node_constants
 
 [[maybe_unused]] constexpr const char* TEMP_MONITOR_IP_ADDRESS_PARAM = "temp_monitor_ip_address";
 [[maybe_unused]] constexpr const char* TEMP_MONITOR_PORT_PARAM = "temp_monitor_port";
-
 
 } // namespace hardware_node_constants
 

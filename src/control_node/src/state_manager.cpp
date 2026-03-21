@@ -93,6 +93,13 @@ void StateManager::update_circuit_settings_from_hardware(uint8_t id, const ros2_
     } catch (const std::out_of_range& e) {}
 }
 
+void StateManager::update_system_status_from_hardware(const ros2_interfaces::msg::HardwareSystemStatus& hw_status)
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    // 仅更新 system_status_ 中的硬件子结构，不影响逻辑层写入的 connection_state 等
+    system_status_.hardware_system_status = hw_status;
+}
+
 // ==========================================
 // 读方法的实现
 // ==========================================

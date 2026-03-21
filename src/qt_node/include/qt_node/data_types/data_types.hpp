@@ -113,9 +113,25 @@ public:
     bool over_voltage_on = false;
 };
 
+// =======================================================================
+//               SystemStatusData - 系统状态的POD
+// =======================================================================
+struct SystemStatusData
+{
+    Q_GADGET
+    Q_PROPERTY(bool is_remote MEMBER is_remote)
+    Q_PROPERTY(bool emergency_stop_on MEMBER emergency_stop_on)
+    Q_PROPERTY(uint8_t system_state MEMBER system_state)
+public:
+    bool is_remote = false;
+    bool emergency_stop_on = false;
+    uint8_t system_state = 0;
+};
+
 // --- [修改] 增加新的元类型声明 ---
 Q_DECLARE_METATYPE(LoopStatusData)
 Q_DECLARE_METATYPE(CircuitStatusData)
 Q_DECLARE_METATYPE(RegulatorStatusData)
+Q_DECLARE_METATYPE(SystemStatusData)
 
 #endif // DATA_TYPES_HPP

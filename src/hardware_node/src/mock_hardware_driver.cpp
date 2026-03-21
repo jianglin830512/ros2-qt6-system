@@ -165,3 +165,11 @@ bool MockHardwareDriver::get_circuit_settings(uint8_t circuit_id, ros2_interface
 
     return true;
 }
+
+bool MockHardwareDriver::get_system_status(ros2_interfaces::msg::HardwareSystemStatus& status)
+{
+    // 在 Mock 模式下，默认远方，无急停
+    status.is_remote = true;
+    status.emergency_stop_on = false;
+    return true;
+}

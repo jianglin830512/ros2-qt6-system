@@ -31,6 +31,7 @@ public:
     bool get_circuit_status(uint8_t circuit_id, ros2_interfaces::msg::HardwareCircuitStatus& status) override;
     bool get_regulator_settings(uint8_t regulator_id, ros2_interfaces::msg::RegulatorSettings& settings) override;
     bool get_circuit_settings(uint8_t circuit_id, ros2_interfaces::msg::HardwareCircuitSettings& settings) override;
+    bool get_system_status(ros2_interfaces::msg::HardwareSystemStatus& status) override;
 private:
     rclcpp::Logger logger_;
     std::unique_ptr<MockDevice> device_; // 核心模拟逻辑

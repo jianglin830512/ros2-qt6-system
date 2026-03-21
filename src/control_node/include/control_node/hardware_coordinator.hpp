@@ -15,9 +15,9 @@
 #include "ros2_interfaces/msg/regulator_settings.hpp"
 #include "ros2_interfaces/srv/set_hardware_circuit_control_mode.hpp"
 #include "ros2_interfaces/srv/set_hardware_circuit_control_source.hpp"
+#include "ros2_interfaces/msg/hardware_system_status.hpp" // 包含消息定义
 // Include command messages for publishers
 #include "std_msgs/msg/empty.hpp"
-
 
 /**
  * @class HardwareCoordinator
@@ -59,6 +59,7 @@ private:
     void hardware_regulator_status_callback(const ros2_interfaces::msg::RegulatorStatus::SharedPtr msg);
     void hardware_circuit_settings_callback(const ros2_interfaces::msg::HardwareCircuitSettings::SharedPtr msg);
     void hardware_regulator_settings_callback(const ros2_interfaces::msg::RegulatorSettings::SharedPtr msg);
+    void hardware_system_status_callback(const ros2_interfaces::msg::HardwareSystemStatus::SharedPtr msg);
 
     StateManager* state_manager_;
     rclcpp::Node::SharedPtr node_;
@@ -69,6 +70,7 @@ private:
     rclcpp::Subscription<ros2_interfaces::msg::RegulatorStatus>::SharedPtr hw_regulator_status_sub_;
     rclcpp::Subscription<ros2_interfaces::msg::HardwareCircuitSettings>::SharedPtr hw_circuit_settings_sub_;
     rclcpp::Subscription<ros2_interfaces::msg::RegulatorSettings>::SharedPtr hw_regulator_settings_sub_;
+    rclcpp::Subscription<ros2_interfaces::msg::HardwareSystemStatus>::SharedPtr hw_system_status_sub_;
 
     // Publishers (sending commands to hardware_node)
     rclcpp::Publisher<ros2_interfaces::msg::RegulatorOperationCommand>::SharedPtr hw_regulator_operation_pub_;

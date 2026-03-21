@@ -48,12 +48,14 @@ constexpr const char* REGULATOR_STATUS_TOPIC_PARAM = "regulator_status_topic";
 constexpr const char* CIRCUIT_SETTINGS_TOPIC_PARAM = "circuit_settings_topic";
 constexpr const char* REGULATOR_SETTINGS_TOPIC_PARAM = "regulator_settings_topic";
 constexpr const char* SYSTEM_SETTINGS_TOPIC_PARAM = "system_settings_topic";
+constexpr const char* SYSTEM_STATUS_TOPIC_PARAM = "system_status_topic";
 
 constexpr const char* DEFAULT_CIRCUIT_STATUS_TOPIC = "default_circuit_status";
 constexpr const char* DEFAULT_REGULATOR_STATUS_TOPIC = "default_voltage_regulator_status";
 constexpr const char* DEFAULT_CIRCUIT_SETTINGS_TOPIC = "default_circuit_settings";
 constexpr const char* DEFAULT_REGULATOR_SETTINGS_TOPIC = "default_regulator_settings";
 constexpr const char* DEFAULT_SYSTEM_SETTINGS_TOPIC = "default_system_settings";
+constexpr const char* DEFAULT_SYSTEM_STATUS_TOPIC = "default_system_status";
 
 // 发布话题
 constexpr const char* REGULATOR_OPERATION_COMMAND_TOPIC_PARAM = "regulator_operation_command_topic";

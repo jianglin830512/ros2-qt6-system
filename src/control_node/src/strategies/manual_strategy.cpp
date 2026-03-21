@@ -19,18 +19,28 @@ void ManualStrategy::reset()
 
 void ManualStrategy::update()
 {
-    // Check synchronization with PLC (Low frequency)
+    // Check synchronization with PLC (Low frequency: 1 Hz)
     auto now = rclcpp::Clock().now();
     if (now - last_check_time_ < check_interval_) {
         return;
     }
     last_check_time_ = now;
 
-    // Enforce PLC Mode: Manual
-    // Note: PLC_MODE_MANUAL corresponds to ROS Control Mode MANUAL
+    // [NEW] 1. 强制 PLC 控制模式为 Manual
     if (current_plc_control_mode_ != HwStatus::PLC_MODE_MANUAL) {
-        // Send command to switch PLC to Manual
+        RCLCPP_INFO(rclcpp::get_logger("ManualStrategy"), "[Circuit %d] PLC Mode mismatch. Expected: MANUAL. Enforcing...", circuit_id_);
         hardware_coordinator_->set_circuit_control_mode(circuit_id_, HwStatus::PLC_MODE_MANUAL);
+    }
+
+    // [NEW] 2. 强制 PLC 反馈源与配置参数对齐（即使在手动模式，也保持配置一致性）
+    auto settings = state_manager_->get_circuit_settings(circuit_id_);
+    uint8_t target_plc_source = settings.curr_mode_use_ref ?
+                                    HwStatus::PLC_SOURCE_REF_LOOP :
+                                    HwStatus::PLC_SOURCE_TEST_LOOP;
+
+    if (current_plc_control_source_ != target_plc_source) {
+        RCLCPP_INFO(rclcpp::get_logger("ManualStrategy"), "[Circuit %d] PLC Source mismatch. Expected: %d. Enforcing...", circuit_id_, target_plc_source);
+        hardware_coordinator_->set_circuit_control_source(circuit_id_, target_plc_source);
     }
 }
 

@@ -131,7 +131,7 @@ hardware_node:
     
     # --- 运行参数 ---
     polling_rate_ms: 200
-    use_mock_driver: true
+    use_mock_driver: false
 
     # --- 发布 (发送硬件状态) ---
     hardware_circuit_status_topic: "hardware_circuit_status"

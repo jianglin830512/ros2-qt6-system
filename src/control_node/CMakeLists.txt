@@ -11,6 +11,7 @@ endif()
 # 为 MSVC 编译器（在 Windows 上）单独设置 UTF-8 选项
 if(MSVC)
   add_compile_options(/utf-8)
+  add_compile_options(/bigobj)
 endif()
 
 #-----------------------------------------------------------------------------

@@ -47,6 +47,12 @@ void ControlNode::initialize_components()
     RCLCPP_INFO(this->get_logger(), "Publishing to Regulator Status Topic: '%s'", regulator_status_topic.c_str());
     regulator_status_pub_ = this->create_publisher<ros2_interfaces::msg::RegulatorStatus>(regulator_status_topic, 10);
 
+    auto system_status_topic = this->declare_parameter<std::string>(
+        control_node_constants::SYSTEM_STATUS_TOPIC_PARAM,
+        control_node_constants::DEFAULT_SYSTEM_STATUS_TOPIC);
+    RCLCPP_INFO(this->get_logger(), "Publishing to System Status Topic: '%s'", system_status_topic.c_str());
+    system_status_pub_ = this->create_publisher<ros2_interfaces::msg::SystemStatus>(system_status_topic, 10);
+
     auto system_settings_topic = this->declare_parameter<std::string>(
         control_node_constants::SYSTEM_SETTINGS_TOPIC_PARAM,
         control_node_constants::DEFAULT_SYSTEM_SETTINGS_TOPIC);
@@ -302,6 +308,12 @@ void ControlNode::set_circuit_settings_callback(
 // --- 广播回调实现 ---
 void ControlNode::broadcast_status_callback()
 {
+    // 广播系统状态 SystemStatus
+    auto sys_status_msg = state_manager_->get_system_status();
+    // 打上当前系统的时间戳
+    sys_status_msg.header.stamp = this->now();
+    system_status_pub_->publish(sys_status_msg);
+
     // 从StateManager中读取处理后的常规数据并发布
     for(uint8_t id = 1; id <= StateManager::NUM_CIRCUITS; ++id)
     {

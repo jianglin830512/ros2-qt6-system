@@ -11,3 +11,5 @@ uint8 STATE_ERROR        = 2  # 错误（运行中丢失连接）
 
 # --- 当前系统状态 ---
 uint8 system_state
+
+HardwareSystemStatus hardware_system_status  # 硬件状态

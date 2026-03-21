@@ -24,6 +24,7 @@ class ROSProxy : public QObject
     Q_PROPERTY(CircuitStatusData circuitStatus2 READ circuitStatus2 NOTIFY circuitStatus2Changed)
     Q_PROPERTY(RegulatorStatusData regulatorStatus1 READ regulatorStatus1 NOTIFY regulatorStatus1Changed)
     Q_PROPERTY(RegulatorStatusData regulatorStatus2 READ regulatorStatus2 NOTIFY regulatorStatus2Changed)
+    Q_PROPERTY(SystemStatusData systemStatus READ systemStatus NOTIFY systemStatusChanged)
     // SETTINGS
     Q_PROPERTY(SystemSettingsData* qmlSystemSettings READ qmlSystemSettings NOTIFY qmlSystemSettingsChanged)
     Q_PROPERTY(RegulatorSettingsData* qmlRegulatorSettings1 READ qmlRegulatorSettings1 NOTIFY qmlRegulatorSettings1Changed)
@@ -39,6 +40,7 @@ public:
     CircuitStatusData circuitStatus2() const;
     RegulatorStatusData regulatorStatus1() const;
     RegulatorStatusData regulatorStatus2() const;
+    SystemStatusData systemStatus() const;
 
     SystemSettingsData *qmlSystemSettings() const;
     RegulatorSettingsData *qmlRegulatorSettings1() const;
@@ -70,6 +72,7 @@ public slots:
     // 用于从 ROS 节点接收 STATUS 数据
     void updateCircuitStatus(const CircuitStatusData &data);
     void updateRegulatorStatus(const RegulatorStatusData &data);
+    void updateSystemStatus(const SystemStatusData &data);
 
     // --- [CHANGE] Slots now accept ROS message SharedPtrs ---
     void updateSystemSettings(SystemSettingsMsgPtr msg);
@@ -95,6 +98,7 @@ signals:
     void circuitStatus2Changed();
     void regulatorStatus1Changed();
     void regulatorStatus2Changed();
+    void systemStatusChanged();
     void qmlSystemSettingsChanged();
     void qmlRegulatorSettings1Changed();
     void qmlRegulatorSettings2Changed();
@@ -136,6 +140,7 @@ private:
     CircuitStatusData m_circuitStatus2;
     RegulatorStatusData  m_regulatorStatus1;
     RegulatorStatusData  m_regulatorStatus2;
+    SystemStatusData m_systemStatus;
 
     SystemSettingsData *m_qmlSystemSettings = nullptr;
     RegulatorSettingsData *m_qmlRegulatorSettings1 = nullptr;

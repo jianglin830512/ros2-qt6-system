@@ -56,6 +56,7 @@ public:
     bool get_circuit_status(uint8_t circuit_id, ros2_interfaces::msg::HardwareCircuitStatus& status) override;
     bool get_regulator_settings(uint8_t regulator_id, ros2_interfaces::msg::RegulatorSettings& settings) override;
     bool get_circuit_settings(uint8_t circuit_id, ros2_interfaces::msg::HardwareCircuitSettings& settings) override;
+    bool get_system_status(ros2_interfaces::msg::HardwareSystemStatus& status) override;
 
 private:
     void initialize_default_states();
@@ -89,6 +90,7 @@ private:
     std::map<uint8_t, ros2_interfaces::msg::HardwareCircuitStatus> cache_circ_status_;
     std::map<uint8_t, ros2_interfaces::msg::RegulatorSettings> cache_reg_settings_;
     std::map<uint8_t, ros2_interfaces::msg::HardwareCircuitSettings> cache_circ_settings_;
+    ros2_interfaces::msg::HardwareSystemStatus cache_system_status_; // [新增]
 
     // --- Voltage Control State ---
     std::atomic<bool> keep_alive_running_;
@@ -126,11 +128,11 @@ private:
     static const uint16_t ADDR_SOURCE_C2 = 0x0013;
 
     // 3. Status Read Range
-    // Start reading from 0x0010 (Mode) to cover everything up to 0x0058 (Last Float)
+    // Start reading from 0x0010 (Mode) to cover everything up to 0x005D (Last Float Aux OCP)
     static const uint16_t ADDR_DATA_START = 0x0010;
-    // End is VD176 (0x0058 + 0x0059).
-    // Length = 0x0059 - 0x0010 + 1 = 74 registers.
-    static const uint16_t ADDR_DATA_LEN   = 74;
+    // End is VD184 (0x005C + 0x005D).
+    // Length = 0x005D - 0x0010 + 1 = 78 registers.
+    static const uint16_t ADDR_DATA_LEN   = 78;
 };
 
 #endif // TCP_HARDWARE_DRIVER_HPP_

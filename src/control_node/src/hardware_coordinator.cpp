@@ -1,5 +1,4 @@
 ﻿#include "control_node/hardware_coordinator.hpp"
-#include "control_node/state_manager.hpp"
 #include "control_node/control_node_constants.hpp"
 using namespace std::chrono_literals;
 HardwareCoordinator::HardwareCoordinator(StateManager* state_manager, rclcpp::Node::SharedPtr node)
@@ -22,6 +21,13 @@ HardwareCoordinator::HardwareCoordinator(StateManager* state_manager, rclcpp::No
     RCLCPP_INFO(node_->get_logger(), "Subscribing to Hardware Regulator Status Topic: '%s'", hw_regulator_status_topic.c_str());
     hw_regulator_status_sub_ = node_->create_subscription<ros2_interfaces::msg::RegulatorStatus>(
         hw_regulator_status_topic, qos, std::bind(&HardwareCoordinator::hardware_regulator_status_callback, this, std::placeholders::_1));
+
+    auto hw_system_status_topic = node_->declare_parameter<std::string>(
+        control_node_constants::HARDWARE_SYSTEM_STATUS_TOPIC_PARAM,
+        control_node_constants::DEFAULT_HARDWARE_SYSTEM_STATUS_TOPIC);
+    RCLCPP_INFO(node_->get_logger(), "Subscribing to Hardware System Status Topic: '%s'", hw_system_status_topic.c_str());
+    hw_system_status_sub_ = node_->create_subscription<ros2_interfaces::msg::HardwareSystemStatus>(
+        hw_system_status_topic, qos, std::bind(&HardwareCoordinator::hardware_system_status_callback, this, std::placeholders::_1));
 
     auto hw_circuit_settings_topic = node_->declare_parameter<std::string>(
         control_node_constants::HARDWARE_CIRCUIT_SETTINGS_TOPIC_PARAM,
@@ -112,6 +118,11 @@ void HardwareCoordinator::hardware_regulator_status_callback(const ros2_interfac
     // 调压器状态是完整的 RegulatorStatus，直接更新即可
     // 确保ID正确
     state_manager_->update_regulator_status(msg->regulator_id, *msg);
+}
+void HardwareCoordinator::hardware_system_status_callback(const ros2_interfaces::msg::HardwareSystemStatus::SharedPtr msg)
+{
+    // 将接收到的硬件系统状态更新到主系统状态中
+    state_manager_->update_system_status_from_hardware(*msg);
 }
 void HardwareCoordinator::hardware_circuit_settings_callback(const ros2_interfaces::msg::HardwareCircuitSettings::SharedPtr msg)
 {

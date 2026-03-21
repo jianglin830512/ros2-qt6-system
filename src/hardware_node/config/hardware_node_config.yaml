@@ -9,6 +9,8 @@
     hardware_regulator_status_topic: "hardware_regulator_status"
     hardware_circuit_settings_topic: "hardware_circuit_settings"
     hardware_regulator_settings_topic: "hardware_regulator_settings"
+    # 系统状态发布
+    hardware_system_status_topic: "hardware_system_status"
 
     # =================================================
     #               订阅器话题名称 (Subscribers)
@@ -30,7 +32,7 @@
     hardware_regulator_breaker_command_service: "hardware_regulator_breaker_command"
     hardware_circuit_breaker_command_service: "hardware_circuit_breaker_command"
 
-    # [新增] PLC 控制模式与源设置服务
+    # PLC 控制模式与源设置服务
     hardware_set_control_mode_service: "hardware_set_control_mode"
     hardware_set_control_source_service: "hardware_set_control_source"
 
@@ -51,6 +53,3 @@
     # 2. 温度监视器 (TP1100, 端口 3000, ID 1)
     temp_monitor_ip_address: "192.168.2.95"
     temp_monitor_port: 3000
-
-
-    

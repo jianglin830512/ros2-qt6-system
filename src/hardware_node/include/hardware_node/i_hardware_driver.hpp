@@ -9,13 +9,14 @@
 #include "ros2_interfaces/msg/regulator_operation_command.hpp"
 #include "ros2_interfaces/msg/regulator_settings.hpp"
 #include "ros2_interfaces/msg/regulator_status.hpp"
+#include "ros2_interfaces/msg/hardware_system_status.hpp" // [新增]
 #include "ros2_interfaces/srv/circuit_breaker_command.hpp"
 #include "ros2_interfaces/srv/regulator_breaker_command.hpp"
 #include "ros2_interfaces/srv/set_hardware_circuit_settings.hpp"
 #include "ros2_interfaces/srv/set_regulator_settings.hpp"
-// [新增] 新的控制模式和服务头文件
 #include "ros2_interfaces/srv/set_hardware_circuit_control_mode.hpp"
 #include "ros2_interfaces/srv/set_hardware_circuit_control_source.hpp"
+
 // A callback function to be called when an async operation completes.
 using AsyncCallback = std::function<void(bool success, const std::string& message)>;
 class IHardwareDriver
@@ -26,8 +27,6 @@ public:
     virtual void update() = 0;
 
     // --- 服务的异步处理器 ---
-
-    // (设置服务)
     virtual void handle_set_hardware_regulator_settings_request(
         const std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Request> request,
         AsyncCallback callback) = 0;
@@ -36,7 +35,6 @@ public:
         const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitSettings::Request> request,
         AsyncCallback callback) = 0;
 
-    // (命令服务)
     virtual void handle_regulator_breaker_command(
         const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request,
         AsyncCallback callback) = 0;
@@ -45,12 +43,10 @@ public:
         const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request> request,
         AsyncCallback callback) = 0;
 
-    // [新增] PLC 控制模式设置
     virtual void handle_set_control_mode(
         const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request,
         AsyncCallback callback) = 0;
 
-    // [新增] PLC 控制源设置
     virtual void handle_set_control_source(
         const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Request> request,
         AsyncCallback callback) = 0;
@@ -64,5 +60,8 @@ public:
     virtual bool get_circuit_status(uint8_t circuit_id, ros2_interfaces::msg::HardwareCircuitStatus& status) = 0;
     virtual bool get_regulator_settings(uint8_t regulator_id, ros2_interfaces::msg::RegulatorSettings& settings) = 0;
     virtual bool get_circuit_settings(uint8_t circuit_id, ros2_interfaces::msg::HardwareCircuitSettings& settings) = 0;
+
+    // [新增]
+    virtual bool get_system_status(ros2_interfaces::msg::HardwareSystemStatus& status) = 0;
 };
 #endif // I_HARDWARE_DRIVER_HPP_

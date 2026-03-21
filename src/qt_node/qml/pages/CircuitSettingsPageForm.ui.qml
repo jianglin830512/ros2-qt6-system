@@ -80,7 +80,7 @@ Item {
                 spacing: 10
                 SettingInput { id: testStartCurrent; labelText: "起始电流:"; unitText: "A" }
                 SettingInput { id: testMaxCurrent; labelText: "最大电流:"; unitText: "A" }
-                SettingInput { id: testChangePercent; labelText: "电流变化:"; unitText: "%" }
+                SettingInput { id: testChangePercent; labelText: "恒流误差:"; unitText: "A"; inputValidator: IntValidator { bottom: 2; top: 20 } }
                 SettingInput { id: testCtRatio; labelText: "互感器变比:"; unitText: "/5A" }
             }
 
@@ -177,7 +177,7 @@ Item {
                 spacing: 10
                 SettingInput { id: refStartCurrent; labelText: "起始电流:"; unitText: "A" }
                 SettingInput { id: refMaxCurrent; labelText: "最大电流:"; unitText: "A" }
-                SettingInput { id: refChangePercent; labelText: "电流变化:"; unitText: "%" }
+                SettingInput { id: refChangePercent; labelText: "恒流误差:"; unitText: "A"; inputValidator: IntValidator { bottom: 2; top: 20 } }
                 SettingInput { id: refCtRatio; labelText: "互感器变比:"; unitText: "/5A" }
             }
 

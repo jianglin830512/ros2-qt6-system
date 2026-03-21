@@ -15,6 +15,7 @@ QtObject {
     readonly property color buttonSelectedGradientEnd: titleColor
     readonly property color buttonSelectedTextColor: "#FFFFFF" // 纯白色
     readonly property color buttonDisabledTextColor: "#BFBFBF" // 浅灰色
+    readonly property color indicatorTextColor: "white"
 
     // -- 控件颜色 --
     readonly property color buttonBackgroundColor: "transparent"
@@ -22,6 +23,10 @@ QtObject {
     readonly property color buttonHoverColor: "#4000BFFF" // 鼠标悬停时带透明度的背景色
     readonly property color gridLineColor: buttonHoverColor
     readonly property color chartBgColor: "#2E3136"
+    readonly property color localRed: "#FF3333"    // 本地模式红
+    readonly property color remoteGreen: "#33FF33"   // 远方模式绿
+    readonly property color estopGray: "#444444"    // 急停常态灰
+    readonly property color estopActiveRed: "#FF0000" // 急停触发红
 
     // -- 字体定义 --
     readonly property font titleFont: Qt.font({ family: "Microsoft YaHei", pointSize: 28, bold: true })
@@ -32,6 +37,7 @@ QtObject {
     readonly property font largeLabelFont: Qt.font({ family: "Microsoft YaHei", pointSize: 18 })
     readonly property font defaultFont: Qt.font({ family: "Microsoft YaHei", pointSize: 16 })
     readonly property font buttonFont: Qt.font({ family: "Microsoft YaHei", pointSize: 16 })
+    readonly property font indicatorFont: Qt.font({ family: "Microsoft YaHei", pointSize: 16, bold: true })
 
     // -- 空隙定义 --
     readonly property int mainSpacing: 20

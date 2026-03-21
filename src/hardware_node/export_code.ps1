@@ -1,6 +1,6 @@
 ﻿# ===== 工程根目录 =====
 $root = "E:\WGS\SRC\HARDWARE_NODE"
-$output = "$root\ALL_CODE_UPLOAD.txt"
+$output = "$root\HARDWARE_NODE.txt"
 
 # 删除旧文件
 if (Test-Path $output) { Remove-Item $output }

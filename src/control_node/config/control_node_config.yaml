@@ -10,6 +10,7 @@
     # 发布状态给 qt_node
     circuit_status_topic: "circuit_status"
     regulator_status_topic: "voltage_regulator_status"
+    system_status_topic: "system_status"
 
     # 发布当前设置给 qt_node，用于同步UI状态
     system_settings_topic: "system_settings"
@@ -74,6 +75,8 @@
     hardware_circuit_status_topic: "hardware_circuit_status"
     # control_node_constants::HARDWARE_REGULATOR_STATUS_TOPIC_PARAM
     hardware_regulator_status_topic: "hardware_regulator_status"
+    # control_node_constants::HARDWARE_SYSTEM_STATUS_TOPIC_PARAM
+    hardware_system_status_topic: "hardware_system_status"
 
     # 订阅硬件当前设置
     # control_node_constants::HARDWARE_CIRCUIT_SETTINGS_TOPIC_PARAM

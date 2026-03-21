@@ -19,48 +19,42 @@
 #include <thread>
 #include <vector>
 #include <cstring>
-// #include <cmath>
 #include <algorithm>
-// #include <iostream> // For formatting logs if needed
+#include <map>
+#include <chrono>
 
 // ============================================================================
-// Internal Helper Class: SimpleTcpClient (Same as before)
+// Internal Helper Class: SimpleTcpClient
 // ============================================================================
 class SimpleTcpClient {
 public:
     SimpleTcpClient(rclcpp::Logger logger, std::string ip, int port)
         : logger_(logger), ip_(ip), port_(port), sock_(INVALID_SOCKET) {
-        // 初始化尝试时间为过去，确保启动时能立即尝试第一次连接
         last_connect_attempt_ = std::chrono::steady_clock::now() - std::chrono::seconds(10);
     }
 
     ~SimpleTcpClient() { disconnect(); }
 
-    // 核心连接逻辑：处理长连接保持与失败后的3秒重连
+    // 提供给外部加锁，保证 Modbus (Write -> Read) 整个通讯事务不被其它线程打断
+    std::mutex& get_tx_mutex() { return tx_mutex_; }
+
     bool ensure_connected() {
-        // 1. 如果连接正常，直接返回 true (保持长连接)
         if (sock_ != INVALID_SOCKET) return true;
 
-        // 2. 检查是否处于重连冷却期 (3秒)
         auto now = std::chrono::steady_clock::now();
         if ((now - last_connect_attempt_) < std::chrono::seconds(3)) {
-            return false; // 还在冷却中，暂不尝试
+            return false;
         }
 
-        // 更新尝试时间
         last_connect_attempt_ = now;
-
-        // 3. 打印尝试连接日志
         RCLCPP_WARN(logger_, "TCP: Attempting to connect/reconnect to %s:%d ...", ip_.c_str(), port_);
 
-        // 4. 创建 Socket
         sock_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (sock_ == INVALID_SOCKET) {
             RCLCPP_ERROR(logger_, "TCP: Failed to create socket for %s:%d", ip_.c_str(), port_);
             return false;
         }
 
-        // 5. 设置非阻塞模式 (为了控制连接超时)
 #ifdef _WIN32
         u_long mode = 1; ioctlsocket(sock_, FIONBIO, &mode);
 #else
@@ -73,16 +67,13 @@ public:
         serv_addr.sin_port = htons(port_);
         inet_pton(AF_INET, ip_.c_str(), &serv_addr.sin_addr);
 
-        // 6. 发起连接
         int res = connect(sock_, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
 
-        // 7. 使用 select 等待连接建立 (超时 500ms)
         fd_set write_fds; FD_ZERO(&write_fds); FD_SET(sock_, &write_fds);
         struct timeval tv = {0, 500000};
         int sel_res = select((int)sock_ + 1, NULL, &write_fds, NULL, &tv);
 
         if (sel_res > 0) {
-            // 进一步检查 Socket 错误状态 (确保不是被拒绝)
             int so_error = 0;
             socklen_t len = sizeof(so_error);
 #ifdef _WIN32
@@ -91,8 +82,6 @@ public:
             getsockopt(sock_, SOL_SOCKET, SO_ERROR, &so_error, &len);
 #endif
             if (so_error == 0) {
-                // 连接成功！
-                // 恢复为阻塞模式或设置接收超时 (这里设置为 200ms 超时)
 #ifdef _WIN32
                 mode = 0; ioctlsocket(sock_, FIONBIO, &mode);
                 DWORD timeout = 200; setsockopt(sock_, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
@@ -105,7 +94,6 @@ public:
             }
         }
 
-        // 8. 连接失败处理
         RCLCPP_ERROR(logger_, "TCP: Connection failed to %s:%d. Retrying in 3s...", ip_.c_str(), port_);
         close_socket_internal();
         return false;
@@ -113,7 +101,7 @@ public:
 
     void disconnect() {
         if (sock_ != INVALID_SOCKET) {
-            RCLCPP_WARN(logger_, "TCP: Disconnecting from %s:%d", ip_.c_str(), port_);
+            RCLCPP_WARN(logger_, "TCP: Disconnecting from %s:%d (to flush OS buffer)", ip_.c_str(), port_);
             close_socket_internal();
         }
     }
@@ -123,7 +111,7 @@ public:
 
         if (send(sock_, (const char*)data.data(), (int)data.size(), 0) == SOCKET_ERROR) {
             RCLCPP_ERROR(logger_, "TCP: Send error to %s:%d", ip_.c_str(), port_);
-            disconnect(); // 发送失败视为连接断开
+            disconnect();
             return false;
         }
         return true;
@@ -137,9 +125,8 @@ public:
         while (total < expected_size) {
             int n = recv(sock_, (char*)buffer.data() + total, (int)(expected_size - total), 0);
             if (n <= 0) {
-                // n=0: 对端关闭; n<0: 错误
                 RCLCPP_ERROR(logger_, "TCP: Recv error/closed from %s:%d", ip_.c_str(), port_);
-                disconnect(); // 读取失败视为连接断开
+                disconnect();
                 return false;
             }
             total += n;
@@ -160,12 +147,16 @@ private:
     int port_;
     SOCKET sock_;
     std::chrono::steady_clock::time_point last_connect_attempt_;
+    std::mutex tx_mutex_; // [新增] 用于保护TCP单客户端收发过程的排他锁
 };
 
 // ============================================================================
 // Modbus Write Float Helper
 // ============================================================================
 bool modbus_write_float(SimpleTcpClient* client, uint8_t unit_id, uint16_t addr, float value) {
+    // [修复核心] 锁定当前 TCP 连接的 Modbus 事务，防止交织错位
+    std::lock_guard<std::mutex> lock(client->get_tx_mutex());
+
     uint32_t raw;
     std::memcpy(&raw, &value, 4);
 
@@ -188,7 +179,14 @@ bool modbus_write_float(SimpleTcpClient* client, uint8_t unit_id, uint16_t addr,
 
     if (!client->write_bytes(req)) return false;
     std::vector<uint8_t> resp;
-    return client->read_bytes(resp, 12);
+    if (!client->read_bytes(resp, 12)) return false;
+
+    // [修复核心] 如果发现返回功能码错位，说明缓冲区乱了，强行掐断TCP清空系统缓冲区
+    if (resp[7] != 0x10) {
+        client->disconnect();
+        return false;
+    }
+    return true;
 }
 
 // ============================================================================
@@ -235,27 +233,25 @@ void TcpHardwareDriver::initialize_default_states()
         cache_circ_status_[id].circuit_id = id;
         cache_circ_status_[id].test_loop.temperature_array.fill(0.0);
         cache_circ_status_[id].ref_loop.temperature_array.fill(0.0);
+
+        cache_reg_settings_[id].regulator_id = id;
+        cache_circ_settings_[id].circuit_id = id;
     }
 }
 
-// ----------------------------------------------------------------------------
-// Voltage Keep-Alive Thread (Updated to 15ms)
-// ----------------------------------------------------------------------------
 void TcpHardwareDriver::voltage_keep_alive_loop()
 {
     while (keep_alive_running_) {
-        // Updated frequency: 15ms
         auto next_wake = std::chrono::steady_clock::now() + std::chrono::milliseconds(15);
 
         std::map<uint8_t, uint8_t> cmds;
         {
-            std::lock_guard<std::mutex> lock(cmd_mutex_);
+            std::lock_guard<std::mutex> cmd_lock(cmd_mutex_);
             cmds = active_voltage_cmd_;
         }
 
-        for (auto const& [id, cmd] : cmds) {
+        for (auto const&[id, cmd] : cmds) {
             uint16_t addr = 0xFFFF;
-            // cmd: 1=Up, 2=Down
             if (cmd == 1) {
                 addr = (id == 1) ? ADDR_CMD_REG1_UP : ADDR_CMD_REG2_UP;
             }
@@ -264,7 +260,6 @@ void TcpHardwareDriver::voltage_keep_alive_loop()
             }
 
             if (addr != 0xFFFF) {
-                // Send 256 constantly to keep moving
                 modbus_write_single_register(client_plc_.get(), 1, addr, 256);
             }
         }
@@ -273,14 +268,11 @@ void TcpHardwareDriver::voltage_keep_alive_loop()
     }
 }
 
-// ----------------------------------------------------------------------------
-// Main Update Loop (Runs at ~5Hz / 200ms)
-// ----------------------------------------------------------------------------
 void TcpHardwareDriver::update()
 {
     update_tick_count_++;
 
-    // Read PLC Status (0x0010 to 0x0058)
+    // Read PLC Status (0x0010 to 0x005D, Len=78)
     read_plc_data();
 
     // Read Temp (Every 1s -> 5 * 200ms)
@@ -292,7 +284,7 @@ void TcpHardwareDriver::update()
 void TcpHardwareDriver::read_plc_data()
 {
     std::vector<uint8_t> data;
-    // Read from 0x0010, Length 74
+    // Read from 0x0010, Length 78
     if (modbus_read_holding_registers(client_plc_.get(), 1, ADDR_DATA_START, ADDR_DATA_LEN, data)) {
         std::lock_guard<std::mutex> lock(data_mutex_);
         parse_plc_buffer(data);
@@ -308,15 +300,11 @@ void TcpHardwareDriver::read_temp_monitor_data()
     }
 }
 
-// ----------------------------------------------------------------------------
-// Parsers
-// ----------------------------------------------------------------------------
 void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
 {
-    // Expected bytes: 74 regs * 2 = 148 bytes
-    if (buffer.size() < 148) return;
+    // Expected bytes: 78 regs * 2 = 156 bytes
+    if (buffer.size() < 156) return;
 
-    // Helper: Offset relative to 0x0010
     auto get_ptr = [&](uint16_t addr) -> const uint8_t* {
         int offset_reg = addr - ADDR_DATA_START;
         if (offset_reg < 0) return nullptr;
@@ -331,76 +319,80 @@ void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
     // ========================================================================
     // 1. Control Mode & Source (0x0010 - 0x0013)
     // ========================================================================
-    // C1 Mode (VW32 -> 0x0010)
     uint16_t c1_mode = parse_uint16(get_ptr(0x0010));
-    c1.plc_control_mode = (c1_mode == 2) ? 2 : 1; // 1=Manual, 2=Auto
+    c1.plc_control_mode = c1_mode;  // 1. 读取时，不改变读取值，与PLC完全保持一致
 
-    // C2 Mode (VW34 -> 0x0011)
     uint16_t c2_mode = parse_uint16(get_ptr(0x0011));
-    c2.plc_control_mode = (c2_mode == 2) ? 2 : 1;
+    c2.plc_control_mode = c2_mode;
 
-    // C1 Source (VW36 -> 0x0012)
     uint16_t c1_src = parse_uint16(get_ptr(0x0012));
-    c1.plc_control_source = (c1_src == 2) ? 2 : 1; // 1=Test, 2=Ref
+    c1.plc_control_source = c1_src;
 
-    // C2 Source (VW38 -> 0x0013)
     uint16_t c2_src = parse_uint16(get_ptr(0x0013));
-    c2.plc_control_source = (c2_src == 2) ? 2 : 1;
+    c2.plc_control_source = c2_src;
+
+    // 2. 发现值不是1或2，则通过后台线程设置为1进行纠正
+    auto correct_plc_value = [this](uint16_t current_val, uint16_t addr, const char* name) {
+        if (current_val != 1 && current_val != 2) {
+            // 加入静态节流锁，防止每 200ms 的轮询中疯狂发送写入命令
+            static std::map<uint16_t, std::chrono::steady_clock::time_point> last_correction;
+            auto now = std::chrono::steady_clock::now();
+            if (now - last_correction[addr] > std::chrono::seconds(2)) {
+                last_correction[addr] = now;
+                RCLCPP_WARN(logger_, "PLC Warn: Detected invalid %s value (%u) at Addr 0x%04X. Auto-correcting PLC to 1.", name, current_val, addr);
+                std::thread([this, addr]() {
+                    modbus_write_single_register(client_plc_.get(), 1, addr, 1);
+                }).detach();
+            }
+        }
+    };
+
+    correct_plc_value(c1_mode, ADDR_MODE_C1, "C1 Mode");
+    correct_plc_value(c2_mode, ADDR_MODE_C2, "C2 Mode");
+    correct_plc_value(c1_src, ADDR_SOURCE_C1, "C1 Source");
+    correct_plc_value(c2_src, ADDR_SOURCE_C2, "C2 Source");
 
     // ========================================================================
-    // 2. Bit Parsing (0x0014, 0x0015)
+    // 2. Bit Parsing (0x0014, 0x0015) - 包含系统状态(远方/急停)
     // ========================================================================
-    // Register 0x0014 (VW40) => [HighByte: V40][LowByte: V41]
     uint16_t w_v40 = parse_uint16(get_ptr(0x0014));
     uint8_t v40 = (w_v40 >> 8) & 0xFF; // High
     uint8_t v41 = w_v40 & 0xFF;        // Low
 
-    // Register 0x0015 (VW42) => [HighByte: V42][LowByte: V43]
     uint16_t w_v42 = parse_uint16(get_ptr(0x0015));
     uint8_t v42 = (w_v42 >> 8) & 0xFF; // High
 
-    // Mapping based on Table:
-    // V40.3 Main Closed, V40.4 Main Open
-    // V40.5 Aux Closed,  V40.6 Aux Open
+    // System Status
+    cache_system_status_.is_remote = (v40 >> 1) & 0x01;
+    cache_system_status_.emergency_stop_on = (v40 >> 2) & 0x01;
+
     r1.breaker_closed_switch_ack = (v40 >> 3) & 0x01;
     r1.breaker_opened_switch_ack = (v40 >> 4) & 0x01;
     r2.breaker_closed_switch_ack = (v40 >> 5) & 0x01;
     r2.breaker_opened_switch_ack = (v40 >> 6) & 0x01;
 
-    // V40.7 Main Test Close, V41.0 Main Test Open
     c1.test_loop.breaker_closed_switch_ack = (v40 >> 7) & 0x01;
     c1.test_loop.breaker_opened_switch_ack = (v41 >> 0) & 0x01;
-
-    // V41.1 Main Ref Close, V41.2 Main Ref Open
     c1.ref_loop.breaker_closed_switch_ack = (v41 >> 1) & 0x01;
     c1.ref_loop.breaker_opened_switch_ack = (v41 >> 2) & 0x01;
 
-    // V41.3 Aux Test Close, V41.4 Aux Test Open
     c2.test_loop.breaker_closed_switch_ack = (v41 >> 3) & 0x01;
     c2.test_loop.breaker_opened_switch_ack = (v41 >> 4) & 0x01;
-
-    // V41.5 Aux Ref Close, V41.6 Aux Ref Open
     c2.ref_loop.breaker_closed_switch_ack = (v41 >> 5) & 0x01;
     c2.ref_loop.breaker_opened_switch_ack = (v41 >> 6) & 0x01;
 
-    // V41.7 Main Limit Up, V42.0 Main Limit Down
     r1.upper_limit_switch_on = (v41 >> 7) & 0x01;
     r1.lower_limit_switch_on = (v42 >> 0) & 0x01;
-
-    // V42.1 Aux Limit Up, V42.2 Aux Limit Down
     r2.upper_limit_switch_on = (v42 >> 1) & 0x01;
     r2.lower_limit_switch_on = (v42 >> 2) & 0x01;
 
-    // Voltage Direction Logic (New)
-    // V42.3 Main Up, V42.4 Main Down
     bool m_up = (v42 >> 3) & 0x01;
     bool m_down = (v42 >> 4) & 0x01;
-    if (m_up && !m_down) r1.voltage_direction = 1;      // Increasing
-    else if (!m_up && m_down) r1.voltage_direction = -1;// Decreasing
-    else if (!m_up && !m_down) r1.voltage_direction = 0;// Static
-    else r1.voltage_direction = -2; // Error state
+    if (m_up && !m_down) r1.voltage_direction = 1;
+    else if (!m_up && m_down) r1.voltage_direction = -1;
+    else if (!m_up && !m_down) r1.voltage_direction = 0;
+    else r1.voltage_direction = -2;
 
-    // V42.5 Aux Up, V42.6 Aux Down
     bool a_up = (v42 >> 5) & 0x01;
     bool a_down = (v42 >> 6) & 0x01;
     if (a_up && !a_down) r2.voltage_direction = 1;
@@ -409,24 +401,40 @@ void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
     else r2.voltage_direction = -2;
 
     // ========================================================================
-    // 3. Floats (0x002E - 0x0058)
+    // 2.5 Regulator Over-current Alarms (0x0016 - 0x0017)
     // ========================================================================
+    uint16_t alarm1 = parse_uint16(get_ptr(0x0016));
+    uint16_t alarm2 = parse_uint16(get_ptr(0x0017));
+    r1.over_current_on = (alarm1 == 256);
+    r2.over_current_on = (alarm2 == 256);
 
-    // -- Current Change Range (Readback in %, need * 100 ?) --
-    // The PLC sends Float 0.0-1.0 or 0-100? The user said "Need convert to float then /100 when writing".
-    // This implies PLC stores 0.XX for percentage.
-    // So when Reading: 0.50 -> 50(int32).
-    auto parse_pct = [&](uint16_t addr) -> int32_t {
+    // ========================================================================
+    // 3. Floats & Settings (0x0028 - 0x005D)
+    // ========================================================================
+    uint16_t speed1_val = parse_uint16(get_ptr(0x0028));
+    uint16_t speed2_val = parse_uint16(get_ptr(0x0029));
+
+    cache_reg_settings_[1].voltage_up_speed_percent = speed1_val / 5;
+    cache_reg_settings_[1].voltage_down_speed_percent = speed1_val / 5;
+    cache_reg_settings_[2].voltage_up_speed_percent = speed2_val / 5;
+    cache_reg_settings_[2].voltage_down_speed_percent = speed2_val / 5;
+
+    cache_circ_settings_[1].test_loop.ct_ratio = parse_uint16(get_ptr(0x002A));
+    cache_circ_settings_[1].ref_loop.ct_ratio  = parse_uint16(get_ptr(0x002B));
+    cache_circ_settings_[2].test_loop.ct_ratio = parse_uint16(get_ptr(0x002C));
+    cache_circ_settings_[2].ref_loop.ct_ratio  = parse_uint16(get_ptr(0x002D));
+
+    // [修改点]：仅做 Float 到 INT32 的转换，不乘以 100.0f
+    auto parse_float_to_int32 = [&](uint16_t addr) -> int32_t {
         float f = parse_float_abcd(get_ptr(addr));
-        return static_cast<int32_t>(f * 100.0f);
+        return static_cast<int32_t>(f);
     };
 
-    cache_circ_settings_[1].test_loop.current_change_range_percent = parse_pct(0x002E);
-    cache_circ_settings_[1].ref_loop.current_change_range_percent  = parse_pct(0x0030);
-    cache_circ_settings_[2].test_loop.current_change_range_percent = parse_pct(0x0032);
-    cache_circ_settings_[2].ref_loop.current_change_range_percent  = parse_pct(0x0034);
+    cache_circ_settings_[1].test_loop.current_change_range_percent = parse_float_to_int32(0x002E);
+    cache_circ_settings_[1].ref_loop.current_change_range_percent  = parse_float_to_int32(0x0030);
+    cache_circ_settings_[2].test_loop.current_change_range_percent = parse_float_to_int32(0x0032);
+    cache_circ_settings_[2].ref_loop.current_change_range_percent  = parse_float_to_int32(0x0034);
 
-    // -- Readings --
     r1.voltage_reading = parse_float_abcd(get_ptr(0x003A));
     r2.voltage_reading = parse_float_abcd(get_ptr(0x003C));
     r1.current_reading = parse_float_abcd(get_ptr(0x003E));
@@ -437,44 +445,18 @@ void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
     c2.test_loop.current = parse_float_abcd(get_ptr(0x0046));
     c2.ref_loop.current  = parse_float_abcd(get_ptr(0x0048));
 
-    // -- Settings Readback (Optional, but good for validation) --
-    // Const Current Settings
     cache_circ_settings_[1].test_loop.start_current_a = (int32_t)parse_float_abcd(get_ptr(0x004A));
     cache_circ_settings_[1].ref_loop.start_current_a  = (int32_t)parse_float_abcd(get_ptr(0x004C));
     cache_circ_settings_[2].test_loop.start_current_a = (int32_t)parse_float_abcd(get_ptr(0x004E));
     cache_circ_settings_[2].ref_loop.start_current_a  = (int32_t)parse_float_abcd(get_ptr(0x0050));
 
-    // Max Current Settings
     cache_circ_settings_[1].test_loop.max_current_a = (int32_t)parse_float_abcd(get_ptr(0x0052));
     cache_circ_settings_[1].ref_loop.max_current_a  = (int32_t)parse_float_abcd(get_ptr(0x0054));
     cache_circ_settings_[2].test_loop.max_current_a = (int32_t)parse_float_abcd(get_ptr(0x0056));
     cache_circ_settings_[2].ref_loop.max_current_a  = (int32_t)parse_float_abcd(get_ptr(0x0058));
 
-    // ========================================================================
-    // 4. Logging Block (Every 10th parse)
-    // ========================================================================
-    log_throttle_count_++;
-    if (log_throttle_count_ % 10 == 0) {
-        // --- START LOGGING BLOCK ---
-        RCLCPP_INFO(logger_, "=== PLC Status Dump (Tick %lu) ===", log_throttle_count_);
-        RCLCPP_INFO(logger_, "Modes: C1=%d(Src%d), C2=%d(Src%d)",
-                    c1.plc_control_mode, c1.plc_control_source,
-                    c2.plc_control_mode, c2.plc_control_source);
-
-        RCLCPP_INFO(logger_, "Main Reg: V=%.2f A=%.2f Dir=%d Breaker=%d/%d Limits=%d/%d",
-                    r1.voltage_reading, r1.current_reading, r1.voltage_direction,
-                    r1.breaker_closed_switch_ack, r1.breaker_opened_switch_ack,
-                    r1.upper_limit_switch_on, r1.lower_limit_switch_on);
-
-        RCLCPP_INFO(logger_, "C1 Loop: TestA=%.2f RefA=%.2f | Brk Test=%d/%d Ref=%d/%d",
-                    c1.test_loop.current, c1.ref_loop.current,
-                    c1.test_loop.breaker_closed_switch_ack, c1.test_loop.breaker_opened_switch_ack,
-                    c1.ref_loop.breaker_closed_switch_ack, c1.ref_loop.breaker_opened_switch_ack);
-
-        // Uncomment to see Raw Hex if needed
-        // RCLCPP_INFO(logger_, "Raw V40: 0x%02X, V41: 0x%02X, V42: 0x%02X", v40, v41, v42);
-        // --- END LOGGING BLOCK ---
-    }
+    cache_reg_settings_[1].over_current_a = (int32_t)parse_float_abcd(get_ptr(0x005A));
+    cache_reg_settings_[2].over_current_a = (int32_t)parse_float_abcd(get_ptr(0x005C));
 }
 
 void TcpHardwareDriver::parse_temp_buffer(const std::vector<uint8_t>& buffer)
@@ -492,10 +474,13 @@ void TcpHardwareDriver::parse_temp_buffer(const std::vector<uint8_t>& buffer)
 }
 
 // ----------------------------------------------------------------------------
-// Modbus Helpers (Same as before)
+// Modbus Helpers
 // ----------------------------------------------------------------------------
 bool TcpHardwareDriver::modbus_read_holding_registers(SimpleTcpClient* client, uint8_t unit_id, uint16_t start_addr, uint16_t count, std::vector<uint8_t>& out_data)
 {
+    //[修复核心] 锁定当前 TCP 连接的 Modbus 事务
+    std::lock_guard<std::mutex> lock(client->get_tx_mutex());
+
     std::vector<uint8_t> req(12);
     req[0] = 0; req[1] = 0;
     req[2] = 0; req[3] = 0;
@@ -510,15 +495,25 @@ bool TcpHardwareDriver::modbus_read_holding_registers(SimpleTcpClient* client, u
     std::vector<uint8_t> header;
     if (!client->read_bytes(header, 9)) return false;
 
-    if (header[7] != 0x03) return false;
+    // [修复核心] 若产生交错（功能码不对）强行断开并清理垃圾缓存
+    if (header[7] != 0x03) {
+        client->disconnect();
+        return false;
+    }
     uint8_t byte_count = header[8];
-    if (byte_count != count * 2) return false;
+    if (byte_count != count * 2) {
+        client->disconnect();
+        return false;
+    }
 
     return client->read_bytes(out_data, byte_count);
 }
 
 bool TcpHardwareDriver::modbus_write_single_register(SimpleTcpClient* client, uint8_t unit_id, uint16_t addr, uint16_t value)
 {
+    //[修复核心] 锁定当前 TCP 连接的 Modbus 事务
+    std::lock_guard<std::mutex> lock(client->get_tx_mutex());
+
     std::vector<uint8_t> req(12);
     req[0] = 0; req[1] = 0;
     req[2] = 0; req[3] = 0;
@@ -530,7 +525,14 @@ bool TcpHardwareDriver::modbus_write_single_register(SimpleTcpClient* client, ui
 
     if (!client->write_bytes(req)) return false;
     std::vector<uint8_t> resp;
-    return client->read_bytes(resp, 12);
+    if (!client->read_bytes(resp, 12)) return false;
+
+    //[修复核心] 若发生TCP流错位，立刻掐断连接防止后续错位积累
+    if (resp[7] != 0x06) {
+        client->disconnect();
+        return false;
+    }
+    return true;
 }
 
 float TcpHardwareDriver::parse_float_abcd(const uint8_t* ptr)
@@ -549,16 +551,16 @@ uint16_t TcpHardwareDriver::parse_uint16(const uint8_t* ptr)
 }
 
 // ----------------------------------------------------------------------------
-// Command Handlers (Updated Addresses)
+// Command Handlers
 // ----------------------------------------------------------------------------
 
 void TcpHardwareDriver::handle_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg)
 {
     std::lock_guard<std::mutex> lock(cmd_mutex_);
     if (msg->command == 3) {
-        active_voltage_cmd_[msg->regulator_id] = 0; // Stop
+        active_voltage_cmd_[msg->regulator_id] = 0;
     } else {
-        active_voltage_cmd_[msg->regulator_id] = msg->command; // 1=Up, 2=Down
+        active_voltage_cmd_[msg->regulator_id] = msg->command;
     }
 }
 
@@ -617,12 +619,24 @@ void TcpHardwareDriver::handle_circuit_breaker_command(
 void TcpHardwareDriver::handle_set_control_mode(
     const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request, AsyncCallback callback)
 {
-    // Write Mode: 1=Manual, 2=Auto
     uint16_t addr = (request->circuit_id == 1) ? ADDR_MODE_C1 : ADDR_MODE_C2;
-    uint16_t val = (uint16_t)request->mode;
+    // 强制限制为 1 或 2，防止误写 0
+    uint16_t val = (request->mode == 2) ? 2 : 1;
 
-    std::thread([this, addr, val, callback]() {
+    // 1. 记录发起写入的日志
+    RCLCPP_INFO(logger_, "PLC Service [Mode]: Circuit %u -> Setting to %u (%s) at Addr 0x%04X",
+                request->circuit_id, val, (val == 2 ? "AUTO/CONST_CURRENT" : "MANUAL"), addr);
+
+    std::thread([this, addr, val, circ_id = request->circuit_id, callback]() {
         bool ok = modbus_write_single_register(client_plc_.get(), 1, addr, val);
+
+        // 2. 记录写入结果日志
+        if (ok) {
+            RCLCPP_INFO(logger_, "PLC Success: Mode for Circuit %u updated to %u.", circ_id, val);
+        } else {
+            RCLCPP_ERROR(logger_, "PLC Error: Failed to write Mode for Circuit %u at Addr 0x%04X", circ_id, addr);
+        }
+
         callback(ok, ok ? "Control Mode Sent" : "Modbus Write Failed");
     }).detach();
 }
@@ -630,12 +644,24 @@ void TcpHardwareDriver::handle_set_control_mode(
 void TcpHardwareDriver::handle_set_control_source(
     const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Request> request, AsyncCallback callback)
 {
-    // Write Source: 1=Test, 2=Ref
     uint16_t addr = (request->circuit_id == 1) ? ADDR_SOURCE_C1 : ADDR_SOURCE_C2;
-    uint16_t val = (uint16_t)request->source;
+    // 强制限制为 1 或 2，防止误写 0
+    uint16_t val = (request->source == 2) ? 2 : 1;
 
-    std::thread([this, addr, val, callback]() {
+    // 1. 记录发起写入的日志
+    RCLCPP_INFO(logger_, "PLC Service [Source]: Circuit %u -> Setting to %u (%s) at Addr 0x%04X",
+                request->circuit_id, val, (val == 2 ? "REF_LOOP" : "TEST_LOOP"), addr);
+
+    std::thread([this, addr, val, circ_id = request->circuit_id, callback]() {
         bool ok = modbus_write_single_register(client_plc_.get(), 1, addr, val);
+
+        // 2. 记录写入结果日志
+        if (ok) {
+            RCLCPP_INFO(logger_, "PLC Success: Source for Circuit %u updated to %u.", circ_id, val);
+        } else {
+            RCLCPP_ERROR(logger_, "PLC Error: Failed to write Source for Circuit %u at Addr 0x%04X", circ_id, addr);
+        }
+
         callback(ok, ok ? "Control Source Sent" : "Modbus Write Failed");
     }).detach();
 }
@@ -643,22 +669,29 @@ void TcpHardwareDriver::handle_set_control_source(
 void TcpHardwareDriver::handle_set_hardware_regulator_settings_request(
     const std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Request> request, AsyncCallback callback)
 {
-    uint16_t addr;
-    if (request->settings.regulator_id == 1) addr = 0x0028;
-    else if (request->settings.regulator_id == 2) addr = 0x0029;
-    else { callback(false, "Invalid ID"); return; }
+    uint8_t id = request->settings.regulator_id;
+    if (id != 1 && id != 2) { callback(false, "Invalid ID"); return; }
+
+    uint16_t addr_speed = (id == 1) ? 0x0028 : 0x0029;
+    uint16_t addr_ocp   = (id == 1) ? 0x005A : 0x005C;
 
     int32_t speed_pct = std::clamp(request->settings.voltage_up_speed_percent, 0, 100);
-    uint16_t plc_val = static_cast<uint16_t>(speed_pct * 5); // 0-100% -> 0-500
+    uint16_t plc_val = static_cast<uint16_t>(speed_pct * 5);
 
-    std::thread([this, addr, plc_val, request, callback]() {
-        bool ok = modbus_write_single_register(client_plc_.get(), 1, addr, plc_val);
-        if(ok) {
+    float ocp_val = static_cast<float>(request->settings.over_current_a);
+
+    std::thread([this, id, addr_speed, addr_ocp, plc_val, ocp_val, request, callback]() {
+        bool all_ok = true;
+        if (!modbus_write_single_register(client_plc_.get(), 1, addr_speed, plc_val)) all_ok = false;
+
+        if (!modbus_write_float(client_plc_.get(), 1, addr_ocp, ocp_val)) all_ok = false;
+
+        if(all_ok) {
             std::lock_guard<std::mutex> lock(data_mutex_);
-            cache_reg_settings_[request->settings.regulator_id] = request->settings;
-            callback(true, "Regulator speed updated");
+            cache_reg_settings_[id] = request->settings;
+            callback(true, "Regulator settings updated");
         } else {
-            callback(false, "Modbus Write Failed");
+            callback(false, "Partial PLC Write Failed");
         }
     }).detach();
 }
@@ -672,38 +705,31 @@ void TcpHardwareDriver::handle_set_hardware_circuit_settings_request(
     std::thread([this, id, request, callback]() {
         bool all_ok = true;
 
-        // 1. CT Ratio (UINT16)
+        // 写入 CT 变比 (Int -> Int)
         uint16_t addr_ct_test = (id == 1) ? 0x002A : 0x002C;
         uint16_t addr_ct_ref  = (id == 1) ? 0x002B : 0x002D;
         if (!modbus_write_single_register(client_plc_.get(), 1, addr_ct_test, (uint16_t)request->settings.test_loop.ct_ratio)) all_ok = false;
         if (!modbus_write_single_register(client_plc_.get(), 1, addr_ct_ref,  (uint16_t)request->settings.ref_loop.ct_ratio)) all_ok = false;
 
-        // 2. Change Range (FLOAT) - Addresses Updated to 4 distinct values
-        // ID=1 -> Test=0x2E, Ref=0x30
-        // ID=2 -> Test=0x32, Ref=0x34
+        // 写入 电流变化范围 (INT32 -> Float)[修改点：不再除以 100.0f]
         uint16_t addr_range_test = (id == 1) ? 0x002E : 0x0032;
         uint16_t addr_range_ref  = (id == 1) ? 0x0030 : 0x0034;
-
-        float range_test_f = (float)request->settings.test_loop.current_change_range_percent / 100.0f;
-        float range_ref_f  = (float)request->settings.ref_loop.current_change_range_percent / 100.0f;
+        float range_test_f = static_cast<float>(request->settings.test_loop.current_change_range_percent);
+        float range_ref_f  = static_cast<float>(request->settings.ref_loop.current_change_range_percent);
         if (!modbus_write_float(client_plc_.get(), 1, addr_range_test, range_test_f)) all_ok = false;
         if (!modbus_write_float(client_plc_.get(), 1, addr_range_ref,  range_ref_f))  all_ok = false;
 
-        // 3. Const Current Setting (FLOAT)
-        // ID=1 -> Test=0x4A, Ref=0x4C
-        // ID=2 -> Test=0x4E, Ref=0x50
+        // 写入 恒流起始电流 (INT32 -> Float)
         uint16_t addr_const_test = (id == 1) ? 0x004A : 0x004E;
         uint16_t addr_const_ref  = (id == 1) ? 0x004C : 0x0050;
-        if (!modbus_write_float(client_plc_.get(), 1, addr_const_test, (float)request->settings.test_loop.start_current_a)) all_ok = false;
-        if (!modbus_write_float(client_plc_.get(), 1, addr_const_ref,  (float)request->settings.ref_loop.start_current_a)) all_ok = false;
+        if (!modbus_write_float(client_plc_.get(), 1, addr_const_test, static_cast<float>(request->settings.test_loop.start_current_a))) all_ok = false;
+        if (!modbus_write_float(client_plc_.get(), 1, addr_const_ref,  static_cast<float>(request->settings.ref_loop.start_current_a))) all_ok = false;
 
-        // 4. Max Current (FLOAT)
-        // ID=1 -> Test=0x52, Ref=0x54
-        // ID=2 -> Test=0x56, Ref=0x58
+        // 写入 保护过流阈值 (INT32 -> Float)
         uint16_t addr_max_test = (id == 1) ? 0x0052 : 0x0056;
         uint16_t addr_max_ref  = (id == 1) ? 0x0054 : 0x0058;
-        if (!modbus_write_float(client_plc_.get(), 1, addr_max_test, (float)request->settings.test_loop.max_current_a)) all_ok = false;
-        if (!modbus_write_float(client_plc_.get(), 1, addr_max_ref,  (float)request->settings.ref_loop.max_current_a)) all_ok = false;
+        if (!modbus_write_float(client_plc_.get(), 1, addr_max_test, static_cast<float>(request->settings.test_loop.max_current_a))) all_ok = false;
+        if (!modbus_write_float(client_plc_.get(), 1, addr_max_ref,  static_cast<float>(request->settings.ref_loop.max_current_a))) all_ok = false;
 
         if (all_ok) {
             std::lock_guard<std::mutex> lock(data_mutex_);
@@ -715,38 +741,61 @@ void TcpHardwareDriver::handle_set_hardware_circuit_settings_request(
     }).detach();
 }
 
-void TcpHardwareDriver::handle_clear_alarm() {}
+void TcpHardwareDriver::handle_clear_alarm() {
+    std::thread([this]() {
+        bool ok1 = modbus_write_single_register(client_plc_.get(), 1, 0x0016, 0);
+        bool ok2 = modbus_write_single_register(client_plc_.get(), 1, 0x0017, 0);
+        if (ok1 && ok2) {
+            RCLCPP_INFO(logger_, "Successfully cleared over-current alarms in PLC.");
+        } else {
+            RCLCPP_ERROR(logger_, "Failed to clear over-current alarms in PLC.");
+        }
+    }).detach();
+}
 
 // --- Getters ---
 bool TcpHardwareDriver::get_regulator_status(uint8_t regulator_id, ros2_interfaces::msg::RegulatorStatus& status) {
     std::lock_guard<std::mutex> lock(data_mutex_);
     if (cache_reg_status_.count(regulator_id)) {
         status = cache_reg_status_[regulator_id];
+        status.regulator_id = regulator_id;
         return true;
     }
     return false;
 }
+
 bool TcpHardwareDriver::get_circuit_status(uint8_t circuit_id, ros2_interfaces::msg::HardwareCircuitStatus& status) {
     std::lock_guard<std::mutex> lock(data_mutex_);
     if (cache_circ_status_.count(circuit_id)) {
         status = cache_circ_status_[circuit_id];
+        status.circuit_id = circuit_id;
         return true;
     }
     return false;
 }
+
 bool TcpHardwareDriver::get_regulator_settings(uint8_t regulator_id, ros2_interfaces::msg::RegulatorSettings& settings) {
     std::lock_guard<std::mutex> lock(data_mutex_);
     if (cache_reg_settings_.count(regulator_id)) {
         settings = cache_reg_settings_[regulator_id];
+        settings.regulator_id = regulator_id;
         return true;
     }
     return false;
 }
+
 bool TcpHardwareDriver::get_circuit_settings(uint8_t circuit_id, ros2_interfaces::msg::HardwareCircuitSettings& settings) {
     std::lock_guard<std::mutex> lock(data_mutex_);
     if (cache_circ_settings_.count(circuit_id)) {
         settings = cache_circ_settings_[circuit_id];
+        settings.circuit_id = circuit_id;
         return true;
     }
     return false;
+}
+
+bool TcpHardwareDriver::get_system_status(ros2_interfaces::msg::HardwareSystemStatus& status) {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    status = cache_system_status_;
+    return true;
 }

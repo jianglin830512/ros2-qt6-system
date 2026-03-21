@@ -105,6 +105,11 @@ RegulatorStatusData  ROSProxy::regulatorStatus2() const
     return m_regulatorStatus2;
 }
 
+SystemStatusData  ROSProxy::systemStatus() const
+{
+    return m_systemStatus;
+}
+
 SystemSettingsData *ROSProxy::qmlSystemSettings() const
 {
     return m_qmlSystemSettings;
@@ -154,6 +159,12 @@ void ROSProxy::updateRegulatorStatus(const RegulatorStatusData &data)
         m_regulatorStatus2 = data;
         emit regulatorStatus2Changed(); // 信号名变更
     }
+}
+
+void ROSProxy::updateSystemStatus(const SystemStatusData &data)
+{
+    m_systemStatus = data;
+    emit systemStatusChanged();
 }
 
 void ROSProxy::updateSystemSettings(SystemSettingsMsgPtr msg)

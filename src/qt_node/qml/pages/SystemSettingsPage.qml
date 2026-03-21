@@ -20,20 +20,16 @@ SystemSettingsPageForm {
     function syncMainRegInputs() {
         if (rosProxy.qmlRegulatorSettings1) {
             mainOverCurrentInput.settingValue = rosProxy.qmlRegulatorSettings1.over_current_a;
-            mainOverVoltageInput.settingValue = rosProxy.qmlRegulatorSettings1.over_voltage_v;
             mainVolUpSpeedInput.settingValue = rosProxy.qmlRegulatorSettings1.voltage_up_speed_percent;
             mainVolDownSpeedInput.settingValue = rosProxy.qmlRegulatorSettings1.voltage_down_speed_percent;
-            mainProtectModeSwitch.isSettingOn = rosProxy.qmlRegulatorSettings1.over_voltage_protection_mode;
         }
     }
 
     function syncAuxRegInputs() {
         if (rosProxy.qmlRegulatorSettings2) {
             auxOverCurrentInput.settingValue = rosProxy.qmlRegulatorSettings2.over_current_a;
-            auxOverVoltageInput.settingValue = rosProxy.qmlRegulatorSettings2.over_voltage_v;
             auxVolUpSpeedInput.settingValue = rosProxy.qmlRegulatorSettings2.voltage_up_speed_percent;
             auxVolDownSpeedInput.settingValue = rosProxy.qmlRegulatorSettings2.voltage_down_speed_percent;
-            auxProtectModeSwitch.isSettingOn = rosProxy.qmlRegulatorSettings2.over_voltage_protection_mode;
         }
     }
 
@@ -92,10 +88,8 @@ SystemSettingsPageForm {
             var data = rosProxy.qmlRegulatorSettings1
             if(data) {
                 page.mainOverCurrentInput.currentValue = data.over_current_a.toString()
-                page.mainOverVoltageInput.currentValue = data.over_voltage_v.toString()
                 page.mainVolUpSpeedInput.currentValue = data.voltage_up_speed_percent.toString()
                 page.mainVolDownSpeedInput.currentValue = data.voltage_down_speed_percent.toString()
-                page.mainProtectModeSwitch.isCurrentOn = data.over_voltage_protection_mode
             }
         }
     }
@@ -106,10 +100,8 @@ SystemSettingsPageForm {
             var data = rosProxy.qmlRegulatorSettings2
             if(data) {
                 page.auxOverCurrentInput.currentValue = data.over_current_a.toString()
-                page.auxOverVoltageInput.currentValue = data.over_voltage_v.toString()
                 page.auxVolUpSpeedInput.currentValue = data.voltage_up_speed_percent.toString()
                 page.auxVolDownSpeedInput.currentValue = data.voltage_down_speed_percent.toString()
-                page.auxProtectModeSwitch.isCurrentOn = data.over_voltage_protection_mode
             }
         }
     }
@@ -119,51 +111,47 @@ SystemSettingsPageForm {
     // ============================================================
 
     // 按钮 1: 系统参数
-        applySystemBtn.onClicked: {
-            if (rosProxy.qmlSystemSettings) {
-                var sysData = rosProxy.qmlSystemSettings
+    applySystemBtn.onClicked: {
+        if (rosProxy.qmlSystemSettings) {
+            var sysData = rosProxy.qmlSystemSettings
 
-                // 限制：记录间隔 1 ~ 10 分钟
-                sysData.record_interval_min = clampAndApplyInput(recordIntervalInput, 1, 10);
-                sysData.keep_record_on_shutdown = keepRecordSwitch.isSettingOn
+            // 限制：记录间隔 1 ~ 10 分钟
+            sysData.record_interval_min = clampAndApplyInput(recordIntervalInput, 1, 10);
+            sysData.keep_record_on_shutdown = keepRecordSwitch.isSettingOn
 
-                rosProxy.setSystemSettings(sysData)
-            }
+            rosProxy.setSystemSettings(sysData)
         }
+    }
 
-        // 按钮 2: 主调压器
-        applyMainBtn.onClicked: {
-            if (rosProxy.qmlRegulatorSettings1) {
-                var reg1Data = rosProxy.qmlRegulatorSettings1
+    // 按钮 2: 主调压器
+    applyMainBtn.onClicked: {
+        if (rosProxy.qmlRegulatorSettings1) {
+            var reg1Data = rosProxy.qmlRegulatorSettings1
 
-                // 限制：过流 100~500, 过压 100~500, 升压 10~100, 降压 10~100
-                reg1Data.over_current_a = clampAndApplyInput(mainOverCurrentInput, 100, 500);
-                reg1Data.over_voltage_v = clampAndApplyInput(mainOverVoltageInput, 100, 500);
-                reg1Data.voltage_up_speed_percent = clampAndApplyInput(mainVolUpSpeedInput, 10, 100);
-                reg1Data.voltage_down_speed_percent = clampAndApplyInput(mainVolDownSpeedInput, 10, 100);
+            // 限制：过流 100~500, 升压 10~100, 降压 10~100
+            // 未在此处赋值的过压相关属性，会在对象中保持原有值被下发写入
+            reg1Data.over_current_a = clampAndApplyInput(mainOverCurrentInput, 100, 500);
+            reg1Data.voltage_up_speed_percent = clampAndApplyInput(mainVolUpSpeedInput, 10, 100);
+            reg1Data.voltage_down_speed_percent = clampAndApplyInput(mainVolDownSpeedInput, 10, 100);
 
-                reg1Data.over_voltage_protection_mode = mainProtectModeSwitch.isSettingOn
-
-                rosProxy.setRegulatorSettings(1, reg1Data)
-            }
+            rosProxy.setRegulatorSettings(1, reg1Data)
         }
+    }
 
-        // 按钮 3: 辅调压器
-        applyAuxBtn.onClicked: {
-            if (rosProxy.qmlRegulatorSettings2) {
-                var reg2Data = rosProxy.qmlRegulatorSettings2
+    // 按钮 3: 辅调压器
+    applyAuxBtn.onClicked: {
+        if (rosProxy.qmlRegulatorSettings2) {
+            var reg2Data = rosProxy.qmlRegulatorSettings2
 
-                // 限制：过流 100~500, 过压 100~500, 升压 10~100, 降压 10~100
-                reg2Data.over_current_a = clampAndApplyInput(auxOverCurrentInput, 100, 500);
-                reg2Data.over_voltage_v = clampAndApplyInput(auxOverVoltageInput, 100, 500);
-                reg2Data.voltage_up_speed_percent = clampAndApplyInput(auxVolUpSpeedInput, 10, 100);
-                reg2Data.voltage_down_speed_percent = clampAndApplyInput(auxVolDownSpeedInput, 10, 100);
+            // 限制：过流 100~500, 升压 10~100, 降压 10~100
+            // 未在此处赋值的过压相关属性，会在对象中保持原有值被下发写入
+            reg2Data.over_current_a = clampAndApplyInput(auxOverCurrentInput, 100, 500);
+            reg2Data.voltage_up_speed_percent = clampAndApplyInput(auxVolUpSpeedInput, 10, 100);
+            reg2Data.voltage_down_speed_percent = clampAndApplyInput(auxVolDownSpeedInput, 10, 100);
 
-                reg2Data.over_voltage_protection_mode = auxProtectModeSwitch.isSettingOn
-
-                rosProxy.setRegulatorSettings(2, reg2Data)
-            }
+            rosProxy.setRegulatorSettings(2, reg2Data)
         }
+    }
 
     // --- 还原按钮 ---
     restoreSystemBtn.onClicked: syncSystemInputs()
