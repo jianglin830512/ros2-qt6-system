@@ -11,6 +11,7 @@ qt_ros_node:
     # --- 订阅 (接收状态显示) ---
     circuit_status_topic: "circuit_status"
     regulator_status_topic: "voltage_regulator_status"
+    system_status_topic: "system_status"   # [新增] 订阅系统状态
     
     system_settings_topic: "system_settings"
     regulator_settings_topic: "regulator_settings"
@@ -46,6 +47,8 @@ control_node:
     # 发布状态
     circuit_status_topic: "circuit_status"
     regulator_status_topic: "voltage_regulator_status"
+    system_status_topic: "system_status"   # [新增] 向UI发布系统状态
+
     system_settings_topic: "system_settings"
     regulator_settings_topic: "regulator_settings"
     circuit_settings_topic: "circuit_settings"
@@ -83,6 +86,7 @@ control_node:
     # 订阅硬件状态
     hardware_circuit_status_topic: "hardware_circuit_status"
     hardware_regulator_status_topic: "hardware_regulator_status"
+    hardware_system_status_topic: "hardware_system_status"   # [新增] 订阅硬件发布的系统状态
     hardware_circuit_settings_topic: "hardware_circuit_settings"
     hardware_regulator_settings_topic: "hardware_regulator_settings"
 
@@ -111,6 +115,11 @@ record_node:
     regulator_settings_topic: "regulator_settings"
     circuit_settings_topic: "circuit_settings"
 
+    # --- 服务名称配置 (用于客户端调用以保存设置 - 保持子程序的注释状态) ---
+    # save_system_settings_service: "save_system_settings"
+    # save_regulator_settings_service: "save_regulator_settings"
+    # save_circuit_settings_service: "save_circuit_settings"
+
     # --- 服务名称 (用于初始化加载) ---
     get_system_settings_service: "get_system_settings"
     get_regulator_settings_service: "get_regulator_settings"
@@ -136,6 +145,7 @@ hardware_node:
     # --- 发布 (发送硬件状态) ---
     hardware_circuit_status_topic: "hardware_circuit_status"
     hardware_regulator_status_topic: "hardware_regulator_status"
+    hardware_system_status_topic: "hardware_system_status"   # [新增] 系统状态硬件发布
     hardware_circuit_settings_topic: "hardware_circuit_settings"
     hardware_regulator_settings_topic: "hardware_regulator_settings"
 
