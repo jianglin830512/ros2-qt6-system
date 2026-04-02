@@ -34,7 +34,6 @@
 
     # PLC 控制模式与源设置服务
     hardware_set_control_mode_service: "hardware_set_control_mode"
-    hardware_set_control_source_service: "hardware_set_control_source"
 
     # =================================================
     #               硬件节点特定参数

@@ -1,11 +1,13 @@
 ﻿#include "control_node/hardware_coordinator.hpp"
 #include "control_node/control_node_constants.hpp"
 using namespace std::chrono_literals;
+
 HardwareCoordinator::HardwareCoordinator(StateManager* state_manager, rclcpp::Node::SharedPtr node)
-    : state_manager_(state_manager), node_(node)
+    : state_manager_(state_manager), node_(node), last_hw_status_time_(0, 0, RCL_SYSTEM_TIME)
 {
     RCLCPP_INFO(node_->get_logger(), "Initializing Hardware Coordinator...");
     auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
+    // auto qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable().transient_local();
 
     // === 1. 创建订阅器，接收来自 hardware_node 的数据 ===
     auto hw_circuit_status_topic = node_->declare_parameter<std::string>(
@@ -91,27 +93,29 @@ HardwareCoordinator::HardwareCoordinator(StateManager* state_manager, rclcpp::No
     hw_set_control_mode_client_ = node_->create_client<ros2_interfaces::srv::SetHardwareCircuitControlMode>(
         hw_mode_service_name);
 
-    // Set Control Source Client
-    auto hw_source_service_name = node_->declare_parameter<std::string>(
-        control_node_constants::HARDWARE_SET_CONTROL_SOURCE_SERVICE_PARAM,
-        control_node_constants::DEFAULT_HARDWARE_SET_CONTROL_SOURCE_SERVICE);
-    RCLCPP_INFO(node_->get_logger(), "Using Hardware SetControlSource service: '%s'", hw_source_service_name.c_str());
-    hw_set_control_source_client_ = node_->create_client<ros2_interfaces::srv::SetHardwareCircuitControlSource>(
-        hw_source_service_name);
-
     RCLCPP_INFO(node_->get_logger(), "Hardware Coordinator initialization complete.");
 }
+
 bool HardwareCoordinator::is_connected() const
 {
-    // 检查关键服务是否就绪。
-    return set_hw_circuit_settings_client_->service_is_ready();
+    // [MODIFIED] 判断与 HARDWARE NODE 之间是否断线 (3秒超时逻辑)
+    if (last_hw_status_time_.nanoseconds() == 0) {
+        return false; // 初始化阶段还没收到过任何消息，认为断线
+    }
+
+    auto now = node_->get_clock()->now();
+    if ((now - last_hw_status_time_).seconds() > 3.0) {
+        return false; // 超过3秒没收到，认为掉线
+    }
+
+    return true; // 只要能持续收到心跳，即认为连接正常
 }
+
 // --- 订阅回调实现: 收到硬件数据，直接更新 StateManager (Single Source of Truth) ---
 void HardwareCoordinator::hardware_circuit_status_callback(const ros2_interfaces::msg::HardwareCircuitStatus::SharedPtr msg)
 {
     // 将硬件状态合并到主 CircuitStatus 中
     state_manager_->update_circuit_status_from_hardware(msg->circuit_id, *msg);
-    //RCLCPP_INFO(node_->get_logger(), "msg:\n%s", ros2_interfaces::msg::to_yaml(*msg).c_str());
 }
 void HardwareCoordinator::hardware_regulator_status_callback(const ros2_interfaces::msg::RegulatorStatus::SharedPtr msg)
 {
@@ -121,6 +125,8 @@ void HardwareCoordinator::hardware_regulator_status_callback(const ros2_interfac
 }
 void HardwareCoordinator::hardware_system_status_callback(const ros2_interfaces::msg::HardwareSystemStatus::SharedPtr msg)
 {
+    // [NEW] 更新心跳时间戳
+    last_hw_status_time_ = node_->get_clock()->now();
     // 将接收到的硬件系统状态更新到主系统状态中
     state_manager_->update_system_status_from_hardware(*msg);
 }
@@ -134,6 +140,7 @@ void HardwareCoordinator::hardware_regulator_settings_callback(const ros2_interf
     // 收到 Hardware Settings 广播，直接更新 StateManager 的 RegulatorSettings
     state_manager_->update_regulator_settings(msg->regulator_id, *msg);
 }
+
 // --- 接口实现: 从上层接收指令，发送给硬件 ---
 void HardwareCoordinator::apply_regulator_settings_to_hardware(
     uint8_t id,
@@ -199,6 +206,7 @@ void HardwareCoordinator::apply_circuit_settings_to_hardware(
     set_hw_circuit_settings_client_->async_send_request(request, response_callback);
     RCLCPP_INFO(node_->get_logger(), "[HW Coordinator] Asynchronously applying circuit settings for ID %u.", id);
 }
+
 // 5个Command (2 TOPIC PUB , 3 SERVICE CLIENT)
 void HardwareCoordinator::send_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr command_msg)
 {
@@ -218,6 +226,7 @@ void HardwareCoordinator::send_clear_alarm()
         RCLCPP_WARN(node_->get_logger(), "[HW Coordinator] No subscribers for hardware clear alarm topic. Command not sent.");
     }
 }
+
 void HardwareCoordinator::execute_regulator_breaker_command(
     const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request,
     HardwareCallback callback)
@@ -245,6 +254,7 @@ void HardwareCoordinator::execute_regulator_breaker_command(
     hw_regulator_breaker_client_->async_send_request(request, response_callback);
     RCLCPP_INFO(node_->get_logger(), "[HW Coordinator] Asynchronously executing regulator breaker command for ID %u.", request->regulator_id);
 }
+
 void HardwareCoordinator::execute_circuit_breaker_command(
     const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request> request,
     HardwareCallback callback)
@@ -272,59 +282,21 @@ void HardwareCoordinator::execute_circuit_breaker_command(
     hw_circuit_breaker_client_->async_send_request(request, response_callback);
     RCLCPP_INFO(node_->get_logger(), "[HW Coordinator] Asynchronously executing circuit breaker command for ID %u.", request->circuit_id);
 }
-void HardwareCoordinator::set_circuit_control_mode(uint8_t circuit_id, uint8_t mode)
-{
-    if (!hw_set_control_mode_client_) return;
 
-    if (!hw_set_control_mode_client_->service_is_ready()) {
-        RCLCPP_WARN(node_->get_logger(),
-                    "Hardware SetControlMode service not ready. Cannot set mode %d for circuit %d.", mode, circuit_id);
-        return;
-    }
+void HardwareCoordinator::set_circuit_control_mode(uint8_t circuit_id, uint8_t loop_type, uint8_t mode)
+{
+    if (!hw_set_control_mode_client_ || !hw_set_control_mode_client_->service_is_ready()) return;
 
     auto request = std::make_shared<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request>();
     request->circuit_id = circuit_id;
+    request->loop_type = loop_type; // [NEW] 1=Test, 2=Ref
     request->mode = mode;
 
-    auto future_callback = [this, circuit_id, mode](rclcpp::Client<ros2_interfaces::srv::SetHardwareCircuitControlMode>::SharedFuture future) {
+    auto future_callback = [this, circuit_id, loop_type, mode](rclcpp::Client<ros2_interfaces::srv::SetHardwareCircuitControlMode>::SharedFuture future) {
         try {
-            auto response = future.get();
-            if (response->success) {
-                RCLCPP_INFO(node_->get_logger(), "HW-ACK: Circuit %d mode set to %d.", circuit_id, mode);
-            } else {
-                RCLCPP_ERROR(node_->get_logger(), "HW-NACK: Failed to set circuit %d mode: %s", circuit_id, response->message.c_str());
-            }
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(node_->get_logger(), "Exception setting circuit %d mode: %s", circuit_id, e.what());
-        }
+            if (!future.get()->success) RCLCPP_ERROR(node_->get_logger(), "HW-NACK: Mode set failed.");
+        } catch (...) {}
     };
 
     hw_set_control_mode_client_->async_send_request(request, future_callback);
-}
-void HardwareCoordinator::set_circuit_control_source(uint8_t circuit_id, uint8_t source)
-{
-    if (!hw_set_control_source_client_->service_is_ready()) {
-        RCLCPP_WARN(node_->get_logger(),
-                    "Hardware SetControlSource service not ready. Cannot set source %d for circuit %d.", source, circuit_id);
-        return;
-    }
-
-    auto request = std::make_shared<ros2_interfaces::srv::SetHardwareCircuitControlSource::Request>();
-    request->circuit_id = circuit_id;
-    request->source = source;
-
-    auto future_callback = [this, circuit_id, source](rclcpp::Client<ros2_interfaces::srv::SetHardwareCircuitControlSource>::SharedFuture future) {
-        try {
-            auto response = future.get();
-            if (response->success) {
-                RCLCPP_INFO(node_->get_logger(), "HW-ACK: Circuit %d source set to %d.", circuit_id, source);
-            } else {
-                RCLCPP_ERROR(node_->get_logger(), "HW-NACK: Failed to set circuit %d source: %s", circuit_id, response->message.c_str());
-            }
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(node_->get_logger(), "Exception setting circuit %d source: %s", circuit_id, e.what());
-        }
-    };
-
-    hw_set_control_source_client_->async_send_request(request, future_callback);
 }

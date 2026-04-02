@@ -7,6 +7,8 @@
 #include "ros2_interfaces/srv/get_system_settings.hpp"
 #include "ros2_interfaces/srv/get_regulator_settings.hpp"
 #include "ros2_interfaces/srv/get_circuit_settings.hpp"
+#include "ros2_interfaces/msg/database_status.hpp"  // [NEW]
+
 class PersistenceCoordinator : public IPersistenceCoordinator
 {
 public:
@@ -22,6 +24,8 @@ public:
     void get_regulator_settings(uint8_t regulator_id, GetRegulatorSettingsCallback callback) override;
     void get_circuit_settings(uint8_t circuit_id, GetCircuitSettingsCallback callback) override;
 private:
+    void database_status_callback(const ros2_interfaces::msg::DatabaseStatus::SharedPtr msg); // [NEW]
+
     StateManager* state_manager_;
     rclcpp::Node::SharedPtr node_;
 
@@ -30,5 +34,11 @@ private:
     rclcpp::Client<ros2_interfaces::srv::GetSystemSettings>::SharedPtr get_system_settings_client_;
     rclcpp::Client<ros2_interfaces::srv::GetRegulatorSettings>::SharedPtr get_regulator_settings_client_;
     rclcpp::Client<ros2_interfaces::srv::GetCircuitSettings>::SharedPtr get_circuit_settings_client_;
+
+    // --- ROS Subscribers ---
+    rclcpp::Subscription<ros2_interfaces::msg::DatabaseStatus>::SharedPtr database_status_sub_; // [NEW]
+
+    // --- 状态追踪 ---
+    rclcpp::Time last_db_status_time_{0, 0, RCL_SYSTEM_TIME}; // [NEW] 记录最后一次收到心跳的时间，初始化为0
 };
 #endif // PERSISTENCE_COORDINATOR_HPP

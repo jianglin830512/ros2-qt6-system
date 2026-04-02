@@ -44,10 +44,6 @@ public:
         const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request,
         AsyncCallback callback) override;
 
-    void handle_set_control_source(
-        const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Request> request,
-        AsyncCallback callback) override;
-
     void handle_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg) override;
     void handle_clear_alarm() override;
 
@@ -107,25 +103,25 @@ private:
     static const uint16_t ADDR_CMD_REG2_UP   = 0x0002;
     static const uint16_t ADDR_CMD_REG2_DOWN = 0x0003;
 
-    static const uint16_t ADDR_CMD_MAIN_CLOSE = 0x0004;
-    static const uint16_t ADDR_CMD_MAIN_OPEN  = 0x0005;
-    static const uint16_t ADDR_CMD_AUX_CLOSE  = 0x0006;
-    static const uint16_t ADDR_CMD_AUX_OPEN   = 0x0007;
+    static const uint16_t ADDR_CMD_REG1_CLOSE = 0x0004; // 主调压器合闸
+    static const uint16_t ADDR_CMD_REG1_OPEN  = 0x0005;
+    static const uint16_t ADDR_CMD_REG2_CLOSE = 0x0006; // 辅调压器合闸
+    static const uint16_t ADDR_CMD_REG2_OPEN  = 0x0007;
 
-    static const uint16_t ADDR_CMD_MAIN_TEST_CLOSE = 0x0008;
-    static const uint16_t ADDR_CMD_MAIN_TEST_OPEN  = 0x0009;
-    static const uint16_t ADDR_CMD_MAIN_REF_CLOSE  = 0x000A;
-    static const uint16_t ADDR_CMD_MAIN_REF_OPEN   = 0x000B;
-    static const uint16_t ADDR_CMD_AUX_TEST_CLOSE  = 0x000C;
-    static const uint16_t ADDR_CMD_AUX_TEST_OPEN   = 0x000D;
-    static const uint16_t ADDR_CMD_AUX_REF_CLOSE   = 0x000E;
-    static const uint16_t ADDR_CMD_AUX_REF_OPEN    = 0x000F;
+    static const uint16_t ADDR_CMD_C1_TEST_CLOSE = 0x0008; // 1#回路试验合闸
+    static const uint16_t ADDR_CMD_C1_TEST_OPEN  = 0x0009;
+    static const uint16_t ADDR_CMD_C2_TEST_CLOSE = 0x000A; // 2#回路试验合闸
+    static const uint16_t ADDR_CMD_C2_TEST_OPEN  = 0x000B;
+    static const uint16_t ADDR_CMD_C1_SIM_CLOSE  = 0x000C; // 1#回路模拟合闸
+    static const uint16_t ADDR_CMD_C1_SIM_OPEN   = 0x000D;
+    static const uint16_t ADDR_CMD_C2_SIM_CLOSE  = 0x000E; // 2#回路模拟合闸
+    static const uint16_t ADDR_CMD_C2_SIM_OPEN   = 0x000F;
 
     // 2. Settings / Mode (Read/Write)
-    static const uint16_t ADDR_MODE_C1   = 0x0010; // 1=Manual, 2=ConstCurrent
-    static const uint16_t ADDR_MODE_C2   = 0x0011;
-    static const uint16_t ADDR_SOURCE_C1 = 0x0012; // 1=Test, 2=Ref
-    static const uint16_t ADDR_SOURCE_C2 = 0x0013;
+    static const uint16_t ADDR_MODE_C1_TEST = 0x0010;
+    static const uint16_t ADDR_MODE_C1_SIM  = 0x0011;
+    static const uint16_t ADDR_MODE_C2_TEST = 0x0012;
+    static const uint16_t ADDR_MODE_C2_SIM  = 0x0013;
 
     // 3. Status Read Range
     // Start reading from 0x0010 (Mode) to cover everything up to 0x005D (Last Float Aux OCP)

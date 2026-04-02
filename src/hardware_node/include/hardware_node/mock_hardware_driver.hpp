@@ -20,7 +20,6 @@ public:
 
     // [新增]
     void handle_set_control_mode(const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request, AsyncCallback callback) override;
-    void handle_set_control_source(const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Request> request, AsyncCallback callback) override;
 
     // --- 话题处理器 ---
     void handle_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg) override;

@@ -1,0 +1,8 @@
+# Request
+uint8 circuit_id   # 1 or 2
+uint8 loop_type    # 1 for Test Loop (A/B), 2 for Ref Loop (C/D)
+bool auto_on       # true=自动, false=手动
+---
+# Response
+bool success
+string message

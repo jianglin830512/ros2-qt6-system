@@ -3,7 +3,6 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
-#include <vector>
 
 class MockDevice {
 public:
@@ -35,6 +34,7 @@ public:
         double current = 0.0;
         float temperatures[16];
         bool over_current_alarm = false;
+        uint8_t plc_mode = 1;
 
         // --- 参数设置 ---
         // 对应 HardwareLoopSettings.msg
@@ -48,10 +48,6 @@ public:
         uint8_t id;
         LoopState test_loop;
         LoopState ref_loop;
-
-        // PLC 控制模式和源
-        uint8_t plc_mode = 1;   // 1: Manual, 2: Auto Current, 3: Auto Temp
-        uint8_t plc_source = 1; // 1: Test Loop, 2: Ref Loop
     };
 
     MockDevice();
@@ -64,8 +60,7 @@ public:
     void clear_alarms();
 
     // PLC 模式和源
-    void set_plc_mode(uint8_t circ_id, uint8_t mode);
-    void set_plc_source(uint8_t circ_id, uint8_t source);
+    void set_plc_mode(uint8_t circ_id, uint8_t loop_type, uint8_t mode);
 
     // 更新设置接口，传递完整结构体
     void update_reg_settings(uint8_t id, const RegulatorState& new_settings);
@@ -78,7 +73,7 @@ public:
 private:
     void plc_cycle();
     void init_data();
-    void update_regulator(RegulatorState& reg, CircuitState& circ);
+    void update_regulator_loops(RegulatorState& reg, LoopState& loop1, LoopState& loop2);
 
     mutable std::mutex data_mutex_;
     std::thread worker_thread_;

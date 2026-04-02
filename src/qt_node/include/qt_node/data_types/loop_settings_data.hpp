@@ -18,6 +18,7 @@ class LoopSettingsData : public QObject
     Q_PROPERTY(int heating_start_time_sec READ heating_start_time_sec WRITE setHeating_start_time_sec NOTIFY heating_start_time_secChanged)
     Q_PROPERTY(int heating_duration_sec READ heating_duration_sec WRITE setHeating_duration_sec NOTIFY heating_duration_secChanged)
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
+    Q_PROPERTY(int auto_strategy READ auto_strategy WRITE setAuto_strategy NOTIFY auto_strategyChanged)
 public:
     explicit LoopSettingsData(QObject *parent = nullptr);
 
@@ -34,6 +35,7 @@ public:
     int heating_start_time_sec() const;
     int heating_duration_sec() const;
      bool enabled() const;
+    int auto_strategy() const;
 
 
     // --- Setters ---
@@ -46,6 +48,7 @@ public:
     void setHeating_start_time_sec(int heating_start_time_sec);
     void setHeating_duration_sec(int heating_duration_sec);
     void setEnabled(bool enabled);
+    void setAuto_strategy(int auto_strategy);
 
     // --- 运算符重载 ---
     bool operator==(const LoopSettingsData& other) const;
@@ -61,6 +64,7 @@ signals:
     void heating_start_time_secChanged();
     void heating_duration_secChanged();
     void enabledChanged();
+    void auto_strategyChanged();
 
 private:
     // --- 成员变量 ---
@@ -73,6 +77,7 @@ private:
     int m_heating_start_time_sec = 0;
     int m_heating_duration_sec = 0; // 使用秒
     bool m_enabled = false;
+    int m_auto_strategy = 1; // 1=恒流, 2=温控
 };
 
 #endif // LOOPSETTINGSDATA_HPP

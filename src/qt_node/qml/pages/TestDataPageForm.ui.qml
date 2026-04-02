@@ -90,12 +90,12 @@ Item {
                     }
                 }
 
-                Item { Layout.fillWidth: true } // 弹簧
+                Item { Layout.fillWidth: true } // 弹簧占位
 
                 // 查询按钮
                 StyledButton {
                     id: queryBtn
-                    text: "查询"
+                    text: "查 询"
                     implicitWidth: 120
                     implicitHeight: 40
                     background: Rectangle {
@@ -116,15 +116,17 @@ Item {
             border.color: Theme.highlightColor
             border.width: 2
             radius: 5
-            clip: true // 保证边角裁切
+            clip: true // 保证边角裁剪
 
-            // 外层 Flickable 专门控制【横向滚动】，同步带动表头和表格
+            // 外层 Flickable 专门控制【横向滚动】，同步带动表头和表格数据
             Flickable {
                 id: horizontalFlick
                 anchors.fill: parent
                 anchors.margins: 2
-                // 固定总宽度：1列180 + 28列100 = 2980
-                contentWidth: 2980
+
+                // 【核心修改】固定总宽度：1列时间(180) + 38列数值(100) = 3980
+                contentWidth: 3980
+
                 // 纵向不在此处滚动，因此高度设为与容器相同
                 contentHeight: height
                 clip: true
@@ -140,7 +142,7 @@ Item {
                     // 1. 固定表头
                     Rectangle {
                         id: headerRect
-                        width: 2980
+                        width: 3980  // 同步修改宽度
                         height: 40
                         color: Theme.highlightColor
 
@@ -153,7 +155,7 @@ Item {
                     // 2. 数据列表 (占据剩余高度)
                     ListView {
                         id: tableListView
-                        width: 2980
+                        width: 3980  // 同步修改宽度
                         height: parent.height - headerRect.height
                         clip: true
 

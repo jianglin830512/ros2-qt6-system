@@ -13,9 +13,6 @@ class CircuitSettingsData : public QObject
     Q_PROPERTY(LoopSettingsData* ref_loop READ ref_loop CONSTANT)
     Q_PROPERTY(SampleSettingsData* sample_params READ sample_params CONSTANT)
 
-    // 简单的bool类型属性，提供读写和通知功能
-    Q_PROPERTY(bool curr_mode_use_ref READ curr_mode_use_ref WRITE setCurr_mode_use_ref NOTIFY curr_mode_use_refChanged)
-
 public:
     explicit CircuitSettingsData(QObject *parent = nullptr);
 
@@ -26,10 +23,6 @@ public:
     LoopSettingsData* test_loop() const;
     LoopSettingsData* ref_loop() const;
     SampleSettingsData* sample_params() const;
-    bool curr_mode_use_ref() const;
-
-    // Setter for curr_mode_use_ref
-    void setCurr_mode_use_ref(bool curr_mode_use_ref);
 
     bool operator==(const CircuitSettingsData& other) const;
 
@@ -42,7 +35,6 @@ private:
     LoopSettingsData* m_test_loop;
     LoopSettingsData* m_ref_loop;
     SampleSettingsData* m_sample_params;
-    bool m_curr_mode_use_ref = false; // 初始化为默认值
 };
 
 #endif // CIRCUIT_SETTINGS_DATA_HPP

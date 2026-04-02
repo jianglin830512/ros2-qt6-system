@@ -51,7 +51,6 @@ public:
     // QML可调用的命令发送函数
     Q_INVOKABLE void sendRegulatorOperationCommand(quint8 regulator_id, qt_node_constants::RegulatorOperationCommand command);
     Q_INVOKABLE void sendRegulatorBreakerCommand(quint8 regulator_id, qt_node_constants::RegulatorBreakerCommand command);
-    Q_INVOKABLE void sendCircuitModeCommand(quint8 circuit_id, qt_node_constants::CircuitModeCommand command);
     Q_INVOKABLE void sendCircuitBreakerCommand(quint8 circuit_id, qt_node_constants::CircuitBreakerCommand command);
     Q_INVOKABLE void sendClearAlarm();
 
@@ -59,7 +58,6 @@ public:
     Q_INVOKABLE void setSystemSettings(SystemSettingsData* data);
     Q_INVOKABLE void setRegulatorSettings(quint8 regulator_id, RegulatorSettingsData* data);
     Q_INVOKABLE void setCircuitSettings(quint8 circuit_id, CircuitSettingsData* data);
-    Q_INVOKABLE void setCircuitReferenceSource(quint8 circuit_id, bool use_ref);
 
     // QML 调用的接口
     Q_INVOKABLE void queryHistory(const QString& dateStr, const QString& timeStr, int spanHours, const QStringList& cols);
@@ -109,7 +107,6 @@ signals:
     // 用于与ROS节点线程通信的信号
     void regulatorOperationCommandRequested(quint8 regulator_id, quint8 command);
     void regulatorBreakerCommandRequested(quint8 regulator_id, quint8 command);
-    void circuitModeCommandRequested(quint8 circuit_id, quint8 command);
     void circuitBreakerCommandRequested(quint8 circuit_id, quint8 command);
     void clearAlarmRequested();
 

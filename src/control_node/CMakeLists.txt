@@ -32,8 +32,6 @@ add_executable(control_node_executable
   src/state_manager.cpp
   src/hardware_coordinator.cpp
   src/control_logic.cpp
-  src/strategies/manual_strategy.cpp
-  src/strategies/auto_current_strategy.cpp
   src/persistence_coordinator.cpp
 )
 
@@ -47,13 +45,9 @@ target_sources(control_node_executable PRIVATE
   include/control_node/control_node.hpp
   include/control_node/control_node_constants.hpp
   include/control_node/hardware_coordinator.hpp
-  include/control_node/i_controller_strategy.hpp
   include/control_node/i_hardware_coordinator.hpp
   include/control_node/i_persistence_coordinator.hpp
   include/control_node/persistence_coordinator.hpp
-  include/control_node/strategies/manual_strategy.hpp
-  include/control_node/strategies/auto_current_strategy.hpp
-
 )
 
 # 添加本包的 include 目录

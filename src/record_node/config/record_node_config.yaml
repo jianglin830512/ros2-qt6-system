@@ -10,6 +10,9 @@ record_node:
     # 建议设置在 1 - 10 之间。节点会在整分钟时刻 (如 9:00:00, 9:01:00) 触发记录。
     record_interval_min: 2
 
+    # --- Topic 发布配置 ---
+    database_status_topic: "database_status"
+
     # --- Topic 订阅配置 ---
     # 这些话题名称必须与 Control Node 的配置文件完全一致，
     # 否则 Record Node 无法接收到状态数据。

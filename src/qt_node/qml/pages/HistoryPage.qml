@@ -14,14 +14,15 @@ HistoryPageForm {
     function generateColumns() {
         var cols = [];
 
-        function addCircuitColumns(cid, titlePrefix) {
-            // 调压器
-            cols.push({ key: cid + "|regulator_voltage", label: titlePrefix + "调压器 电压(V)" });
-            cols.push({ key: cid + "|regulator_current", label: titlePrefix + "调压器 电流(A)" });
+        function addCircuitColumns(cid) {
+            // 调压器 (回路1关联A/C支路，分别对应调压器1和2; 回路2关联B/C，也对应1和2)
+            cols.push({ key: cid + "|regulator_1_voltage", label: "回路" + cid + " 调压器1 电压(V)" });
+            cols.push({ key: cid + "|regulator_1_current", label: "回路" + cid + " 调压器1 电流(A)" });
+            cols.push({ key: cid + "|test_loop_current",   label: "回路" + cid + " 试验支路电流(A)" });
 
-            // 回路电流
-            cols.push({ key: cid + "|test_loop_current", label: "回路" + cid + " 试验支路电流(A)" });
-            cols.push({ key: cid + "|ref_loop_current", label: "回路" + cid + " 参考支路电流(A)" });
+            cols.push({ key: cid + "|regulator_2_voltage", label: "回路" + cid + " 调压器2 电压(V)" });
+            cols.push({ key: cid + "|regulator_2_current", label: "回路" + cid + " 调压器2 电流(A)" });
+            cols.push({ key: cid + "|ref_loop_current",    label: "回路" + cid + " 参考支路电流(A)" });
 
             // 试验支路温度 1~16
             for (var i = 1; i <= 16; i++) {
@@ -29,15 +30,15 @@ HistoryPageForm {
                 cols.push({ key: cid + "|test_loop_temp" + numStr1, label: "回路" + cid + " 试验温度 " + numStr1 });
             }
 
-            // 参考支路温度 1~8
-            for (var j = 1; j <= 8; j++) {
+            // 参考支路温度 1~16 (已更新为16路)
+            for (var j = 1; j <= 16; j++) {
                 var numStr2 = (j < 10 ? "0" : "") + j;
                 cols.push({ key: cid + "|ref_loop_temp" + numStr2, label: "回路" + cid + " 参考温度 " + numStr2 });
             }
         }
 
-        addCircuitColumns(1, "主");
-        addCircuitColumns(2, "辅");
+        addCircuitColumns(1);
+        addCircuitColumns(2);
 
         return cols;
     }

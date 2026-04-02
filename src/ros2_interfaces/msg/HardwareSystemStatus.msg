@@ -10,3 +10,9 @@ bool is_remote
 # true:  急停状态已触发 (Emergency Stop Active)
 # false: 正常运行
 bool emergency_stop_on
+
+# PLC 连接状态
+bool plc_connected 
+
+# 温度监控设备连接状态
+bool temp_monitor_connected

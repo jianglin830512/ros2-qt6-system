@@ -92,7 +92,17 @@ RecordNode::RecordNode() : Node("record_node")
         query_service_name, std::bind(&RecordNode::query_data_records_callback, this, _1, _2));
     RCLCPP_INFO(this->get_logger(), "Service %s created.", query_service_name.c_str());
 
-    // 8. 启动时间对齐逻辑
+    // 8. 新增：初始化 Database Status Publisher 与 1Hz 定时器
+    auto db_status_topic = this->declare_parameter<std::string>(
+        record_node_constants::DATABASE_STATUS_TOPIC_PARAM,
+        record_node_constants::DEFAULT_DATABASE_STATUS_TOPIC);
+    database_status_pub_ = this->create_publisher<ros2_interfaces::msg::DatabaseStatus>(
+        db_status_topic, 10);
+    database_status_timer_ = this->create_wall_timer(
+        std::chrono::seconds(1),
+        std::bind(&RecordNode::database_status_timer_callback, this));
+
+    // 9. 启动时间对齐逻辑
     reschedule_timers();
 
     RCLCPP_INFO(this->get_logger(), "RecordNode initialization complete.");
@@ -142,13 +152,12 @@ void RecordNode::system_settings_topic_callback(const ros2_interfaces::msg::Syst
     if (*msg != current_system_settings_) {
         RCLCPP_INFO(this->get_logger(), "Detected System Settings change. Updating DB.");
 
-        // 检查记录间隔是否发生了变化
         bool interval_changed = (msg->record_interval_min != current_system_settings_.record_interval_min);
 
         bool success = db_manager_->save_system_settings(*msg);
         if (success) {
             current_system_settings_ = *msg;
-            keep_record_on_shutdown_ = msg->keep_record_on_shutdown; // 同步其他参数
+            keep_record_on_shutdown_ = msg->keep_record_on_shutdown;
 
             // 如果时间间隔变了，必须重置定时器
             if (interval_changed) {
@@ -384,9 +393,9 @@ void RecordNode::record_timer_callback()
     time_t t = std::chrono::system_clock::to_time_t(now_sys);
     struct tm tm_struct;
 #ifdef _MSC_VER
-    localtime_s(&tm_struct, &t); // Windows: 获取本地时间
+    localtime_s(&tm_struct, &t);
 #else
-    localtime_r(&t, &tm_struct); // Linux: 获取本地时间
+    localtime_r(&t, &tm_struct);
 #endif
 
     tm_struct.tm_sec = 0; // 秒数归零，保证是对齐到整分钟
@@ -395,19 +404,49 @@ void RecordNode::record_timer_callback()
     ss << std::put_time(&tm_struct, "%Y-%m-%d %H:%M:%S");
     std::string time_str = ss.str();
 
-    for (uint8_t id = 1; id <= 2; ++id) {
-        if (latest_circuit_status_.count(id) && latest_regulator_status_.count(id)) {
-            const auto& circuit = latest_circuit_status_[id];
-            const auto& regulator = latest_regulator_status_[id];
+    // 提前拿到当前的全局状态
+    bool auto_on = current_system_settings_.auto_on;
 
-            // 判断是否记录
+    // 提取 Reg 1 和 Reg 2 的状态 (如果没有则使用默认空状态0)
+    ros2_interfaces::msg::RegulatorStatus reg1_status;
+    ros2_interfaces::msg::RegulatorStatus reg2_status;
+    if (latest_regulator_status_.count(1)) {
+        reg1_status = latest_regulator_status_[1];
+    }
+    if (latest_regulator_status_.count(2)) {
+        reg2_status = latest_regulator_status_[2];
+    }
+
+    for (uint8_t id = 1; id <= 2; ++id) {
+        if (latest_circuit_status_.count(id) && current_circuit_settings_.count(id)) {
+            const auto& circuit_status = latest_circuit_status_[id];
+            const auto& circuit_settings = current_circuit_settings_[id];
+
+            // 判断是否记录（条件不变：关机保留 或 任一支路使能）
             bool should_record = keep_record_on_shutdown_
-                                 || current_circuit_settings_.at(id).test_loop.enabled
-                                 || current_circuit_settings_.at(id).ref_loop.enabled;
+                                 || circuit_settings.test_loop.enabled
+                                 || circuit_settings.ref_loop.enabled;
 
             if (should_record) {
-                db_manager_->insert_data_record(time_str, circuit, regulator);
+                db_manager_->insert_data_record(
+                    time_str,
+                    id,
+                    auto_on,
+                    circuit_status,
+                    circuit_settings,
+                    reg1_status,
+                    reg2_status
+                    );
             }
         }
     }
+}
+
+// 1Hz 数据库状态发布实现
+void RecordNode::database_status_timer_callback()
+{
+    ros2_interfaces::msg::DatabaseStatus status_msg;
+    // 获取最新的缓存状态，不发起任何额外的查询，开销极小
+    status_msg.database_connected = db_manager_->is_connected();
+    database_status_pub_->publish(status_msg);
 }

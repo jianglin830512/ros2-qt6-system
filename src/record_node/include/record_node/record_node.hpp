@@ -2,6 +2,7 @@
 #define RECORD_NODE_HPP_
 
 #include "rclcpp/rclcpp.hpp"  // IWYU pragma: keep
+#include "ros2_interfaces/msg/database_status.hpp"
 #include "ros2_interfaces/msg/system_settings.hpp"
 #include "ros2_interfaces/msg/regulator_settings.hpp"
 #include "ros2_interfaces/msg/circuit_settings.hpp"
@@ -30,6 +31,8 @@ private:
      * 确保节点启动时内存中的状态与数据库一致
      */
     void load_initial_settings();
+
+    void database_status_timer_callback();
 
     // --- Topic 回调函数 (设置监听与自动保存) ---
     void system_settings_topic_callback(const ros2_interfaces::msg::SystemSettings::SharedPtr msg);
@@ -69,6 +72,8 @@ private:
     // --- 核心组件 ---
     std::unique_ptr<DatabaseManager> db_manager_;
 
+    rclcpp::Publisher<ros2_interfaces::msg::DatabaseStatus>::SharedPtr database_status_pub_;
+
     // --- ROS 订阅者 (设置类 - 新增) ---
     rclcpp::Subscription<ros2_interfaces::msg::SystemSettings>::SharedPtr system_settings_sub_;
     rclcpp::Subscription<ros2_interfaces::msg::RegulatorSettings>::SharedPtr regulator_settings_sub_;
@@ -99,6 +104,7 @@ private:
     // --- 定时器 ---
     rclcpp::TimerBase::SharedPtr alignment_timer_;
     rclcpp::TimerBase::SharedPtr record_timer_;
+    rclcpp::TimerBase::SharedPtr database_status_timer_;
 
     // --- 配置与状态 ---
     int64_t record_interval_min_;

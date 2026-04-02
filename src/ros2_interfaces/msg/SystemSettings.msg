@@ -2,3 +2,4 @@
 int32 sample_interval_sec
 int32 record_interval_min
 bool keep_record_on_shutdown
+bool auto_on  # 是否开启了自动

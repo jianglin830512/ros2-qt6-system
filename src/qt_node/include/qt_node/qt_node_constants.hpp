@@ -66,14 +66,12 @@ constexpr const char* DEFAULT_CLEAR_ALARM_TOPIC = "default_clear_alarm";
 
 // Service
 constexpr const char* REGULATOR_BREAKER_COMMAND_SERVICE_PARAM = "regulator_breaker_command_service";
-constexpr const char* CIRCUIT_MODE_COMMAND_SERVICE_PARAM = "circuit_mode_command_service";
 constexpr const char* CIRCUIT_BREAKER_COMMAND_SERVICE_PARAM = "circuit_breaker_command_service";
 constexpr const char* SET_SYSTEM_SETTINGS_SERVICE_PARAM = "set_system_settings_service";
 constexpr const char* SET_REGULATOR_SETTINGS_SERVICE_PARAM = "set_regulator_settings_service";
 constexpr const char* SET_CIRCUIT_SETTINGS_SERVICE_PARAM = "set_circuit_settings_service";
 
 constexpr const char* DEFAULT_REGULATOR_BREAKER_COMMAND_SERVICE = "default_regulator_breaker_command";
-constexpr const char* DEFAULT_CIRCUIT_MODE_COMMAND_SERVICE = "default_circuit_mode_command";
 constexpr const char* CIRCUIT_REGULATOR_BREAKER_COMMAND_SERVICE = "default_circuit_breaker_command";
 constexpr const char* DEFAULT_SET_SYSTEM_SETTINGS_SERVICE = "default_set_system_settings";
 constexpr const char* DEFAULT_SET_REGULATOR_SETTINGS_SERVICE = "default_set_regulator_settings";

@@ -12,6 +12,7 @@ Item {
 
     // --- Aliases (保持不变) ---
     property alias testStartStop: testStartStop
+    property alias testStrategyCombo: testStrategyCombo
     property alias testStartCurrent: testStartCurrent
     property alias testMaxCurrent: testMaxCurrent
     property alias testChangePercent: testChangePercent
@@ -24,6 +25,7 @@ Item {
     property alias testHeatingDuration: testHeatingDuration
 
     property alias refStartStop: refStartStop
+    property alias refStrategyCombo: refStrategyCombo
     property alias refStartCurrent: refStartCurrent
     property alias refMaxCurrent: refMaxCurrent
     property alias refChangePercent: refChangePercent
@@ -35,9 +37,6 @@ Item {
     property alias refHeatInputMin: refHeatInputMin
     property alias refHeatingDuration: refHeatingDuration
 
-    property alias refSourceDisplay: refSourceDisplay
-    property alias refSourceCombo: refSourceCombo
-
     property alias sampleType: sampleType
     property alias sampleSpec: sampleSpec
     property alias sampleInsMaterial: sampleInsMaterial
@@ -46,7 +45,6 @@ Item {
     property alias applyLeftBtn: groupLeft.applyButton
     property alias applyMidBtn: groupMid.applyButton
     property alias applyRightBtn: groupRight.applyButton
-    // 暴露还原按钮的别名
     property alias restoreLeftBtn: groupLeft.restoreButton
     property alias restoreMidBtn: groupMid.restoreButton
     property alias restoreRightBtn: groupRight.restoreButton
@@ -62,7 +60,6 @@ Item {
         // =================================================
         SettingsGroup {
             id: groupLeft
-            // 【修改】动态标题
             title: "试验回路" + root.circuitId
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -70,8 +67,21 @@ Item {
             StartStopPanel {
                 id: testStartStop
                 Layout.fillWidth: true
-                // 简单的ID计算: C1->1, C2->3
                 loopId: (root.circuitId - 1) * 2 + 1
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                Label { text: "自动策略:"; color: Theme.textColor; font: Theme.defaultFont; Layout.preferredWidth: 120; horizontalAlignment: Text.AlignRight }
+                ComboBox {
+                    id: testStrategyCombo
+                    Layout.preferredWidth: 150
+                    Layout.preferredHeight: 40
+                    font: Theme.defaultFont
+                    model: ["恒流模式 (1)", "温控模式 (2)"]
+                }
+                Item { Layout.fillWidth: true }
             }
 
             Label { text: "电流设置"; color: Theme.orange; font: Theme.defaultFont; Layout.alignment: Qt.AlignHCenter }
@@ -92,7 +102,6 @@ Item {
                     id: testStartDate
                     labelText: "起始日期:"
                     unitText: ""
-                    // 使用正则验证器，允许常见日期字符
                     inputValidator: RegularExpressionValidator { regularExpression: /^[0-9\-\/\.]+$/ }
                 }
                 SettingInput { id: testCycleCount; labelText: "循环次数:"; unitText: "次" }
@@ -159,7 +168,6 @@ Item {
         // =================================================
         SettingsGroup {
             id: groupMid
-            // 【修改】动态标题
             title: "模拟回路" + root.circuitId
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -167,8 +175,21 @@ Item {
             StartStopPanel {
                 id: refStartStop
                 Layout.fillWidth: true
-                // 简单的ID计算: C1->2, C2->4
                 loopId: (root.circuitId - 1) * 2 + 2
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                Label { text: "自动策略:"; color: Theme.textColor; font: Theme.defaultFont; Layout.preferredWidth: 120; horizontalAlignment: Text.AlignRight }
+                ComboBox {
+                    id: refStrategyCombo
+                    Layout.preferredWidth: 150
+                    Layout.preferredHeight: 40
+                    font: Theme.defaultFont
+                    model: ["恒流模式 (1)", "温控模式 (2)"]
+                }
+                Item { Layout.fillWidth: true }
             }
 
             Label { text: "电流设置"; color: Theme.orange; font: Theme.defaultFont; Layout.alignment: Qt.AlignHCenter }
@@ -245,64 +266,12 @@ Item {
         }
 
         // =================================================
-        // 右侧
+        // 右侧 (已移除原顶部的恒流参考值区域)
         // =================================================
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 20
 
-            // --- 右上：回路设定 ---
-            SettingsGroup {
-                id: groupRightTop
-                // 【修改】动态标题
-                title: "回路" + root.circuitId + "设定"
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-                Layout.preferredHeight: 200
-                applyButton.visible: false
-                restoreButton.visible: false
-
-                Item { Layout.fillHeight: true }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 15
-                    Item { Layout.fillWidth: true }
-                    Label {
-                        text: "恒流参考值:"
-                        color: Theme.orange;
-                        font: Theme.defaultFont
-                        Layout.alignment: Qt.AlignVCenter
-                    }
-                    Rectangle {
-                        Layout.preferredWidth: 140
-                        Layout.preferredHeight: 40
-                        color: Theme.highlightColor
-                        radius: 5
-                        Layout.alignment: Qt.AlignVCenter
-                        Label {
-                            id: refSourceDisplay
-                            anchors.centerIn: parent
-                            text: "读取中..."
-                            color: "white"
-                            font: Theme.defaultFont
-                        }
-                    }
-                    ComboBox {
-                        id: refSourceCombo
-                        Layout.preferredWidth: 140
-                        Layout.preferredHeight: 40
-                        Layout.alignment: Qt.AlignVCenter
-                        font: Theme.defaultFont
-                        // 【修改】动态下拉内容
-                        model: ["试验回路" + root.circuitId, "模拟回路" + root.circuitId]
-                    }
-                    Item { Layout.fillWidth: true }
-                }
-                Item { Layout.fillHeight: true }
-            }
-
-            // --- 右下：被试品 ---
             SettingsGroup {
                 id: groupRight
                 title: "被试品"
@@ -317,13 +286,12 @@ Item {
                     SettingTextArea { id: sampleSpec; title: "电缆规格"; Layout.fillWidth: true; inputHeight: 80 }
                     SettingTextArea { id: sampleInsMaterial; title: "绝缘类型"; Layout.fillWidth: true; inputHeight: 80 }
                     SettingInput { id: sampleInsThick; labelText: "绝缘厚度: "; unitText: "mm"; Layout.fillWidth: true
-                        // 添加正则验证器：
-                        // ^\d* 表示匹配开头任意个数字
-                        // (\.\d{0,2})? 表示匹配可选的小数点，且小数点后最多跟2位数字
                         inputValidator: RegularExpressionValidator {
                             regularExpression: /^\d*(\.\d{0,2})?$/
                         }
                     }
+                    // 添加一个弹性空间，将元素顶在上方，防止均匀拉伸
+                    Item { Layout.fillHeight: true }
                 }
             }
         }

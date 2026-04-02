@@ -16,6 +16,8 @@ Rectangle{
     property alias auxRegulator: auxRegulator
     property alias circuit1: circuit1
     property alias circuit2: circuit2
+    property alias btnManualMode: btnManualMode
+    property alias btnAutoMode: btnAutoMode
 
     // --- 图表相关别名 ---
     property alias tempSeries: tempSeries
@@ -75,12 +77,82 @@ Rectangle{
         }
     }
 
+    // 右边中间：全局控制栏
+    Rectangle {
+        id: globalControlBar
+        anchors.top: circuitPanle.bottom
+        anchors.left: regulatorPanle.right
+        anchors.right: parent.right
+        anchors.topMargin: Theme.subSpacing
+        anchors.leftMargin: Theme.subSpacing
+
+        height: 60
+        color: "transparent"
+        border.color: Theme.highlightColor
+        border.width: 2
+        radius: 8
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 30
+
+            Label { text: "控制模式:"; color: Theme.orange; font: Theme.defaultFont }
+
+            // 替换为 ToggleActionButton（自带指示灯效果）
+            ToggleActionButton {
+                id: btnManualMode
+                Layout.preferredWidth: 120
+                Layout.preferredHeight: 40
+                labelText: "手 动"
+                colorWhenOn: "lime"
+                indicatorOn: rosProxy.qmlSystemSettings && !rosProxy.qmlSystemSettings.auto_on
+            }
+
+            ToggleActionButton {
+                id: btnAutoMode
+                Layout.preferredWidth: 120
+                Layout.preferredHeight: 40
+                labelText: "自 动"
+                colorWhenOn: "lime"
+                indicatorOn: rosProxy.qmlSystemSettings && rosProxy.qmlSystemSettings.auto_on
+            }
+
+            Item { Layout.preferredWidth: 40 } // Spacer
+
+            Label { text: "当前运行状态:"; color: Theme.orange; font: Theme.defaultFont }
+
+            RowLayout {
+                spacing: 15
+                Rectangle {
+                    width: 16; height: 16; radius: 8
+                    color: rosProxy.systemStatus.circuit_work_status === 1 ? "lime" : "#333333"
+                }
+                Label { text: "回路 1 运行"; color: Theme.textColor; font: Theme.defaultFont }
+
+                Rectangle {
+                    width: 16; height: 16; radius: 8
+                    color: rosProxy.systemStatus.circuit_work_status === 2 ? "lime" : "#333333"
+                }
+                Label { text: "回路 2 运行"; color: Theme.textColor; font: Theme.defaultFont }
+
+                Rectangle {
+                    width: 16; height: 16; radius: 8
+                    color: rosProxy.systemStatus.circuit_work_status === 0 ? "orange" : "#333333"
+                }
+                Label { text: "全系统待机"; color: Theme.textColor; font: Theme.defaultFont }
+            }
+
+            Item { Layout.fillWidth: true } // 弹性占位
+        }
+    }
+
     // 右下方: 图表区域
     Rectangle {
         id: chartPanle
         anchors{
             left: regulatorPanle.right
-            top: circuitPanle.bottom
+            top: globalControlBar.bottom
             right: parent.right
             bottom: parent.bottom
             leftMargin: Theme.subSpacing
@@ -90,7 +162,7 @@ Rectangle{
         border.color: Theme.highlightColor
         border.width: 3
 
-        // --- 顶部控制栏 (新增) ---
+        // --- 顶部控制栏 ---
         RowLayout {
             id: controlBar
             anchors.top: parent.top
@@ -99,9 +171,8 @@ Rectangle{
             anchors.margins: 10
             height: 40
             spacing: 15
-            z: 10 // 确保显示在图表之上
+            z: 10
 
-            // 1. 回路选择
             Label { text: "数据源:"; color: Theme.textColor; font: Theme.defaultFont }
             ComboBox {
                 id: loopSelector
@@ -110,45 +181,41 @@ Rectangle{
                 font: Theme.smallLabelFont
             }
 
-            // 2. 通道选择
             Label { text: "温度通道:"; color: Theme.textColor; font: Theme.defaultFont }
             ComboBox {
                 id: channelSelector
                 Layout.preferredWidth: 120
-                // model 由逻辑层动态设置
                 font: Theme.smallLabelFont
             }
 
-            // 3. 时间范围选择
             Label { text: "时间范围:"; color: Theme.textColor; font: Theme.defaultFont }
             ComboBox {
                 id: timeRangeSelector
                 Layout.preferredWidth: 120
                 textRole: "text"
                 valueRole: "value"
-                // === 修改此处：去掉5分钟，只保留 10、30、60 分钟 ===
                 model: [
                     { text: "10分钟", value: 10 },
                     { text: "30分钟", value: 30 },
                     { text: "1小时", value: 60 }
                 ]
                 font: Theme.smallLabelFont
-                currentIndex: 0 // 默认选中 10分钟
+                currentIndex: 0
             }
 
-            Item { Layout.fillWidth: true } // 占位符
+            Item { Layout.fillWidth: true }
         }
 
         // --- 图表视图 ---
         ChartView {
             id: chartView
-            anchors.top: controlBar.bottom // 在控制栏下方
+            anchors.top: controlBar.bottom
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 5
 
-            title: "" // 标题通过外部Label或Dropdown体现即可
+            title: ""
             antialiasing: true
             backgroundColor: Theme.chartBgColor
             legend.visible: true
@@ -173,18 +240,15 @@ Rectangle{
                 width: 2
             }
 
-            // --- 坐标轴定义 ---
-            // 1. X轴改为 DateTimeAxis
             DateTimeAxis {
                 id: axisX
-                format: "MM-dd hh:mm" // 月-日 时:分
+                format: "MM-dd hh:mm"
                 tickCount: 5
                 labelsColor: "white"
                 gridLineColor: Theme.gridLineColor
                 labelsFont: Theme.smallLabelFont
             }
 
-            // 2. 左侧Y轴 (温度)
             ValueAxis {
                 id: axisYTemp
                 min: 0
@@ -196,7 +260,6 @@ Rectangle{
                 gridVisible: false
             }
 
-            // 3. 右侧Y轴 (电流)
             ValueAxis {
                 id: axisYCurrent
                 min: 0

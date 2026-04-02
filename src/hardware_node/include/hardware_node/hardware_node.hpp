@@ -21,7 +21,6 @@
 #include "ros2_interfaces/srv/set_hardware_circuit_settings.hpp"
 #include "ros2_interfaces/srv/set_regulator_settings.hpp"
 #include "ros2_interfaces/srv/set_hardware_circuit_control_mode.hpp"
-#include "ros2_interfaces/srv/set_hardware_circuit_control_source.hpp"
 #include "std_msgs/msg/empty.hpp"
 
 // --- 前向声明 ---
@@ -45,7 +44,6 @@ private:
     void hardware_regulator_breaker_command_callback(const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request, std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Response> response);
     void hardware_circuit_breaker_command_callback(const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request> request, std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Response> response);
     void hardware_set_control_mode_callback(const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request, std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Response> response);
-    void hardware_set_control_source_callback(const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Request> request, std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Response> response);
     void poll_hardware_data();
 
     // 优雅的节流辅助函数
@@ -87,7 +85,6 @@ private:
     rclcpp::Service<ros2_interfaces::srv::RegulatorBreakerCommand>::SharedPtr hardware_regulator_breaker_command_service_;
     rclcpp::Service<ros2_interfaces::srv::CircuitBreakerCommand>::SharedPtr hardware_circuit_breaker_command_service_;
     rclcpp::Service<ros2_interfaces::srv::SetHardwareCircuitControlMode>::SharedPtr hardware_set_control_mode_service_;
-    rclcpp::Service<ros2_interfaces::srv::SetHardwareCircuitControlSource>::SharedPtr hardware_set_control_source_service_;
 
     rclcpp::TimerBase::SharedPtr hardware_poll_timer_;
 

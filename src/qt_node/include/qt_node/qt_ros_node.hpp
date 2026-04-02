@@ -31,7 +31,6 @@
 // -- Service Client --
 // 命令
 #include "ros2_interfaces/srv/regulator_breaker_command.hpp"
-#include "ros2_interfaces/srv/circuit_mode_command.hpp"
 #include "ros2_interfaces/srv/circuit_breaker_command.hpp"
 // 设置
 #include "ros2_interfaces/srv/set_system_settings.hpp"
@@ -64,7 +63,6 @@ public slots:
     // --- 接收来自Proxy信号的槽 (已重构) ---
     void onSendRegulatorOperationCommand(quint8 regulator_id, quint8 command);
     void onSendRegulatorBreakerCommand(quint8 regulator_id, quint8 command);
-    void onSendCircuitModeCommand(quint8 circuit_id, quint8 command);
     void onSendCircuitBreakerCommand(quint8 circuit_id, quint8 command);
     void onSendClearAlarm();
 
@@ -142,8 +140,6 @@ private:
     // 命令服务
     rclcpp::Client<ros2_interfaces::srv::RegulatorBreakerCommand>::SharedPtr regulator_breaker_command_client_;
     std::string regulator_breaker_command_service_name_;
-    rclcpp::Client<ros2_interfaces::srv::CircuitModeCommand>::SharedPtr circuit_mode_command_client_;
-    std::string circuit_mode_command_service_name_;
     rclcpp::Client<ros2_interfaces::srv::CircuitBreakerCommand>::SharedPtr circuit_breaker_command_client_;
     std::string circuit_breaker_command_service_name_;
     // 设置服务

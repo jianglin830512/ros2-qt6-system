@@ -9,13 +9,21 @@ TemperatureMonitorPageForm {
     mainRegulator.regulatorId: 1
     mainRegulator.title: "主调压器"
     mainRegulator.statusData: rosProxy.regulatorStatus1
-    mainRegulator.controlMode: rosProxy.circuitStatus1 ? rosProxy.circuitStatus1.control_mode : 0
+
+    // 【修复报错点】明确检查 undefined，避免初始时传给 int 类型报错
+    mainRegulator.controlMode: (rosProxy.circuitStatus1 && rosProxy.circuitStatus1.control_mode !== undefined)
+                               ? rosProxy.circuitStatus1.control_mode
+                               : 0
 
     // --- 辅调压器 ---
     auxRegulator.regulatorId: 2
     auxRegulator.title: "辅调压器"
     auxRegulator.statusData: rosProxy.regulatorStatus2
-    auxRegulator.controlMode: rosProxy.circuitStatus2 ? rosProxy.circuitStatus2.control_mode : 0
+
+    // 【修复报错点】明确检查 undefined
+    auxRegulator.controlMode: (rosProxy.circuitStatus2 && rosProxy.circuitStatus2.control_mode !== undefined)
+                              ? rosProxy.circuitStatus2.control_mode
+                              : 0
 
     // --- 数据源常量 ---
     readonly property var testChannelModel: ["通道01", "通道02", "通道03", "通道04", "通道05", "通道06", "通道07", "通道08", "通道09", "通道10", "通道11", "通道12", "通道13", "通道14", "通道15", "通道16"]
@@ -89,7 +97,6 @@ TemperatureMonitorPageForm {
             control.channelSelector.model = refChannelModel;
         }
 
-        // 修复潜在的信号未触发Bug：如果原先就是0，设为0不会触发 onCurrentIndexChanged，需要手动调一次
         if (oldChannelIdx === 0) {
             renderCurrentChart();
         } else {
@@ -97,7 +104,6 @@ TemperatureMonitorPageForm {
         }
     }
 
-    // 获取当前缓存中最新点的时间（如果没有数据，取当前时间）
     function getLatestTimeMs() {
         var keys = getCurrentKeys();
         var curArray = historyCache[keys.curKey] || [];
@@ -111,7 +117,6 @@ TemperatureMonitorPageForm {
         return latest;
     }
 
-    // --- 使用 replace() 进行原子级高性能重绘 ---
     function renderCurrentChart() {
         if (!control.tempSeries || !control.currentSeries) return;
 
@@ -119,12 +124,9 @@ TemperatureMonitorPageForm {
         var curArray = historyCache[keys.curKey] || [];
         var tempArray = historyCache[keys.tempKey] || [];
 
-        // 1. 清空当前图表线条
         control.tempSeries.clear();
         control.currentSeries.clear();
 
-        // 2. 循环 append 写入缓存数据
-        // 得益于我们的降采样机制，这里最多只有一百来个点，瞬间就能画完，不会卡顿
         for (var i = 0; i < tempArray.length; i++) {
             control.tempSeries.append(tempArray[i].x, tempArray[i].y);
         }
@@ -133,7 +135,6 @@ TemperatureMonitorPageForm {
             control.currentSeries.append(curArray[j].x, curArray[j].y);
         }
 
-        // 3. 刷新坐标轴
         updateAxisRange(getLatestTimeMs());
     }
 
@@ -154,7 +155,6 @@ TemperatureMonitorPageForm {
 
         var nowMs = new Date().getTime();
 
-        // 限流阀门：全局强制每 10 秒才允许处理一次数据
         if (nowMs - lastSaveTime[cId] < 10000) {
             return;
         }
@@ -166,15 +166,13 @@ TemperatureMonitorPageForm {
 
             arr.push({x: nowMs, y: val});
 
-            var maxCacheMs = 60 * 60 * 1000;      // 1小时
-            var thinThresholdMs = 10 * 60 * 1000; // 10分钟
+            var maxCacheMs = 60 * 60 * 1000;
+            var thinThresholdMs = 10 * 60 * 1000;
 
-            // 删除 1 小时之外的数据
             while (arr.length > 0 && nowMs - arr[0].x > maxCacheMs) {
                 arr.shift();
             }
 
-            // 抽稀 10 分钟外的数据，保证点距 >= 30秒
             if (arr.length > 1) {
                 var lastKeptTime = arr[0].x;
                 for (var i = 1; i < arr.length; i++) {
@@ -192,7 +190,6 @@ TemperatureMonitorPageForm {
             }
         }
 
-        // 1. 采集并降采样
         if (statusData.test_loop) {
             var prefixTest = "c" + cId + "_test";
             saveAndThinData(prefixTest + "_cur", statusData.test_loop.current || 0);
@@ -211,7 +208,6 @@ TemperatureMonitorPageForm {
             }
         }
 
-        // 2. 局部图表追加
         var currentKeys = getCurrentKeys();
         var selectedCid = (control.loopSelector.currentIndex <= 1) ? 1 : 2;
 
@@ -229,19 +225,15 @@ TemperatureMonitorPageForm {
             }
 
             updateAxisRange(nowMs);
-
             limitChartSeriesPoints(control.tempSeries, nowMs);
             limitChartSeriesPoints(control.currentSeries, nowMs);
         }
     }
 
-    // --- 图表轴与内存清理 ---
-
     function updateAxisRange(latestMs) {
         var idx = control.timeRangeSelector.currentIndex;
         var modelArr = control.timeRangeSelector.model;
 
-        // 核心修复：直接读取 model 数组里面的精确数值，绕过 currentValue 的延迟
         var mins = 10;
         if (modelArr && idx >= 0 && idx < modelArr.length) {
             mins = modelArr[idx].value;
@@ -268,6 +260,48 @@ TemperatureMonitorPageForm {
 
         while(series.count > 0 && series.at(0).x < thresholdTime) {
             series.remove(0);
+        }
+    }
+
+    // ==========================================
+    // --- 系统模式切换 ---
+    // ==========================================
+    Connections{
+        target: control.btnManualMode
+        function onSendCommand() {
+            if (rosProxy.qmlSystemSettings) {
+                var sysData = rosProxy.qmlSystemSettings;
+                sysData.auto_on = false;
+                rosProxy.setSystemSettings(sysData);
+            }
+        }
+    }
+
+    Connections{
+        target: control.btnAutoMode
+        function onSendCommand() {
+            if (rosProxy.qmlSystemSettings) {
+                var sysData = rosProxy.qmlSystemSettings;
+                sysData.auto_on = true;
+                rosProxy.setSystemSettings(sysData);
+            }
+        }
+    }
+
+    // ==========================================
+    // --- 操作被拒弹窗提示 ---
+    // ==========================================
+    MessagePopup { id: commandErrorPopup }
+
+    Connections {
+        target: rosProxy
+        function onCommandResult(serviceName, success, message) {
+            if (!success) {
+                commandErrorPopup.isError = true
+                commandErrorPopup.title = "设备操作被拒绝"
+                commandErrorPopup.message = message
+                commandErrorPopup.open()
+            }
         }
     }
 }

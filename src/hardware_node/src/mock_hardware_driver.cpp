@@ -75,15 +75,8 @@ void MockHardwareDriver::handle_set_hardware_circuit_settings_request(
 void MockHardwareDriver::handle_set_control_mode(
     const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request, AsyncCallback callback)
 {
-    device_->set_plc_mode(request->circuit_id, request->mode);
+    device_->set_plc_mode(request->circuit_id, request->loop_type, request->mode);
     callback(true, "Mock: PLC Control Mode updated.");
-}
-
-void MockHardwareDriver::handle_set_control_source(
-    const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Request> request, AsyncCallback callback)
-{
-    device_->set_plc_source(request->circuit_id, request->source);
-    callback(true, "Mock: PLC Control Source updated.");
 }
 
 void MockHardwareDriver::handle_clear_alarm() {
@@ -113,20 +106,13 @@ bool MockHardwareDriver::get_circuit_status(uint8_t circuit_id, ros2_interfaces:
     auto dev = device_->get_circ(circuit_id);
     status.circuit_id = dev.id;
 
-    // PLC 模式反馈
-    status.plc_control_mode = dev.plc_mode;
-    status.plc_control_source = dev.plc_source;
-
-    // 辅助 lambda 填充 LoopStatus
     auto fill_loop = [](ros2_interfaces::msg::HardwareLoopStatus& loop_msg, const MockDevice::LoopState& loop_dev) {
         loop_msg.current = loop_dev.current;
         loop_msg.breaker_closed_switch_ack = loop_dev.breaker_closed;
         loop_msg.breaker_opened_switch_ack = !loop_dev.breaker_closed;
         loop_msg.over_current_on = loop_dev.over_current_alarm;
-        // 复制温度数组 (float -> double/float64)
-        for(int i=0; i<16; ++i) {
-            loop_msg.temperature_array[i] = loop_dev.temperatures[i];
-        }
+        loop_msg.plc_control_mode = loop_dev.plc_mode; // 赋值支路特有的 mode
+        for(int i=0; i<16; ++i) loop_msg.temperature_array[i] = loop_dev.temperatures[i];
     };
 
     fill_loop(status.test_loop, dev.test_loop);
@@ -168,8 +154,10 @@ bool MockHardwareDriver::get_circuit_settings(uint8_t circuit_id, ros2_interface
 
 bool MockHardwareDriver::get_system_status(ros2_interfaces::msg::HardwareSystemStatus& status)
 {
-    // 在 Mock 模式下，默认远方，无急停
+    // 在 Mock 模式下，默认远方，无急停，并且模拟始终连接
     status.is_remote = true;
     status.emergency_stop_on = false;
+    status.plc_connected = true;
+    status.temp_monitor_connected = true;
     return true;
 }

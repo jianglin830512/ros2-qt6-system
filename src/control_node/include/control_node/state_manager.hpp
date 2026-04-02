@@ -10,9 +10,10 @@
 #include "ros2_interfaces/msg/hardware_circuit_status.hpp"
 #include "ros2_interfaces/msg/hardware_circuit_settings.hpp"
 #include "ros2_interfaces/msg/hardware_system_status.hpp"
+#include "ros2_interfaces/msg/database_status.hpp"
 #include <mutex>
 #include <array>
-#include <utility> // for std::pair
+#include <utility>
 
 class StateManager
 {
@@ -34,6 +35,8 @@ public:
     void update_circuit_settings_from_hardware(uint8_t id, const ros2_interfaces::msg::HardwareCircuitSettings& hw_settings);
     void update_system_status_from_hardware(const ros2_interfaces::msg::HardwareSystemStatus& hw_status);
 
+    void update_database_status(const ros2_interfaces::msg::DatabaseStatus& db_status);
+
     // === Read Methods ===
     ros2_interfaces::msg::SystemStatus get_system_status() const;
     ros2_interfaces::msg::CircuitStatus get_circuit_status(uint8_t id) const;
@@ -42,9 +45,9 @@ public:
     ros2_interfaces::msg::CircuitSettings get_circuit_settings(uint8_t id) const;
     ros2_interfaces::msg::RegulatorSettings get_regulator_settings(uint8_t id) const;
 
-    // [NEW] Get raw PLC status (Mode, Source) that is not in the standard CircuitStatus
-    // Returns {mode, source}
-    std::pair<uint8_t, uint8_t> get_last_known_plc_status(uint8_t id) const;
+    ros2_interfaces::msg::DatabaseStatus get_database_status() const;
+
+    // 【删除】原来这里的 std::pair<uint8_t, uint8_t> get_last_known_plc_status(uint8_t id) const;
 
 private:
     size_t circuit_id_to_index(uint8_t id) const;
@@ -59,11 +62,8 @@ private:
     std::array<ros2_interfaces::msg::CircuitSettings, NUM_CIRCUITS> circuit_settings_;
     std::array<ros2_interfaces::msg::RegulatorSettings, NUM_REGULATORS> regulator_settings_;
 
-    // [NEW] Cache for raw PLC status
-    struct PlcStatusCache {
-        uint8_t plc_control_mode = 0;
-        uint8_t plc_control_source = 0;
-    };
-    std::array<PlcStatusCache, NUM_CIRCUITS> plc_status_cache_;
+    ros2_interfaces::msg::DatabaseStatus database_status_;
+
+    // 【删除】原来这里的 PlcStatusCache 和 plc_status_cache_ 数组
 };
 #endif // STATE_MANAGER_HPP

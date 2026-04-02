@@ -1,12 +1,16 @@
-# 设置硬件回路的控制模式 (PLC模式)
+# 设置硬件回路下某个特定支路的控制模式 (PLC模式)
 
 # --- Request ---
-uint8 circuit_id
+uint8 circuit_id # 1 for Circuit 1, 2 for Circuit 2
+
+# 指定是哪条支路
+uint8 LOOP_TEST = 1
+uint8 LOOP_REF = 2
+uint8 loop_type
 
 # 模式常量定义
-uint8 MODE_MANUAL = 1       # 手动模式 (ROS控制升降 / 手柄控制)
-uint8 MODE_AUTO_CURRENT = 2 # 自动恒流模式 (PLC闭环)
-uint8 MODE_AUTO_TEMP = 3  # 自动温控 (预留)
+uint8 MODE_MANUAL = 1       # 手动模式
+uint8 MODE_AUTO_CURRENT = 2 # 自动恒流模式
 
 uint8 mode
 

@@ -15,6 +15,7 @@ QDateTime LoopSettingsData::start_date() const { return m_start_date; }
 int LoopSettingsData::heating_start_time_sec() const { return m_heating_start_time_sec; }
 int LoopSettingsData::heating_duration_sec() const { return m_heating_duration_sec; }
 bool LoopSettingsData::enabled() const{ return m_enabled; }
+int LoopSettingsData::auto_strategy() const{return m_auto_strategy; }
 
 // --- Setters ---
 void LoopSettingsData::setStart_current_a(int start_current_a)
@@ -87,6 +88,14 @@ void LoopSettingsData::setEnabled(bool enabled)
     }
 }
 
+void LoopSettingsData::setAuto_strategy(int auto_strategy)
+{
+    if (m_auto_strategy != auto_strategy){
+        m_auto_strategy = auto_strategy;
+        emit auto_strategyChanged();
+    }
+}
+
 // --- operator== ---
 bool LoopSettingsData::operator==(const LoopSettingsData& other) const
 {
@@ -98,5 +107,6 @@ bool LoopSettingsData::operator==(const LoopSettingsData& other) const
            m_start_date == other.m_start_date &&
            m_heating_start_time_sec == other.m_heating_start_time_sec &&
            m_heating_duration_sec == other.m_heating_duration_sec &&
-           m_enabled == other.m_enabled;
+           m_enabled == other.m_enabled &&
+           m_auto_strategy == other.m_auto_strategy;
 }

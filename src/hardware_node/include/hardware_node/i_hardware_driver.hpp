@@ -15,7 +15,6 @@
 #include "ros2_interfaces/srv/set_hardware_circuit_settings.hpp"
 #include "ros2_interfaces/srv/set_regulator_settings.hpp"
 #include "ros2_interfaces/srv/set_hardware_circuit_control_mode.hpp"
-#include "ros2_interfaces/srv/set_hardware_circuit_control_source.hpp"
 
 // A callback function to be called when an async operation completes.
 using AsyncCallback = std::function<void(bool success, const std::string& message)>;
@@ -47,9 +46,6 @@ public:
         const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request,
         AsyncCallback callback) = 0;
 
-    virtual void handle_set_control_source(
-        const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Request> request,
-        AsyncCallback callback) = 0;
 
     // --- 话题回调的同步处理器 ---
     virtual void handle_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg) = 0;

@@ -122,10 +122,5 @@ RegulatorControlForm {
         rosProxy.sendRegulatorOperationCommand(regulatorId, QtNodeConstants.CMD_REGULATOR_VOLTAGE_STOP)
     }
 
-    isBlocked: {
-        if (controlMode === QtNodeConstants.CMD_CIRCUIT_SET_MANUAL_MODE) {
-            return false;
-        }
-        return true;
-    }
+    isBlocked: (rosProxy.qmlSystemSettings && rosProxy.qmlSystemSettings.auto_on)
 }

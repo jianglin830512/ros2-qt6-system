@@ -18,6 +18,7 @@ void convertLoopStatusRosToQt(const ros2_interfaces::msg::LoopStatus& ros_loop, 
     qt_loop.current = ros_loop.hardware_loop_status.current;
     qt_loop.breaker_closed_switch_ack = ros_loop.hardware_loop_status.breaker_closed_switch_ack;
     qt_loop.breaker_opened_switch_ack = ros_loop.hardware_loop_status.breaker_opened_switch_ack;
+    qt_loop.plc_control_mode = ros_loop.hardware_loop_status.plc_control_mode;
     // 高效地转换数组
     qt_loop.temperature_array.resize(ros_loop.hardware_loop_status.temperature_array.size());
     std::copy(ros_loop.hardware_loop_status.temperature_array.begin(), ros_loop.hardware_loop_status.temperature_array.end(), qt_loop.temperature_array.begin());
@@ -61,6 +62,7 @@ void convertLoopSettingsQtToRos(const LoopSettingsData* qt_loop_settings, ros2_i
     ros_loop_settings.heating_duration.nanosec = 0;
 
     ros_loop_settings.enabled = qt_loop_settings->enabled();
+    ros_loop_settings.auto_strategy = qt_loop_settings->auto_strategy();
 }
 
 
@@ -93,9 +95,6 @@ void convertCircuitSettingsQtToRos(const CircuitSettingsData* qt_circuit_setting
     ros_circuit_settings.sample_params.cable_spec = qt_circuit_settings->sample_params()->cable_spec().toStdString();
     ros_circuit_settings.sample_params.insulation_material = qt_circuit_settings->sample_params()->insulation_material().toStdString();
     ros_circuit_settings.sample_params.insulation_thickness = static_cast<float>(qt_circuit_settings->sample_params()->insulation_thickness());
-
-    // --- 4. Convert Other Parameters ---
-    ros_circuit_settings.curr_mode_use_ref = qt_circuit_settings->curr_mode_use_ref();
 
     RCLCPP_INFO(logger, "CircuitSettings conversion complete.");
 }
@@ -182,13 +181,6 @@ QtROSNode::QtROSNode(const std::string &node_name, QObject *parent)
     regulator_breaker_command_client_ =
         this->create_client<ros2_interfaces::srv::RegulatorBreakerCommand>(regulator_breaker_command_service_name_);
 
-    circuit_mode_command_service_name_ = this->declare_parameter<std::string>(
-        qt_node_constants::CIRCUIT_MODE_COMMAND_SERVICE_PARAM,
-        qt_node_constants::DEFAULT_CIRCUIT_MODE_COMMAND_SERVICE);
-    RCLCPP_INFO(this->get_logger(), "Using CircuitModeCommand service: '%s'", circuit_mode_command_service_name_.c_str());
-    circuit_mode_command_client_ =
-        this->create_client<ros2_interfaces::srv::CircuitModeCommand>(circuit_mode_command_service_name_);
-
     circuit_breaker_command_service_name_ = this->declare_parameter<std::string>(
         qt_node_constants::CIRCUIT_BREAKER_COMMAND_SERVICE_PARAM,
         qt_node_constants::CIRCUIT_REGULATOR_BREAKER_COMMAND_SERVICE);
@@ -273,7 +265,6 @@ void QtROSNode::circuit_status_callback(const ros2_interfaces::msg::CircuitStatu
 
     // 2. 转换全局字段
     data.circuit_id = msg->circuit_id;
-    data.control_mode = msg->control_mode;
     //RCLCPP_INFO(this->get_logger(), "received circuit_id = %d",  msg->circuit_id);
 
     // 3. 使用辅助函数转换嵌套的回路状态，代码清晰且可重用
@@ -307,6 +298,7 @@ void QtROSNode::system_status_callback(const ros2_interfaces::msg::SystemStatus:
     data.is_remote = msg->hardware_system_status.is_remote;
     data.emergency_stop_on = msg->hardware_system_status.emergency_stop_on;
     data.system_state = msg->system_state;
+    data.circuit_work_status = msg->circuit_work_status;
     emit systemStatusReceived(data);
 }
 
@@ -361,24 +353,6 @@ void QtROSNode::onSendRegulatorBreakerCommand(quint8 regulator_id, quint8 comman
     regulator_breaker_command_client_->async_send_request(request, response_callback);
 }
 
-void QtROSNode::onSendCircuitModeCommand(quint8 circuit_id, quint8 command)
-{
-    if (!circuit_mode_command_client_->service_is_ready()) {
-        RCLCPP_WARN(this->get_logger(), "Service '%s' not available.", circuit_mode_command_service_name_.c_str());
-        emit commandResult(QString::fromStdString(circuit_mode_command_service_name_), false, "Service not available");
-        return;
-    }
-    auto request = std::make_shared<ros2_interfaces::srv::CircuitModeCommand::Request>();
-    request->circuit_id = circuit_id;
-    request->command = command;
-
-    auto response_callback = [this, srv_name = circuit_mode_command_service_name_](rclcpp::Client<ros2_interfaces::srv::CircuitModeCommand>::SharedFuture future) {
-        auto response = future.get();
-        emit commandResult(QString::fromStdString(srv_name), response->success, QString::fromStdString(response->message));
-    };
-    circuit_mode_command_client_->async_send_request(request, response_callback);
-}
-
 void QtROSNode::onSendCircuitBreakerCommand(quint8 circuit_id, quint8 command)
 {
     if (!circuit_breaker_command_client_->service_is_ready()) {
@@ -428,6 +402,7 @@ void QtROSNode::onSetSystemSettings(SystemSettingsData* data)
     request->settings.sample_interval_sec = data->sample_interval_sec();
     request->settings.record_interval_min = data->record_interval_min();
     request->settings.keep_record_on_shutdown = data->keep_record_on_shutdown();
+    request->settings.auto_on = data->auto_on();
 
     // --- 4. 定义回调并异步发送 (逻辑不变) ---
     auto response_callback = [this, service_name = set_system_settings_service_name_](rclcpp::Client<ros2_interfaces::srv::SetSystemSettings>::SharedFuture future) {
@@ -641,11 +616,13 @@ void QtROSNode::queryHistoryData(const QString& start_time_str, int duration_hou
 
 void QtROSNode::queryTableData(const QString& start_time_str, int duration_hours, int circuit_id)
 {
+    // 检查服务客户端是否就绪
     if (!query_data_records_client_->service_is_ready()) {
         emit tableQueryFailed("Query service is not ready.");
         return;
     }
 
+    // 解析并计算结束时间
     QDateTime startDt = QDateTime::fromString(start_time_str, "yyyy-MM-dd HH:mm:ss");
     if (!startDt.isValid()) {
         emit tableQueryFailed("Invalid start time format.");
@@ -653,32 +630,42 @@ void QtROSNode::queryTableData(const QString& start_time_str, int duration_hours
     }
     QDateTime endDt = startDt.addSecs(duration_hours * 3600);
 
+    // 构造请求
     auto request = std::make_shared<ros2_interfaces::srv::QueryDataRecords::Request>();
     request->start_time = startDt.toString("yyyy-MM-dd HH:mm:ss").toStdString();
     request->end_time = endDt.toString("yyyy-MM-dd HH:mm:ss").toStdString();
 
-    // 设定要查询的列 (所有非 Bool 类型数据)
+    // ==========================================================
+    // 设定要查询的列名 (严格匹配新的 DataRecord.msg 和数据库字段)
+    // 总计 1 + 3 + 3 + 16 + 16 = 39 列
+    // ==========================================================
     QStringList target_columns = {
-        "record_time", "regulator_voltage", "regulator_current",
-        "test_loop_current", "ref_loop_current"
+        "record_time",
+        "regulator_1_voltage", "regulator_1_current", "test_loop_current",
+        "regulator_2_voltage", "regulator_2_current", "ref_loop_current"
     };
+
+    // 试验支路温度 1~16
     for (int i = 1; i <= 16; ++i) {
         target_columns.append(QString("test_loop_temp%1").arg(i, 2, 10, QChar('0')));
     }
-    for (int i = 1; i <= 8; ++i) {
+    // 参考支路温度 1~16 (新版已扩展为16路)
+    for (int i = 1; i <= 16; ++i) {
         target_columns.append(QString("ref_loop_temp%1").arg(i, 2, 10, QChar('0')));
     }
 
+    // 填入 Request
     for (const QString& col : target_columns) {
         request->column_names.push_back(col.toStdString());
     }
 
-    // 根据下拉菜单过滤回路ID
+    // 根据前端下拉菜单过滤对应的回路数据
     request->circuit_id_filter = circuit_id;
 
     RCLCPP_INFO(this->get_logger(), "Querying Table Data for Circuit %d: %s -> %s",
                 circuit_id, request->start_time.c_str(), request->end_time.c_str());
 
+    // 异步回调处理
     auto callback = [this, target_columns](rclcpp::Client<ros2_interfaces::srv::QueryDataRecords>::SharedFuture future) {
         auto response = future.get();
         if (!response->success) {
@@ -686,19 +673,26 @@ void QtROSNode::queryTableData(const QString& start_time_str, int duration_hours
             return;
         }
 
-        // 构造友好的表头给 QML
-        QStringList headers = { "记录时间", "调压器电压(V)", "调压器电流(A)", "试验电流(A)", "参考电流(A)" };
+        // ==========================================================
+        // 构造友好的表头给 QML 显示 (与 target_columns 一一对应)
+        // ==========================================================
+        QStringList headers = {
+            "记录时间",
+            "调压器1电压(V)", "调压器1电流(A)", "试验支路电流(A)",
+            "调压器2电压(V)", "调压器2电流(A)", "参考支路电流(A)"
+        };
         for (int i = 1; i <= 16; ++i) headers.append(QString("试温%1(℃)").arg(i, 2, 10, QChar('0')));
-        for (int i = 1; i <= 8; ++i) headers.append(QString("参温%1(℃)").arg(i, 2, 10, QChar('0')));
+        for (int i = 1; i <= 16; ++i) headers.append(QString("参温%1(℃)").arg(i, 2, 10, QChar('0')));
 
-        // 建立列索引映射
+        // 建立数据库返回的实际列名到索引的映射
         QMap<QString, int> col_indices;
         for (int i = 0; i < (int)response->header.size(); ++i) {
             col_indices[QString::fromStdString(response->header[i])] = i;
         }
 
         QVariantList rows;
-        // 遍历提取数据
+
+        // 遍历并提取数据行
         for (const std::string& row_std : response->data_rows) {
             QString row_str = QString::fromStdString(row_std);
             QStringList values = row_str.split(',');
@@ -706,6 +700,7 @@ void QtROSNode::queryTableData(const QString& start_time_str, int duration_hours
             QVariantList row_data;
             for (const QString& col_name : target_columns) {
                 int idx = col_indices.value(col_name, -1);
+                // 确保索引有效且没有数组越界
                 if (idx != -1 && idx < values.size()) {
                     // 如果是时间字段，保留原样；如果是数值字段，格式化为1位小数以保证表格整洁
                     if (col_name == "record_time") {
@@ -718,9 +713,11 @@ void QtROSNode::queryTableData(const QString& start_time_str, int duration_hours
                     row_data.append("-"); // 数据缺失占位符
                 }
             }
+            // 将一行数据作为一个整体压入 rows
             rows.append(QVariant::fromValue(row_data));
         }
 
+        // 打包发给 QML
         QVariantMap result_map;
         result_map["headers"] = headers;
         result_map["rows"] = rows;

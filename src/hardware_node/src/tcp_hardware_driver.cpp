@@ -237,6 +237,12 @@ void TcpHardwareDriver::initialize_default_states()
         cache_reg_settings_[id].regulator_id = id;
         cache_circ_settings_[id].circuit_id = id;
     }
+
+    // 初始化硬件系统状态为 false (未连接、本地模式、非急停)
+    cache_system_status_.is_remote = false;
+    cache_system_status_.emergency_stop_on = false;
+    cache_system_status_.plc_connected = false;
+    cache_system_status_.temp_monitor_connected = false;
 }
 
 void TcpHardwareDriver::voltage_keep_alive_loop()
@@ -287,7 +293,11 @@ void TcpHardwareDriver::read_plc_data()
     // Read from 0x0010, Length 78
     if (modbus_read_holding_registers(client_plc_.get(), 1, ADDR_DATA_START, ADDR_DATA_LEN, data)) {
         std::lock_guard<std::mutex> lock(data_mutex_);
+        cache_system_status_.plc_connected = true;
         parse_plc_buffer(data);
+    } else {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        cache_system_status_.plc_connected = false;
     }
 }
 
@@ -296,7 +306,11 @@ void TcpHardwareDriver::read_temp_monitor_data()
     std::vector<uint8_t> data;
     if (modbus_read_holding_registers(client_temp_.get(), 1, 0, 80, data)) {
         std::lock_guard<std::mutex> lock(data_mutex_);
+        cache_system_status_.temp_monitor_connected = true;
         parse_temp_buffer(data);
+    } else {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        cache_system_status_.temp_monitor_connected = false;
     }
 }
 
@@ -319,50 +333,46 @@ void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
     // ========================================================================
     // 1. Control Mode & Source (0x0010 - 0x0013)
     // ========================================================================
-    uint16_t c1_mode = parse_uint16(get_ptr(0x0010));
-    c1.plc_control_mode = c1_mode;  // 1. 读取时，不改变读取值，与PLC完全保持一致
+    uint16_t c1_test_mode = parse_uint16(get_ptr(0x0010));
+    c1.test_loop.plc_control_mode = c1_test_mode;
 
-    uint16_t c2_mode = parse_uint16(get_ptr(0x0011));
-    c2.plc_control_mode = c2_mode;
+    uint16_t c1_sim_mode = parse_uint16(get_ptr(0x0011));
+    c1.ref_loop.plc_control_mode = c1_sim_mode; // 模拟支路映射到 ref_loop
 
-    uint16_t c1_src = parse_uint16(get_ptr(0x0012));
-    c1.plc_control_source = c1_src;
+    uint16_t c2_test_mode = parse_uint16(get_ptr(0x0012));
+    c2.test_loop.plc_control_mode = c2_test_mode;
 
-    uint16_t c2_src = parse_uint16(get_ptr(0x0013));
-    c2.plc_control_source = c2_src;
+    uint16_t c2_sim_mode = parse_uint16(get_ptr(0x0013));
+    c2.ref_loop.plc_control_mode = c2_sim_mode;
 
-    // 2. 发现值不是1或2，则通过后台线程设置为1进行纠正
     auto correct_plc_value = [this](uint16_t current_val, uint16_t addr, const char* name) {
         if (current_val != 1 && current_val != 2) {
-            // 加入静态节流锁，防止每 200ms 的轮询中疯狂发送写入命令
             static std::map<uint16_t, std::chrono::steady_clock::time_point> last_correction;
             auto now = std::chrono::steady_clock::now();
             if (now - last_correction[addr] > std::chrono::seconds(2)) {
                 last_correction[addr] = now;
-                RCLCPP_WARN(logger_, "PLC Warn: Detected invalid %s value (%u) at Addr 0x%04X. Auto-correcting PLC to 1.", name, current_val, addr);
+                RCLCPP_WARN(logger_, "PLC Warn: Auto-correcting %s (Addr 0x%04X) to 1.", name, addr);
                 std::thread([this, addr]() {
                     modbus_write_single_register(client_plc_.get(), 1, addr, 1);
                 }).detach();
             }
         }
     };
-
-    correct_plc_value(c1_mode, ADDR_MODE_C1, "C1 Mode");
-    correct_plc_value(c2_mode, ADDR_MODE_C2, "C2 Mode");
-    correct_plc_value(c1_src, ADDR_SOURCE_C1, "C1 Source");
-    correct_plc_value(c2_src, ADDR_SOURCE_C2, "C2 Source");
+    correct_plc_value(c1_test_mode, ADDR_MODE_C1_TEST, "C1 Test Mode");
+    correct_plc_value(c1_sim_mode, ADDR_MODE_C1_SIM, "C1 Sim Mode");
+    correct_plc_value(c2_test_mode, ADDR_MODE_C2_TEST, "C2 Test Mode");
+    correct_plc_value(c2_sim_mode, ADDR_MODE_C2_SIM, "C2 Sim Mode");
 
     // ========================================================================
     // 2. Bit Parsing (0x0014, 0x0015) - 包含系统状态(远方/急停)
     // ========================================================================
     uint16_t w_v40 = parse_uint16(get_ptr(0x0014));
-    uint8_t v40 = (w_v40 >> 8) & 0xFF; // High
-    uint8_t v41 = w_v40 & 0xFF;        // Low
+    uint8_t v40 = (w_v40 >> 8) & 0xFF;
+    uint8_t v41 = w_v40 & 0xFF;
 
     uint16_t w_v42 = parse_uint16(get_ptr(0x0015));
-    uint8_t v42 = (w_v42 >> 8) & 0xFF; // High
+    uint8_t v42 = (w_v42 >> 8) & 0xFF;
 
-    // System Status
     cache_system_status_.is_remote = (v40 >> 1) & 0x01;
     cache_system_status_.emergency_stop_on = (v40 >> 2) & 0x01;
 
@@ -371,13 +381,14 @@ void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
     r2.breaker_closed_switch_ack = (v40 >> 5) & 0x01;
     r2.breaker_opened_switch_ack = (v40 >> 6) & 0x01;
 
+    // [重要] 重新映射合闸状态
     c1.test_loop.breaker_closed_switch_ack = (v40 >> 7) & 0x01;
     c1.test_loop.breaker_opened_switch_ack = (v41 >> 0) & 0x01;
-    c1.ref_loop.breaker_closed_switch_ack = (v41 >> 1) & 0x01;
-    c1.ref_loop.breaker_opened_switch_ack = (v41 >> 2) & 0x01;
+    c2.test_loop.breaker_closed_switch_ack = (v41 >> 1) & 0x01;
+    c2.test_loop.breaker_opened_switch_ack = (v41 >> 2) & 0x01;
 
-    c2.test_loop.breaker_closed_switch_ack = (v41 >> 3) & 0x01;
-    c2.test_loop.breaker_opened_switch_ack = (v41 >> 4) & 0x01;
+    c1.ref_loop.breaker_closed_switch_ack = (v41 >> 3) & 0x01;
+    c1.ref_loop.breaker_opened_switch_ack = (v41 >> 4) & 0x01;
     c2.ref_loop.breaker_closed_switch_ack = (v41 >> 5) & 0x01;
     c2.ref_loop.breaker_opened_switch_ack = (v41 >> 6) & 0x01;
 
@@ -420,8 +431,8 @@ void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
     cache_reg_settings_[2].voltage_down_speed_percent = speed2_val / 5;
 
     cache_circ_settings_[1].test_loop.ct_ratio = parse_uint16(get_ptr(0x002A));
-    cache_circ_settings_[1].ref_loop.ct_ratio  = parse_uint16(get_ptr(0x002B));
-    cache_circ_settings_[2].test_loop.ct_ratio = parse_uint16(get_ptr(0x002C));
+    cache_circ_settings_[2].test_loop.ct_ratio = parse_uint16(get_ptr(0x002B));
+    cache_circ_settings_[1].ref_loop.ct_ratio  = parse_uint16(get_ptr(0x002C));
     cache_circ_settings_[2].ref_loop.ct_ratio  = parse_uint16(get_ptr(0x002D));
 
     // [修改点]：仅做 Float 到 INT32 的转换，不乘以 100.0f
@@ -431,8 +442,8 @@ void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
     };
 
     cache_circ_settings_[1].test_loop.current_change_range_percent = parse_float_to_int32(0x002E);
-    cache_circ_settings_[1].ref_loop.current_change_range_percent  = parse_float_to_int32(0x0030);
-    cache_circ_settings_[2].test_loop.current_change_range_percent = parse_float_to_int32(0x0032);
+    cache_circ_settings_[2].test_loop.current_change_range_percent = parse_float_to_int32(0x0030);
+    cache_circ_settings_[1].ref_loop.current_change_range_percent  = parse_float_to_int32(0x0032);
     cache_circ_settings_[2].ref_loop.current_change_range_percent  = parse_float_to_int32(0x0034);
 
     r1.voltage_reading = parse_float_abcd(get_ptr(0x003A));
@@ -441,18 +452,18 @@ void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
     r2.current_reading = parse_float_abcd(get_ptr(0x0040));
 
     c1.test_loop.current = parse_float_abcd(get_ptr(0x0042));
-    c1.ref_loop.current  = parse_float_abcd(get_ptr(0x0044));
-    c2.test_loop.current = parse_float_abcd(get_ptr(0x0046));
+    c2.test_loop.current = parse_float_abcd(get_ptr(0x0044));
+    c1.ref_loop.current  = parse_float_abcd(get_ptr(0x0046));
     c2.ref_loop.current  = parse_float_abcd(get_ptr(0x0048));
 
     cache_circ_settings_[1].test_loop.start_current_a = (int32_t)parse_float_abcd(get_ptr(0x004A));
-    cache_circ_settings_[1].ref_loop.start_current_a  = (int32_t)parse_float_abcd(get_ptr(0x004C));
-    cache_circ_settings_[2].test_loop.start_current_a = (int32_t)parse_float_abcd(get_ptr(0x004E));
+    cache_circ_settings_[2].test_loop.start_current_a = (int32_t)parse_float_abcd(get_ptr(0x004C));
+    cache_circ_settings_[1].ref_loop.start_current_a  = (int32_t)parse_float_abcd(get_ptr(0x004E));
     cache_circ_settings_[2].ref_loop.start_current_a  = (int32_t)parse_float_abcd(get_ptr(0x0050));
 
     cache_circ_settings_[1].test_loop.max_current_a = (int32_t)parse_float_abcd(get_ptr(0x0052));
-    cache_circ_settings_[1].ref_loop.max_current_a  = (int32_t)parse_float_abcd(get_ptr(0x0054));
-    cache_circ_settings_[2].test_loop.max_current_a = (int32_t)parse_float_abcd(get_ptr(0x0056));
+    cache_circ_settings_[2].test_loop.max_current_a = (int32_t)parse_float_abcd(get_ptr(0x0054));
+    cache_circ_settings_[1].ref_loop.max_current_a  = (int32_t)parse_float_abcd(get_ptr(0x0056));
     cache_circ_settings_[2].ref_loop.max_current_a  = (int32_t)parse_float_abcd(get_ptr(0x0058));
 
     cache_reg_settings_[1].over_current_a = (int32_t)parse_float_abcd(get_ptr(0x005A));
@@ -569,9 +580,11 @@ void TcpHardwareDriver::handle_regulator_breaker_command(
 {
     uint16_t addr = 0xFFFF;
     if (request->regulator_id == 1) {
-        addr = (request->command == 1) ? ADDR_CMD_MAIN_CLOSE : ADDR_CMD_MAIN_OPEN;
+        // 调压器1 (主调压器/试验支路) 的合/分闸
+        addr = (request->command == 1) ? ADDR_CMD_REG1_CLOSE : ADDR_CMD_REG1_OPEN;
     } else if (request->regulator_id == 2) {
-        addr = (request->command == 1) ? ADDR_CMD_AUX_CLOSE : ADDR_CMD_AUX_OPEN;
+        // 调压器2 (辅调压器/模拟支路) 的合/分闸
+        addr = (request->command == 1) ? ADDR_CMD_REG2_CLOSE : ADDR_CMD_REG2_OPEN;
     }
 
     if (addr == 0xFFFF) {
@@ -591,17 +604,17 @@ void TcpHardwareDriver::handle_circuit_breaker_command(
     uint16_t addr = 0xFFFF;
     if (request->circuit_id == 1) {
         switch(request->command) {
-        case 1: addr = ADDR_CMD_MAIN_TEST_CLOSE; break;
-        case 2: addr = ADDR_CMD_MAIN_TEST_OPEN; break;
-        case 3: addr = ADDR_CMD_MAIN_REF_CLOSE; break;
-        case 4: addr = ADDR_CMD_MAIN_REF_OPEN; break;
+        case 1: addr = ADDR_CMD_C1_TEST_CLOSE; break;
+        case 2: addr = ADDR_CMD_C1_TEST_OPEN; break;
+        case 3: addr = ADDR_CMD_C1_SIM_CLOSE; break;
+        case 4: addr = ADDR_CMD_C1_SIM_OPEN; break;
         }
     } else if (request->circuit_id == 2) {
         switch(request->command) {
-        case 1: addr = ADDR_CMD_AUX_TEST_CLOSE; break;
-        case 2: addr = ADDR_CMD_AUX_TEST_OPEN; break;
-        case 3: addr = ADDR_CMD_AUX_REF_CLOSE; break;
-        case 4: addr = ADDR_CMD_AUX_REF_OPEN; break;
+        case 1: addr = ADDR_CMD_C2_TEST_CLOSE; break;
+        case 2: addr = ADDR_CMD_C2_TEST_OPEN; break;
+        case 3: addr = ADDR_CMD_C2_SIM_CLOSE; break;
+        case 4: addr = ADDR_CMD_C2_SIM_OPEN; break;
         }
     }
 
@@ -619,8 +632,13 @@ void TcpHardwareDriver::handle_circuit_breaker_command(
 void TcpHardwareDriver::handle_set_control_mode(
     const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request, AsyncCallback callback)
 {
-    uint16_t addr = (request->circuit_id == 1) ? ADDR_MODE_C1 : ADDR_MODE_C2;
-    // 强制限制为 1 或 2，防止误写 0
+    uint16_t addr = 0xFFFF;
+    if (request->circuit_id == 1) {
+        addr = (request->loop_type == 1) ? ADDR_MODE_C1_TEST : ADDR_MODE_C1_SIM;
+    } else if (request->circuit_id == 2) {
+        addr = (request->loop_type == 1) ? ADDR_MODE_C2_TEST : ADDR_MODE_C2_SIM;
+    }
+
     uint16_t val = (request->mode == 2) ? 2 : 1;
 
     // 1. 记录发起写入的日志
@@ -638,31 +656,6 @@ void TcpHardwareDriver::handle_set_control_mode(
         }
 
         callback(ok, ok ? "Control Mode Sent" : "Modbus Write Failed");
-    }).detach();
-}
-
-void TcpHardwareDriver::handle_set_control_source(
-    const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlSource::Request> request, AsyncCallback callback)
-{
-    uint16_t addr = (request->circuit_id == 1) ? ADDR_SOURCE_C1 : ADDR_SOURCE_C2;
-    // 强制限制为 1 或 2，防止误写 0
-    uint16_t val = (request->source == 2) ? 2 : 1;
-
-    // 1. 记录发起写入的日志
-    RCLCPP_INFO(logger_, "PLC Service [Source]: Circuit %u -> Setting to %u (%s) at Addr 0x%04X",
-                request->circuit_id, val, (val == 2 ? "REF_LOOP" : "TEST_LOOP"), addr);
-
-    std::thread([this, addr, val, circ_id = request->circuit_id, callback]() {
-        bool ok = modbus_write_single_register(client_plc_.get(), 1, addr, val);
-
-        // 2. 记录写入结果日志
-        if (ok) {
-            RCLCPP_INFO(logger_, "PLC Success: Source for Circuit %u updated to %u.", circ_id, val);
-        } else {
-            RCLCPP_ERROR(logger_, "PLC Error: Failed to write Source for Circuit %u at Addr 0x%04X", circ_id, addr);
-        }
-
-        callback(ok, ok ? "Control Source Sent" : "Modbus Write Failed");
     }).detach();
 }
 
@@ -705,29 +698,27 @@ void TcpHardwareDriver::handle_set_hardware_circuit_settings_request(
     std::thread([this, id, request, callback]() {
         bool all_ok = true;
 
-        // 写入 CT 变比 (Int -> Int)
-        uint16_t addr_ct_test = (id == 1) ? 0x002A : 0x002C;
-        uint16_t addr_ct_ref  = (id == 1) ? 0x002B : 0x002D;
+        // CT 变比
+        uint16_t addr_ct_test = (id == 1) ? 0x002A : 0x002B;
+        uint16_t addr_ct_ref  = (id == 1) ? 0x002C : 0x002D;
         if (!modbus_write_single_register(client_plc_.get(), 1, addr_ct_test, (uint16_t)request->settings.test_loop.ct_ratio)) all_ok = false;
         if (!modbus_write_single_register(client_plc_.get(), 1, addr_ct_ref,  (uint16_t)request->settings.ref_loop.ct_ratio)) all_ok = false;
 
-        // 写入 电流变化范围 (INT32 -> Float)[修改点：不再除以 100.0f]
-        uint16_t addr_range_test = (id == 1) ? 0x002E : 0x0032;
-        uint16_t addr_range_ref  = (id == 1) ? 0x0030 : 0x0034;
-        float range_test_f = static_cast<float>(request->settings.test_loop.current_change_range_percent);
-        float range_ref_f  = static_cast<float>(request->settings.ref_loop.current_change_range_percent);
-        if (!modbus_write_float(client_plc_.get(), 1, addr_range_test, range_test_f)) all_ok = false;
-        if (!modbus_write_float(client_plc_.get(), 1, addr_range_ref,  range_ref_f))  all_ok = false;
+        // 范围
+        uint16_t addr_range_test = (id == 1) ? 0x002E : 0x0030;
+        uint16_t addr_range_ref  = (id == 1) ? 0x0032 : 0x0034;
+        if (!modbus_write_float(client_plc_.get(), 1, addr_range_test, static_cast<float>(request->settings.test_loop.current_change_range_percent))) all_ok = false;
+        if (!modbus_write_float(client_plc_.get(), 1, addr_range_ref,  static_cast<float>(request->settings.ref_loop.current_change_range_percent)))  all_ok = false;
 
-        // 写入 恒流起始电流 (INT32 -> Float)
-        uint16_t addr_const_test = (id == 1) ? 0x004A : 0x004E;
-        uint16_t addr_const_ref  = (id == 1) ? 0x004C : 0x0050;
+        // 起始电流
+        uint16_t addr_const_test = (id == 1) ? 0x004A : 0x004C;
+        uint16_t addr_const_ref  = (id == 1) ? 0x004E : 0x0050;
         if (!modbus_write_float(client_plc_.get(), 1, addr_const_test, static_cast<float>(request->settings.test_loop.start_current_a))) all_ok = false;
         if (!modbus_write_float(client_plc_.get(), 1, addr_const_ref,  static_cast<float>(request->settings.ref_loop.start_current_a))) all_ok = false;
 
-        // 写入 保护过流阈值 (INT32 -> Float)
-        uint16_t addr_max_test = (id == 1) ? 0x0052 : 0x0056;
-        uint16_t addr_max_ref  = (id == 1) ? 0x0054 : 0x0058;
+        // 最大电流
+        uint16_t addr_max_test = (id == 1) ? 0x0052 : 0x0054;
+        uint16_t addr_max_ref  = (id == 1) ? 0x0056 : 0x0058;
         if (!modbus_write_float(client_plc_.get(), 1, addr_max_test, static_cast<float>(request->settings.test_loop.max_current_a))) all_ok = false;
         if (!modbus_write_float(client_plc_.get(), 1, addr_max_ref,  static_cast<float>(request->settings.ref_loop.max_current_a))) all_ok = false;
 

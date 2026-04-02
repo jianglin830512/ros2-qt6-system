@@ -111,8 +111,6 @@ int main(int argc, char *argv[])
                      ros_node.get(), &QtROSNode::onSendRegulatorOperationCommand, Qt::QueuedConnection);
     QObject::connect(ros_proxy.get(), &ROSProxy::regulatorBreakerCommandRequested,
                      ros_node.get(), &QtROSNode::onSendRegulatorBreakerCommand, Qt::QueuedConnection);
-    QObject::connect(ros_proxy.get(), &ROSProxy::circuitModeCommandRequested,
-                     ros_node.get(), &QtROSNode::onSendCircuitModeCommand, Qt::QueuedConnection);
     QObject::connect(ros_proxy.get(), &ROSProxy::circuitBreakerCommandRequested,
                      ros_node.get(), &QtROSNode::onSendCircuitBreakerCommand, Qt::QueuedConnection);
     QObject::connect(ros_proxy.get(), &ROSProxy::clearAlarmRequested,

@@ -7,6 +7,7 @@ SystemSettingsData::SystemSettingsData(QObject *parent) : QObject(parent)
 int SystemSettingsData::sample_interval_sec() const { return m_sample_interval_sec; }
 int SystemSettingsData::record_interval_min() const { return m_record_interval_min; }
 bool SystemSettingsData::keep_record_on_shutdown() const { return m_keep_record_on_shutdown; }
+bool SystemSettingsData::auto_on() const { return m_auto_on; }
 
 void SystemSettingsData::setSample_interval_sec(int sample_interval_sec)
 {
@@ -29,5 +30,13 @@ void SystemSettingsData::setKeep_record_on_shutdown(bool keep_record_on_shutdown
     if (m_keep_record_on_shutdown != keep_record_on_shutdown) {
         m_keep_record_on_shutdown = keep_record_on_shutdown;
         emit keep_record_on_shutdownChanged();
+    }
+}
+
+void SystemSettingsData::setAuto_on(bool auto_on)
+{
+    if (m_auto_on != auto_on) {
+        m_auto_on = auto_on;
+        emit auto_onChanged();
     }
 }

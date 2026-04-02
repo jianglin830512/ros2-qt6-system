@@ -60,14 +60,16 @@ void MockDevice::plc_cycle() {
         auto start_time = std::chrono::steady_clock::now();
         {
             std::lock_guard<std::mutex> lock(data_mutex_);
-            update_regulator(reg1, circ1);
-            update_regulator(reg2, circ2);
+            // 调压器1 控制 circ1.test_loop 和 circ2.test_loop
+            update_regulator_loops(reg1, circ1.test_loop, circ2.test_loop);
+            // 调压器2 控制 circ1.ref_loop 和 circ2.ref_loop
+            update_regulator_loops(reg2, circ1.ref_loop, circ2.ref_loop);
         }
         std::this_thread::sleep_until(start_time + std::chrono::milliseconds(100));
     }
 }
 
-void MockDevice::update_regulator(RegulatorState& reg, CircuitState& circ) {
+void MockDevice::update_regulator_loops(RegulatorState& reg, LoopState& loop1, LoopState& loop2) {
     // 1. 电压变化逻辑 (区分升/降压速度)
     if (reg.breaker_closed) {
         double max_step = 4.5; // [修改] 假设100ms内最大变化4.5V (45V/s) 适配 450V 满量程
@@ -131,13 +133,13 @@ void MockDevice::update_regulator(RegulatorState& reg, CircuitState& circ) {
         }
     };
 
-    update_loop(circ.test_loop);
-    update_loop(circ.ref_loop);
+    update_loop(loop1);
+    update_loop(loop2);
 
     // 5. [修改] 总电流 = （TEST_LOOP + REF_LOOP）电流 / 32
     // Regulator 1 (7200 + 7200) / 32 -> 最大 450A
     // Regulator 2 (3600 + 3600) / 32 -> 最大 225A
-    reg.current = (circ.test_loop.current + circ.ref_loop.current) / 32.0;
+    reg.current = (loop1.current + loop2.current) / 32.0;
 }
 
 // --- 命令处理 ---
@@ -145,29 +147,35 @@ void MockDevice::update_regulator(RegulatorState& reg, CircuitState& circ) {
 void MockDevice::set_regulator_breaker(uint8_t id, bool close) {
     std::lock_guard<std::mutex> lock(data_mutex_);
     auto& reg = (id == 1) ? reg1 : reg2;
-    auto& circ = (id == 1) ? circ1 : circ2;
 
     reg.breaker_closed = close;
     if (!close) {
-        // 主闸断开，回路也断电
-        circ.test_loop.breaker_closed = false;
-        circ.ref_loop.breaker_closed = false;
         reg.direction = 0;
         reg.current = 0;
+        // 按照拓扑：Reg1 断开 Test回路；Reg2 断开 Ref回路
+        if (id == 1) {
+            circ1.test_loop.breaker_closed = false;
+            circ2.test_loop.breaker_closed = false;
+        } else {
+            circ1.ref_loop.breaker_closed = false;
+            circ2.ref_loop.breaker_closed = false;
+        }
     }
 }
 
 void MockDevice::set_loop_breaker(uint8_t circ_id, uint8_t command) {
     std::lock_guard<std::mutex> lock(data_mutex_);
-    auto& reg = (circ_id == 1) ? reg1 : reg2;
     auto& circ = (circ_id == 1) ? circ1 : circ2;
 
-    if (!reg.breaker_closed) return; // 主闸没合，支路不能合
-
-    if (command == 1)      circ.test_loop.breaker_closed = true;
-    else if (command == 2) circ.test_loop.breaker_closed = false;
-    else if (command == 3) circ.ref_loop.breaker_closed = true;
-    else if (command == 4) circ.ref_loop.breaker_closed = false;
+    // 命令 1,2 操作 Test Loop，需检查 Reg1；命令 3,4 操作 Ref Loop，需检查 Reg2
+    if (command == 1 || command == 2) {
+        if (!reg1.breaker_closed) return;
+        circ.test_loop.breaker_closed = (command == 1);
+    }
+    else if (command == 3 || command == 4) {
+        if (!reg2.breaker_closed) return;
+        circ.ref_loop.breaker_closed = (command == 3);
+    }
 }
 
 void MockDevice::set_regulator_op(uint8_t id, uint8_t cmd) {
@@ -187,16 +195,11 @@ void MockDevice::clear_alarms() {
     circ2.test_loop.over_current_alarm = circ2.ref_loop.over_current_alarm = false;
 }
 
-void MockDevice::set_plc_mode(uint8_t circ_id, uint8_t mode) {
+void MockDevice::set_plc_mode(uint8_t circ_id, uint8_t loop_type, uint8_t mode) {
     std::lock_guard<std::mutex> lock(data_mutex_);
     auto& circ = (circ_id == 1) ? circ1 : circ2;
-    circ.plc_mode = mode;
-}
-
-void MockDevice::set_plc_source(uint8_t circ_id, uint8_t source) {
-    std::lock_guard<std::mutex> lock(data_mutex_);
-    auto& circ = (circ_id == 1) ? circ1 : circ2;
-    circ.plc_source = source;
+    if (loop_type == 1) circ.test_loop.plc_mode = mode;
+    else circ.ref_loop.plc_mode = mode;
 }
 
 // --- 设置更新 ---

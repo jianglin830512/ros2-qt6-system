@@ -40,9 +40,7 @@ namespace hardware_node_constants
 
 // PLC 控制模式服务
 [[maybe_unused]] constexpr const char* HARDWARE_SET_CONTROL_MODE_SERVICE_PARAM = "hardware_set_control_mode_service";
-[[maybe_unused]] constexpr const char* HARDWARE_SET_CONTROL_SOURCE_SERVICE_PARAM = "hardware_set_control_source_service";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_SET_CONTROL_MODE_SERVICE = "default_hardware_set_control_mode";
-[[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_SET_CONTROL_SOURCE_SERVICE = "default_hardware_set_control_source";
 
 // --- 其它参数 ---
 [[maybe_unused]] constexpr const char* POLLING_RATE_MS_PARAM = "polling_rate_ms";

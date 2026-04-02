@@ -15,7 +15,7 @@ TestDataPageForm {
         return index === 0 ? 180 : 100;
     }
 
-    // 1. 动态生成表头 (删除了 font.bold: true)
+    // 1. 动态生成表头
     Repeater {
         parent: page.headerRowLayout
         model: page.tableHeaders

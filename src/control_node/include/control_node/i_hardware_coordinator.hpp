@@ -65,8 +65,7 @@ public:
      */
     virtual void send_clear_alarm() = 0;
 
-    virtual void set_circuit_control_mode(uint8_t circuit_id, uint8_t mode) = 0; // 设为 手动/自动
-    virtual void set_circuit_control_source(uint8_t circuit_id, uint8_t source) = 0; // 设为 试验/参考
+    virtual void set_circuit_control_mode(uint8_t circuit_id, uint8_t loop_type, uint8_t mode) = 0;
 };
 
 #endif // I_HARDWARE_COORDINATOR_HPP

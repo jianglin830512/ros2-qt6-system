@@ -118,7 +118,6 @@ LoopStatusForm {
     }
 
     // 绑定按钮遮罩状态
-    // 只有当：1. 回路已启用 且 2. 不是手动模式时，才遮挡按钮。
-    // (如果回路未启用，全局遮罩已经生效了，所以这里只需关心模式)
-    isButtonsBlocked: (controlMode !== QtNodeConstants.CMD_CIRCUIT_SET_MANUAL_MODE)
+    isButtonsBlocked: (rosProxy.qmlSystemSettings && rosProxy.qmlSystemSettings.auto_on)
+
 }

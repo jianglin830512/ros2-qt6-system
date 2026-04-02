@@ -29,9 +29,6 @@ qt_ros_node:
 
     # 调压器断路器命令SERVICE -- 对应 qt_node_constants::REGULATOR_BREAKER_COMMAND_SERVICE_PARAM
     regulator_breaker_command_service: "regulator_breaker_command"
-    
-    # 回路模式设置命令SERVICE -- 对应 qt_node_constants::CIRCUIT_MODE_COMMAND_SERVICE_PARAM
-    circuit_mode_command_service: "circuit_mode_command"
 
     # 回路断路器命令SERVICE -- 对应 qt_node_constants::CIRCUIT_BREAKER_COMMAND_SERVICE_PARAM
     circuit_breaker_command_service: "circuit_breaker_command"

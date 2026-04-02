@@ -1,6 +1,6 @@
 ﻿# ===== 工程根目录 =====
 $root = "E:\WGS\SRC\QT_NODE"
-$output = "$root\QT_NODE.txt"
+$output = "$root\QML_FILES.txt"
 
 # 删除旧文件
 if (Test-Path $output) { Remove-Item $output }
@@ -8,7 +8,7 @@ if (Test-Path $output) { Remove-Item $output }
 # 收集全部文本
 $allText = New-Object System.Text.StringBuilder
 
-$extensions = "*.qml","*.cpp","*.hpp","*.h","*.yaml","*.yml","CMakelists.txt"
+$extensions = "*.qml","CMakelists.txt"
 
 Get-ChildItem -Path $root -Recurse -Include $extensions | ForEach-Object {
 

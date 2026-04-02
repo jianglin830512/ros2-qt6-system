@@ -73,12 +73,10 @@ void StateManager::update_circuit_status_from_hardware(uint8_t id, const ros2_in
         // Update standard mapping
         status.header = hw_status.header;
         status.circuit_id = hw_status.circuit_id;
+
+        // 直接将硬件的 Loop 状态映射过来（包含了下放到 Loop 里的 plc_control_mode）
         status.test_loop.hardware_loop_status = hw_status.test_loop;
         status.ref_loop.hardware_loop_status = hw_status.ref_loop;
-
-        // [NEW] Update raw PLC cache
-        plc_status_cache_.at(idx).plc_control_mode = hw_status.plc_control_mode;
-        plc_status_cache_.at(idx).plc_control_source = hw_status.plc_control_source;
 
     } catch (const std::out_of_range& e) {}
 }
@@ -98,6 +96,12 @@ void StateManager::update_system_status_from_hardware(const ros2_interfaces::msg
     std::lock_guard<std::mutex> lock(state_mutex_);
     // 仅更新 system_status_ 中的硬件子结构，不影响逻辑层写入的 connection_state 等
     system_status_.hardware_system_status = hw_status;
+}
+
+void StateManager::update_database_status(const ros2_interfaces::msg::DatabaseStatus& db_status)
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    database_status_ = db_status;
 }
 
 // ==========================================
@@ -151,13 +155,8 @@ ros2_interfaces::msg::RegulatorSettings StateManager::get_regulator_settings(uin
     }
 }
 
-std::pair<uint8_t, uint8_t> StateManager::get_last_known_plc_status(uint8_t id) const
+ros2_interfaces::msg::DatabaseStatus StateManager::get_database_status() const
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
-    try {
-        const auto& cache = plc_status_cache_.at(circuit_id_to_index(id));
-        return {cache.plc_control_mode, cache.plc_control_source};
-    } catch (const std::out_of_range& e) {
-        return {0, 0};
-    }
+    return database_status_;
 }

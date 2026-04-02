@@ -24,7 +24,7 @@ namespace record_node_constants
 [[maybe_unused]] constexpr const char* QUERY_DATA_RECORDS_SERVICE_PARAM = "query_data_records_service";
 [[maybe_unused]] constexpr const char* DEFAULT_QUERY_DATA_RECORDS_SERVICE = "default_query_data_records";
 
-// Topic 名称参数 (必须与 Control Node 保持一致)
+// Topic 订阅 (必须与 Control Node 保持一致)
 // status
 [[maybe_unused]] constexpr const char* CIRCUIT_STATUS_TOPIC_PARAM = "circuit_status_topic";
 [[maybe_unused]] constexpr const char* REGULATOR_STATUS_TOPIC_PARAM = "regulator_status_topic";
@@ -37,6 +37,10 @@ namespace record_node_constants
 [[maybe_unused]] constexpr const char* DEFAULT_CIRCUIT_SETTINGS_TOPIC = "default_circuit_settings";
 [[maybe_unused]] constexpr const char* DEFAULT_REGULATOR_SETTINGS_TOPIC = "default_regulator_settings";
 [[maybe_unused]] constexpr const char* DEFAULT_SYSTEM_SETTINGS_TOPIC = "default_system_settings";
+
+// Topic 发布
+[[maybe_unused]] constexpr const char* DATABASE_STATUS_TOPIC_PARAM = "database_status_topic";
+[[maybe_unused]] constexpr const char* DEFAULT_DATABASE_STATUS_TOPIC = "default_database_status";
 
 } // namespace record_node_constants
 

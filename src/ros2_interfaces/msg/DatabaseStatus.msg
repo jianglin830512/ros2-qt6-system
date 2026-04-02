@@ -1,0 +1,1 @@
+bool database_connected

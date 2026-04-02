@@ -1,5 +1,4 @@
-﻿// include/qt_node/data_types.hpp
-
+﻿// include/qt_node/data_types/data_types.hpp
 #ifndef DATA_TYPES_HPP
 #define DATA_TYPES_HPP
 
@@ -7,14 +6,8 @@
 #include <QString>
 #include <QVector>
 
-// =======================================================================
-//               LoopStatusData - 单个回路状态的POD
-// =======================================================================
-struct LoopStatusData
-{
-    Q_GADGET // 允许元对象系统处理
-
-    // --- 成员变量 ---
+struct LoopStatusData {
+    Q_GADGET
     Q_PROPERTY(bool is_heat MEMBER is_heat)
     Q_PROPERTY(double current MEMBER current)
     Q_PROPERTY(QVector<double> temperature_array MEMBER temperature_array)
@@ -24,7 +17,7 @@ struct LoopStatusData
     Q_PROPERTY(quint16 remaining_cycle_count MEMBER remaining_cycle_count)
     Q_PROPERTY(bool breaker_closed_switch_ack MEMBER breaker_closed_switch_ack)
     Q_PROPERTY(bool breaker_opened_switch_ack MEMBER breaker_opened_switch_ack)
-
+    Q_PROPERTY(quint8 plc_control_mode MEMBER plc_control_mode) // 新增：PLC反馈模式
 public:
     bool is_heat = false;
     double current = 0.0;
@@ -35,60 +28,37 @@ public:
     quint16 remaining_cycle_count = 0;
     bool breaker_closed_switch_ack = false;
     bool breaker_opened_switch_ack = false;
+    quint8 plc_control_mode = 1;
 };
 
-// 只要将 LoopStatusData 用作 Q_PROPERTY，就必须提供这个比较函数
-inline bool operator==(const LoopStatusData& lhs, const LoopStatusData& rhs)
-{
-    // 逐个比较所有成员变量
-    return lhs.is_heat == rhs.is_heat &&
-           lhs.current == rhs.current &&
-           lhs.temperature_array == rhs.temperature_array && // QVector 已经支持 '=='
+inline bool operator==(const LoopStatusData& lhs, const LoopStatusData& rhs) {
+    return lhs.is_heat == rhs.is_heat && lhs.current == rhs.current &&
+           lhs.temperature_array == rhs.temperature_array &&
            lhs.elapsed_heating_time_sec == rhs.elapsed_heating_time_sec &&
            lhs.remaining_heating_time_sec == rhs.remaining_heating_time_sec &&
            lhs.completed_cycle_count == rhs.completed_cycle_count &&
-           lhs.remaining_cycle_count == rhs.remaining_cycle_count&&
-           lhs.breaker_closed_switch_ack == rhs.breaker_closed_switch_ack&&
-           lhs.breaker_opened_switch_ack == rhs.breaker_opened_switch_ack;
+           lhs.remaining_cycle_count == rhs.remaining_cycle_count &&
+           lhs.breaker_closed_switch_ack == rhs.breaker_closed_switch_ack &&
+           lhs.breaker_opened_switch_ack == rhs.breaker_opened_switch_ack &&
+           lhs.plc_control_mode == rhs.plc_control_mode;
 }
+inline bool operator!=(const LoopStatusData& lhs, const LoopStatusData& rhs) { return !(lhs == rhs); }
 
-inline bool operator!=(const LoopStatusData& lhs, const LoopStatusData& rhs)
-{
-    return !(lhs == rhs);
-}
-
-// =======================================================================
-//               CircuitStatusData - 回路状态的POD
-// =======================================================================
-struct CircuitStatusData
-{
+struct CircuitStatusData {
     Q_GADGET
-
-    // --- 成员变量，对应ROS消息字段 ---
     Q_PROPERTY(quint8 circuit_id MEMBER circuit_id)
-    // --- [修改] 使用 LoopStatusData 替换独立的 test/ref 字段 ---
     Q_PROPERTY(LoopStatusData test_loop MEMBER test_loop)
     Q_PROPERTY(LoopStatusData ref_loop MEMBER ref_loop)
-    // --- 全局状态字段 ---
-    Q_PROPERTY(quint8 control_mode MEMBER control_mode)
-    Q_PROPERTY(bool curr_mode_use_ref MEMBER curr_mode_use_ref) // 假设这个字段也在新msg中
-
+    // 删除了 control_mode 和 curr_mode_use_ref
 public:
     quint8 circuit_id = 0;
     LoopStatusData test_loop;
     LoopStatusData ref_loop;
-    quint8 control_mode = 0;
-
-    bool curr_mode_use_ref = false; // 假设
 };
 
-// =======================================================================
-//               RegulatorStatusData - 调压器状态的POD
-// =======================================================================
-struct RegulatorStatusData
-{
+struct RegulatorStatusData {
+    // 保持不变
     Q_GADGET
-
     Q_PROPERTY(quint8 regulator_id MEMBER regulator_id)
     Q_PROPERTY(double voltage_reading MEMBER voltage_reading)
     Q_PROPERTY(double current_reading MEMBER current_reading)
@@ -99,7 +69,6 @@ struct RegulatorStatusData
     Q_PROPERTY(bool lower_limit_switch_on MEMBER lower_limit_switch_on)
     Q_PROPERTY(bool over_current_on MEMBER over_current_on)
     Q_PROPERTY(bool over_voltage_on MEMBER over_voltage_on)
-
 public:
     quint8 regulator_id = 0;
     double voltage_reading = 0.0;
@@ -113,22 +82,19 @@ public:
     bool over_voltage_on = false;
 };
 
-// =======================================================================
-//               SystemStatusData - 系统状态的POD
-// =======================================================================
-struct SystemStatusData
-{
+struct SystemStatusData {
     Q_GADGET
     Q_PROPERTY(bool is_remote MEMBER is_remote)
     Q_PROPERTY(bool emergency_stop_on MEMBER emergency_stop_on)
     Q_PROPERTY(uint8_t system_state MEMBER system_state)
+    Q_PROPERTY(uint8_t circuit_work_status MEMBER circuit_work_status) // 新增：全局工作状态
 public:
     bool is_remote = false;
     bool emergency_stop_on = false;
     uint8_t system_state = 0;
+    uint8_t circuit_work_status = 0;
 };
 
-// --- [修改] 增加新的元类型声明 ---
 Q_DECLARE_METATYPE(LoopStatusData)
 Q_DECLARE_METATYPE(CircuitStatusData)
 Q_DECLARE_METATYPE(RegulatorStatusData)

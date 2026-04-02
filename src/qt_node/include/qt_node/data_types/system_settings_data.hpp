@@ -9,6 +9,7 @@ class SystemSettingsData : public QObject
     Q_PROPERTY(int sample_interval_sec READ sample_interval_sec WRITE setSample_interval_sec NOTIFY sample_interval_secChanged)
     Q_PROPERTY(int record_interval_min READ record_interval_min WRITE setRecord_interval_min NOTIFY record_interval_minChanged)
     Q_PROPERTY(bool keep_record_on_shutdown READ keep_record_on_shutdown WRITE setKeep_record_on_shutdown NOTIFY keep_record_on_shutdownChanged)
+    Q_PROPERTY(bool auto_on READ auto_on WRITE setAuto_on NOTIFY auto_onChanged)
 
 public:
     explicit SystemSettingsData(QObject *parent = nullptr);
@@ -20,22 +21,25 @@ public:
     int sample_interval_sec() const;
     int record_interval_min() const;
     bool keep_record_on_shutdown() const;
+    bool auto_on() const;
 
     // Setters
     void setSample_interval_sec(int sample_interval_sec);
     void setRecord_interval_min(int record_interval_min);
     void setKeep_record_on_shutdown(bool keep_record_on_shutdown);
-
+    void setAuto_on(bool auto_on);
 
 signals:
     void sample_interval_secChanged();
     void record_interval_minChanged();
     void keep_record_on_shutdownChanged();
+    void auto_onChanged();
 
 private:
     int m_sample_interval_sec = 1;
     int m_record_interval_min = 1;
     bool m_keep_record_on_shutdown = false;
+    bool m_auto_on = false;
 };
 
 #endif // SYSTEM_SETTINGS_DATA_HPP
