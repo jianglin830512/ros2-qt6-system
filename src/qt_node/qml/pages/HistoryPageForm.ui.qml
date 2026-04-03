@@ -109,7 +109,9 @@ Item {
                                 verticalAlignment: Text.AlignVCenter
                                 color: "white"; font: Theme.defaultFont
                                 text: Qt.formatDateTime(new Date(), "yyyy-MM-dd")
-                                inputMask: "9999-99-99" // 简单掩码
+                                // 【替换】删掉 inputMask: "9999-99-99"
+                                // 【新增】只允许输入数字和分隔符
+                                validator: RegularExpressionValidator { regularExpression: /^[0-9\-\/\.]+$/ }
                             }
                         }
                     }
@@ -125,7 +127,9 @@ Item {
                                 verticalAlignment: Text.AlignVCenter
                                 color: "white"; font: Theme.defaultFont
                                 text: Qt.formatDateTime(new Date(), "hh:mm")
-                                inputMask: "99:99"
+                                // 【替换】删掉 inputMask: "99:99"
+                                // 【新增】只允许输入数字和冒号
+                                validator: RegularExpressionValidator { regularExpression: /^[0-9:]+$/ }
                             }
                         }
                     }

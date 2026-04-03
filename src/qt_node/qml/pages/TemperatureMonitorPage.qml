@@ -287,21 +287,4 @@ TemperatureMonitorPageForm {
             }
         }
     }
-
-    // ==========================================
-    // --- 操作被拒弹窗提示 ---
-    // ==========================================
-    MessagePopup { id: commandErrorPopup }
-
-    Connections {
-        target: rosProxy
-        function onCommandResult(serviceName, success, message) {
-            if (!success) {
-                commandErrorPopup.isError = true
-                commandErrorPopup.title = "设备操作被拒绝"
-                commandErrorPopup.message = message
-                commandErrorPopup.open()
-            }
-        }
-    }
 }

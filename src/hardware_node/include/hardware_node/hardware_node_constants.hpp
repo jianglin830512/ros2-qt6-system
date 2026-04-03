@@ -32,10 +32,8 @@ namespace hardware_node_constants
 
 // (命令服务)
 [[maybe_unused]] constexpr const char* HARDWARE_REGULATOR_BREAKER_COMMAND_SERVICE_PARAM = "hardware_regulator_breaker_command_service";
-[[maybe_unused]] constexpr const char* HARDWARE_CIRCUIT_MODE_COMMAND_SERVICE_PARAM = "hardware_circuit_mode_command_service";
 [[maybe_unused]] constexpr const char* HARDWARE_CIRCUIT_BREAKER_COMMAND_SERVICE_PARAM = "hardware_circuit_breaker_command_service";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_REGULATOR_BREAKER_COMMAND_SERVICE = "default_hardware_regulator_breaker_command";
-[[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_CIRCUIT_MODE_COMMAND_SERVICE = "default_hardware_circuit_mode_command";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_CIRCUIT_BREAKER_COMMAND_SERVICE = "default_hardware_circuit_breaker_command";
 
 // PLC 控制模式服务

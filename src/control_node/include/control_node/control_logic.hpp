@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <functional>
+#include <unordered_map>
 #include "rclcpp/rclcpp.hpp"
 #include "ros2_interfaces/srv/set_system_settings.hpp"
 #include "ros2_interfaces/srv/set_regulator_settings.hpp"
@@ -33,6 +34,7 @@ public:
     void maintain_lifecycle();
     bool is_system_ready() const;
     bool is_settings_synced() const;
+    void set_command_timeout(double timeout_sec) { command_timeout_sec_ = timeout_sec; }
 
     // --- Commands ---
     void process_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg);
@@ -59,15 +61,21 @@ private:
     void process_manual_interlock();
     void process_auto_logic();
 
-    // Auto mode control helpers
-    void execute_auto_shutdown();
-    void manage_loop_auto(uint8_t circuit_id, uint8_t loop_type, bool is_heating, uint8_t regulator_id, uint8_t target_plc_mode, bool control_regulator = true);
-
     // Hardware limits helper
     bool is_regulator_at_lower_limit(uint8_t regulator_id);
 
     // Time Overlap Checker
     bool check_time_overlap(const ros2_interfaces::msg::CircuitSettings& c1, const ros2_interfaces::msg::CircuitSettings& c2);
+
+    // 状态指令超时校验方法
+    bool can_execute_command(const std::string& cmd_key);
+    void mark_command_executed(const std::string& cmd_key);
+
+    // Auto mode control helpers (New FSM Architecture)
+    void execute_regulator_fsm(uint8_t reg_id, uint8_t loop_type, bool target_c1_heat, bool target_c2_heat);
+    void run_branch_shutdown_sequence(uint8_t circuit_id, uint8_t loop_type, uint8_t reg_id);
+    void run_regulator_shutdown_sequence(uint8_t reg_id);
+    void run_branch_startup_sequence(uint8_t circuit_id, uint8_t loop_type, uint8_t reg_id);
 
     std::shared_ptr<StateManager> state_manager_;
     std::shared_ptr<IHardwareCoordinator> hardware_coordinator_;
@@ -82,8 +90,8 @@ private:
 
     uint8_t current_lifecycle_state_ = 0;
 
-    // Timer to prevent spamming PLC control commands
-    rclcpp::Time last_plc_cmd_time_;
+    double command_timeout_sec_ = 2.0; // 默认2秒
+    std::unordered_map<std::string, rclcpp::Time> last_command_times_; // 记录每个动作的上次执行时间
 };
 
 #endif // CONTROL_LOGIC_HPP

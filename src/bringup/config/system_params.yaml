@@ -67,6 +67,9 @@ control_node:
 
     # --- 与 Record Node 通信 (数据库侧) ---
     
+    # [从分节点补充] 订阅 RECORD NODE 的数据库在线状态
+    database_status_topic: "database_status"
+
     # 调用保存服务
     save_system_settings_service: "save_system_settings"
     save_regulator_settings_service: "save_regulator_settings"
@@ -97,6 +100,9 @@ control_node:
     hardware_circuit_breaker_command_service: "hardware_circuit_breaker_command"
     hardware_set_control_mode_service: "hardware_set_control_mode"
     hardware_set_control_source_service: "hardware_set_control_source"
+    
+    # [从分节点补充] 
+    plc_command_timeout: 2.0
 
 # ==============================================================================
 # 3. Record Node (数据记录与存储节点)
@@ -107,6 +113,10 @@ record_node:
     
     # 自动记录间隔 (分钟)
     record_interval_min: 2
+
+    # --- 发布配置 ---
+    # [从分节点补充] 发布数据库在线状态
+    database_status_topic: "database_status"
 
     # --- 订阅 (用于记录数据) ---
     circuit_status_topic: "circuit_status"

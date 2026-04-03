@@ -12,6 +12,8 @@ ControlNode::ControlNode() : Node("control_node") {}
 
 void ControlNode::initialize_components()
 {
+    RCLCPP_INFO(this->get_logger(), "Initializing Control Node Components...");
+
     client_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     server_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
@@ -20,39 +22,101 @@ void ControlNode::initialize_components()
     persistence_coordinator_ = std::make_shared<PersistenceCoordinator>(state_manager_.get(), shared_from_this(), client_cb_group_);
     control_logic_ = std::make_unique<ControlLogic>(state_manager_, hardware_coordinator_, persistence_coordinator_);
 
-    // [Publishers] - 省略获取参数的部分，使用默认值简化展示 (实际请保留您原有的 declare_parameter 逻辑)
-    circuit_status_pub_ = this->create_publisher<ros2_interfaces::msg::CircuitStatus>(control_node_constants::DEFAULT_CIRCUIT_STATUS_TOPIC, 10);
-    regulator_status_pub_ = this->create_publisher<ros2_interfaces::msg::RegulatorStatus>(control_node_constants::DEFAULT_REGULATOR_STATUS_TOPIC, 10);
-    system_status_pub_ = this->create_publisher<ros2_interfaces::msg::SystemStatus>(control_node_constants::DEFAULT_SYSTEM_STATUS_TOPIC, 10);
+    // 声明并获取超时时间参数，传给 ControlLogic
+    this->declare_parameter(control_node_constants::PLC_COMMAND_TIMEOUT_PARAM, control_node_constants::DEFAULT_PLC_COMMAND_TIMEOUT);
+    double plc_cmd_timeout = this->get_parameter(control_node_constants::PLC_COMMAND_TIMEOUT_PARAM).as_double();
+    control_logic_->set_command_timeout(plc_cmd_timeout);
 
-    system_settings_pub_ = this->create_publisher<ros2_interfaces::msg::SystemSettings>(control_node_constants::DEFAULT_SYSTEM_SETTINGS_TOPIC, rclcpp::QoS(10).transient_local());
-    regulator_settings_pub_ = this->create_publisher<ros2_interfaces::msg::RegulatorSettings>(control_node_constants::DEFAULT_REGULATOR_SETTINGS_TOPIC, rclcpp::QoS(10).transient_local());
-    circuit_settings_pub_ = this->create_publisher<ros2_interfaces::msg::CircuitSettings>(control_node_constants::DEFAULT_CIRCUIT_SETTINGS_TOPIC, rclcpp::QoS(10).transient_local());
+    // ============================================================
+    // [Publishers] (与 QT_NODE 通信的发布者)
+    // ============================================================
+    auto circuit_status_topic = this->declare_parameter<std::string>(
+        control_node_constants::CIRCUIT_STATUS_TOPIC_PARAM, control_node_constants::DEFAULT_CIRCUIT_STATUS_TOPIC);
+    RCLCPP_INFO(this->get_logger(), "Publishing Circuit Status to: '%s'", circuit_status_topic.c_str());
+    circuit_status_pub_ = this->create_publisher<ros2_interfaces::msg::CircuitStatus>(circuit_status_topic, 10);
 
-    // [Subscribers]
+    auto regulator_status_topic = this->declare_parameter<std::string>(
+        control_node_constants::REGULATOR_STATUS_TOPIC_PARAM, control_node_constants::DEFAULT_REGULATOR_STATUS_TOPIC);
+    RCLCPP_INFO(this->get_logger(), "Publishing Regulator Status to: '%s'", regulator_status_topic.c_str());
+    regulator_status_pub_ = this->create_publisher<ros2_interfaces::msg::RegulatorStatus>(regulator_status_topic, 10);
+
+    auto system_status_topic = this->declare_parameter<std::string>(
+        control_node_constants::SYSTEM_STATUS_TOPIC_PARAM, control_node_constants::DEFAULT_SYSTEM_STATUS_TOPIC);
+    RCLCPP_INFO(this->get_logger(), "Publishing System Status to: '%s'", system_status_topic.c_str());
+    system_status_pub_ = this->create_publisher<ros2_interfaces::msg::SystemStatus>(system_status_topic, 10);
+
+    auto system_settings_topic = this->declare_parameter<std::string>(
+        control_node_constants::SYSTEM_SETTINGS_TOPIC_PARAM, control_node_constants::DEFAULT_SYSTEM_SETTINGS_TOPIC);
+    RCLCPP_INFO(this->get_logger(), "Publishing System Settings to: '%s'", system_settings_topic.c_str());
+    system_settings_pub_ = this->create_publisher<ros2_interfaces::msg::SystemSettings>(system_settings_topic, rclcpp::QoS(10).transient_local());
+
+    auto regulator_settings_topic = this->declare_parameter<std::string>(
+        control_node_constants::REGULATOR_SETTINGS_TOPIC_PARAM, control_node_constants::DEFAULT_REGULATOR_SETTINGS_TOPIC);
+    RCLCPP_INFO(this->get_logger(), "Publishing Regulator Settings to: '%s'", regulator_settings_topic.c_str());
+    regulator_settings_pub_ = this->create_publisher<ros2_interfaces::msg::RegulatorSettings>(regulator_settings_topic, rclcpp::QoS(10).transient_local());
+
+    auto circuit_settings_topic = this->declare_parameter<std::string>(
+        control_node_constants::CIRCUIT_SETTINGS_TOPIC_PARAM, control_node_constants::DEFAULT_CIRCUIT_SETTINGS_TOPIC);
+    RCLCPP_INFO(this->get_logger(), "Publishing Circuit Settings to: '%s'", circuit_settings_topic.c_str());
+    circuit_settings_pub_ = this->create_publisher<ros2_interfaces::msg::CircuitSettings>(circuit_settings_topic, rclcpp::QoS(10).transient_local());
+
+    // ============================================================
+    // [Subscribers] (与 QT_NODE 通信的订阅者)
+    // ============================================================
+    auto reg_op_command_topic = this->declare_parameter<std::string>(
+        control_node_constants::REGULATOR_OPERATION_COMMAND_TOPIC_PARAM, control_node_constants::DEFAULT_REGULATOR_OPERATION_COMMAND_TOPIC);
+    RCLCPP_INFO(this->get_logger(), "Subscribing Regulator Operation Command on: '%s'", reg_op_command_topic.c_str());
     regulator_operation_command_sub_ = this->create_subscription<ros2_interfaces::msg::RegulatorOperationCommand>(
-        control_node_constants::DEFAULT_REGULATOR_OPERATION_COMMAND_TOPIC, 10, std::bind(&ControlNode::regulator_operation_command_callback, this, std::placeholders::_1));
+        reg_op_command_topic, 10, std::bind(&ControlNode::regulator_operation_command_callback, this, std::placeholders::_1));
+
+    auto clear_alarm_topic = this->declare_parameter<std::string>(
+        control_node_constants::CLEAR_ALARM_TOPIC_PARAM, control_node_constants::DEFAULT_CLEAR_ALARM_TOPIC);
+    RCLCPP_INFO(this->get_logger(), "Subscribing Clear Alarm on: '%s'", clear_alarm_topic.c_str());
     clear_alarm_sub_ = this->create_subscription<std_msgs::msg::Empty>(
-        control_node_constants::DEFAULT_CLEAR_ALARM_TOPIC, 10, std::bind(&ControlNode::clear_alarm_callback, this, std::placeholders::_1));
+        clear_alarm_topic, 10, std::bind(&ControlNode::clear_alarm_callback, this, std::placeholders::_1));
 
-    // [Services]
+    // ============================================================
+    // [Services] (与 QT_NODE 通信的服务提供方)
+    // ============================================================
+    auto set_system_settings_srv = this->declare_parameter<std::string>(
+        control_node_constants::SET_SYSTEM_SETTINGS_SERVICE_PARAM, control_node_constants::DEFAULT_SET_SYSTEM_SETTINGS_SERVICE);
+    RCLCPP_INFO(this->get_logger(), "Providing Set System Settings Service: '%s'", set_system_settings_srv.c_str());
     set_system_settings_service_ = this->create_service<ros2_interfaces::srv::SetSystemSettings>(
-        control_node_constants::DEFAULT_SET_SYSTEM_SETTINGS_SERVICE, std::bind(&ControlNode::set_system_settings_callback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::ServicesQoS(), server_cb_group_);
+        set_system_settings_srv, std::bind(&ControlNode::set_system_settings_callback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::ServicesQoS(), server_cb_group_);
+
+    auto set_regulator_settings_srv = this->declare_parameter<std::string>(
+        control_node_constants::SET_REGULATOR_SETTINGS_SERVICE_PARAM, control_node_constants::DEFAULT_SET_REGULATOR_SETTINGS_SERVICE);
+    RCLCPP_INFO(this->get_logger(), "Providing Set Regulator Settings Service: '%s'", set_regulator_settings_srv.c_str());
     set_regulator_settings_service_ = this->create_service<ros2_interfaces::srv::SetRegulatorSettings>(
-        control_node_constants::DEFAULT_SET_REGULATOR_SETTINGS_SERVICE, std::bind(&ControlNode::set_regulator_settings_callback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::ServicesQoS(), server_cb_group_);
+        set_regulator_settings_srv, std::bind(&ControlNode::set_regulator_settings_callback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::ServicesQoS(), server_cb_group_);
+
+    auto set_circuit_settings_srv = this->declare_parameter<std::string>(
+        control_node_constants::SET_CIRCUIT_SETTINGS_SERVICE_PARAM, control_node_constants::DEFAULT_SET_CIRCUIT_SETTINGS_SERVICE);
+    RCLCPP_INFO(this->get_logger(), "Providing Set Circuit Settings Service: '%s'", set_circuit_settings_srv.c_str());
     set_circuit_settings_service_ = this->create_service<ros2_interfaces::srv::SetCircuitSettings>(
-        control_node_constants::DEFAULT_SET_CIRCUIT_SETTINGS_SERVICE, std::bind(&ControlNode::set_circuit_settings_callback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::ServicesQoS(), server_cb_group_);
+        set_circuit_settings_srv, std::bind(&ControlNode::set_circuit_settings_callback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::ServicesQoS(), server_cb_group_);
 
+    auto reg_breaker_command_srv = this->declare_parameter<std::string>(
+        control_node_constants::REGULATOR_BREAKER_COMMAND_SERVICE_PARAM, control_node_constants::DEFAULT_REGULATOR_BREAKER_COMMAND_SERVICE);
+    RCLCPP_INFO(this->get_logger(), "Providing Regulator Breaker Command Service: '%s'", reg_breaker_command_srv.c_str());
     regulator_breaker_command_service_ = this->create_service<ros2_interfaces::srv::RegulatorBreakerCommand>(
-        control_node_constants::DEFAULT_REGULATOR_BREAKER_COMMAND_SERVICE, std::bind(&ControlNode::regulator_breaker_command_callback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::ServicesQoS(), server_cb_group_);
-    circuit_breaker_command_service_ = this->create_service<ros2_interfaces::srv::CircuitBreakerCommand>(
-        control_node_constants::DEFAULT_CIRCUIT_BREAKER_COMMAND_SERVICE, std::bind(&ControlNode::circuit_breaker_command_callback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::ServicesQoS(), server_cb_group_);
+        reg_breaker_command_srv, std::bind(&ControlNode::regulator_breaker_command_callback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::ServicesQoS(), server_cb_group_);
 
-    // [Timers]
+    auto circuit_breaker_command_srv = this->declare_parameter<std::string>(
+        control_node_constants::CIRCUIT_BREAKER_COMMAND_SERVICE_PARAM, control_node_constants::DEFAULT_CIRCUIT_BREAKER_COMMAND_SERVICE);
+    RCLCPP_INFO(this->get_logger(), "Providing Circuit Breaker Command Service: '%s'", circuit_breaker_command_srv.c_str());
+    circuit_breaker_command_service_ = this->create_service<ros2_interfaces::srv::CircuitBreakerCommand>(
+        circuit_breaker_command_srv, std::bind(&ControlNode::circuit_breaker_command_callback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::ServicesQoS(), server_cb_group_);
+
+    // ============================================================
+    // [Timers] (定时器)
+    // ============================================================
     control_logic_timer_ = this->create_wall_timer(20ms, std::bind(&ControlLogic::update, control_logic_.get()));
     status_broadcast_timer_ = this->create_wall_timer(200ms, std::bind(&ControlNode::broadcast_status_callback, this));
     settings_broadcast_timer_ = this->create_wall_timer(1s, std::bind(&ControlNode::broadcast_settings_callback, this));
     lifecycle_check_timer_ = this->create_wall_timer(1s, std::bind(&ControlLogic::maintain_lifecycle, control_logic_.get()));
+
+    RCLCPP_INFO(this->get_logger(), "Control Node Components Initialized Successfully.");
 }
 
 ControlNode::~ControlNode() {}

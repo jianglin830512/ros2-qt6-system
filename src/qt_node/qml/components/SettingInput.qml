@@ -12,6 +12,8 @@ RowLayout {
     property alias settingValue: inputField.text
     property var inputValidator: IntValidator {}
 
+    signal editingFinished()
+
     spacing: 10
 
     // 1. 标签
@@ -80,6 +82,8 @@ RowLayout {
                         }
                     }
                 }
+
+                root.editingFinished()
             }
         }
     }

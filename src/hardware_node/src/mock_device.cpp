@@ -23,6 +23,8 @@ void MockDevice::init_data() {
     reg2.id = 2;
     circ1.id = 1;
     circ2.id = 2;
+    reg1.last_cmd_time = std::chrono::steady_clock::now();
+    reg2.last_cmd_time = std::chrono::steady_clock::now();
 
     // [修改] 定义一个通用的初始化 Lambda，增加 max_curr 参数
     auto init_loop =[](LoopState& l, int valid_count, int32_t max_curr) {
@@ -65,14 +67,23 @@ void MockDevice::plc_cycle() {
             // 调压器2 控制 circ1.ref_loop 和 circ2.ref_loop
             update_regulator_loops(reg2, circ1.ref_loop, circ2.ref_loop);
         }
-        std::this_thread::sleep_until(start_time + std::chrono::milliseconds(100));
+        std::this_thread::sleep_until(start_time + std::chrono::milliseconds(20));
     }
 }
 
 void MockDevice::update_regulator_loops(RegulatorState& reg, LoopState& loop1, LoopState& loop2) {
+
+    // 0. [新增] 安全超时检测：50ms内无更新则自动停止
+    if (reg.direction != 0) {
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - reg.last_cmd_time).count() > 50) {
+            reg.direction = 0; // 超时自动停止
+        }
+    }
+
     // 1. 电压变化逻辑 (区分升/降压速度)
     if (reg.breaker_closed) {
-        double max_step = 4.5; // [修改] 假设100ms内最大变化4.5V (45V/s) 适配 450V 满量程
+        double max_step = 0.9; // 假设20ms内最大变化0.9V (45V/s) 适配 450V 满量程
 
         if (reg.direction == 1) {
             // 升压
@@ -127,7 +138,7 @@ void MockDevice::update_regulator_loops(RegulatorState& reg, LoopState& loop1, L
             // 冷却回常温
             for (int i = 0; i < 16; ++i) {
                 if (!std::isnan(loop.temperatures[i])) {
-                    loop.temperatures[i] = loop.temperatures[i] * 0.95f + 20.0f * 0.05f;
+                    loop.temperatures[i] = loop.temperatures[i] * 0.99f + 20.0f * 0.01f;
                 }
             }
         }
@@ -185,6 +196,7 @@ void MockDevice::set_regulator_op(uint8_t id, uint8_t cmd) {
     if (cmd == 1)      reg.direction = 1;
     else if (cmd == 2) reg.direction = -1;
     else               reg.direction = 0;
+    reg.last_cmd_time = std::chrono::steady_clock::now();
 }
 
 void MockDevice::clear_alarms() {

@@ -1,6 +1,4 @@
-﻿// hardware_node/hardware_node.hpp
-
-#ifndef HARDWARE_NODE_HPP_
+﻿#ifndef HARDWARE_NODE_HPP_
 #define HARDWARE_NODE_HPP_
 
 #include "rclcpp/rclcpp.hpp" // IWYU pragma: keep
@@ -9,7 +7,6 @@
 #include <mutex>
 #include <chrono>
 
-// --- 消息和服务的头文件 ---
 #include "ros2_interfaces/msg/hardware_circuit_settings.hpp"
 #include "ros2_interfaces/msg/hardware_circuit_status.hpp"
 #include "ros2_interfaces/msg/regulator_operation_command.hpp"
@@ -23,9 +20,7 @@
 #include "ros2_interfaces/srv/set_hardware_circuit_control_mode.hpp"
 #include "std_msgs/msg/empty.hpp"
 
-// --- 前向声明 ---
 class IHardwareDriver;
-
 using namespace std::chrono_literals;
 
 class HardwareNode : public rclcpp::Node
@@ -44,9 +39,11 @@ private:
     void hardware_regulator_breaker_command_callback(const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request, std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Response> response);
     void hardware_circuit_breaker_command_callback(const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request> request, std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Response> response);
     void hardware_set_control_mode_callback(const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request, std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Response> response);
-    void poll_hardware_data();
 
-    // 优雅的节流辅助函数
+    // 【修改点】拆分为负责数据读取和负责话题发布的两个函数
+    void update_hardware_data();
+    void publish_hardware_data();
+
     template <typename ResponseT>
     bool is_request_throttled(const std::string& service_name, std::shared_ptr<ResponseT> response,
                               const std::chrono::milliseconds& throttle_duration = 100ms)
@@ -62,15 +59,24 @@ private:
                 response->success = false;
                 response->message = "Too many requests. Please try again shortly.";
                 RCLCPP_WARN(this->get_logger(), "Service '%s' call rejected due to rate limit.", service_name.c_str());
-                return true; // 被节流
+                return true;
             }
         }
-
         service_call_timestamps_[service_name] = now;
-        return false; // 未被节流
+        return false;
     }
 
-    // === ROS 句柄 (API层) ===
+    // === 回调组 ===
+    rclcpp::CallbackGroup::SharedPtr timer_update_cb_group_; // 新增：用于阻塞的IO
+    rclcpp::CallbackGroup::SharedPtr timer_pub_cb_group_;
+    rclcpp::CallbackGroup::SharedPtr sub_cb_group_;
+    rclcpp::CallbackGroup::SharedPtr srv_reg_settings_cb_group_;
+    rclcpp::CallbackGroup::SharedPtr srv_circ_settings_cb_group_;
+    rclcpp::CallbackGroup::SharedPtr srv_reg_breaker_cb_group_;
+    rclcpp::CallbackGroup::SharedPtr srv_circ_breaker_cb_group_;
+    rclcpp::CallbackGroup::SharedPtr srv_mode_cb_group_;
+
+    // === ROS 句柄 ===
     rclcpp::Publisher<ros2_interfaces::msg::HardwareCircuitStatus>::SharedPtr hardware_circuit_status_pub_;
     rclcpp::Publisher<ros2_interfaces::msg::RegulatorStatus>::SharedPtr hardware_regulator_status_pub_;
     rclcpp::Publisher<ros2_interfaces::msg::HardwareCircuitSettings>::SharedPtr hardware_circuit_settings_pub_;
@@ -86,12 +92,11 @@ private:
     rclcpp::Service<ros2_interfaces::srv::CircuitBreakerCommand>::SharedPtr hardware_circuit_breaker_command_service_;
     rclcpp::Service<ros2_interfaces::srv::SetHardwareCircuitControlMode>::SharedPtr hardware_set_control_mode_service_;
 
-    rclcpp::TimerBase::SharedPtr hardware_poll_timer_;
+    rclcpp::TimerBase::SharedPtr hardware_update_timer_;  // 负责底层 TCP IO
+    rclcpp::TimerBase::SharedPtr hardware_publish_timer_; // 负责高频心跳发送
 
-    // === 核心组件实例 ===
     std::unique_ptr<IHardwareDriver> hardware_driver_;
 
-    // 服务节流所需成员
     std::mutex service_throttle_mutex_;
     std::map<std::string, std::chrono::steady_clock::time_point> service_call_timestamps_;
 };

@@ -39,7 +39,7 @@ RegulatorControlForm {
             control.currentLabel.text = cur.toFixed(1) + " A"
             control.overCurrentLabel.visible = statusData.over_current_on
             control.upArrow.visible = statusData.voltage_direction === 1
-            control.downArrow.visible = statusData.voltage_direction === 2
+            control.downArrow.visible = statusData.voltage_direction === -1
             control.closeBreakerButton.indicatorOn = statusData.breaker_closed_switch_ack
             control.openBreakerButton.indicatorOn = statusData.breaker_opened_switch_ack
             control.voltageUpButton.indicatorOn = statusData.upper_limit_switch_on

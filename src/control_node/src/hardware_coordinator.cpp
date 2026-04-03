@@ -147,6 +147,17 @@ void HardwareCoordinator::apply_regulator_settings_to_hardware(
     const ros2_interfaces::msg::RegulatorSettings& settings,
     HardwareCallback callback)
 {
+    // [新增] 检查 Hardware Node 在线状态 以及 PLC 连接状态
+    bool hw_connected = this->is_connected();
+    bool plc_connected = state_manager_->get_system_status().hardware_system_status.plc_connected;
+
+    if (!hw_connected || !plc_connected) {
+        std::string err_msg = !hw_connected ? "Hardware Node is offline." : "PLC is disconnected.";
+        RCLCPP_WARN(node_->get_logger(), "Aborting apply_regulator_settings_to_hardware: %s", err_msg.c_str());
+        if (callback) callback(false, err_msg);
+        return;
+    }
+
     if (!set_hw_regulator_settings_client_->service_is_ready()) {
         RCLCPP_WARN(node_->get_logger(), "Set hardware regulator settings service for ID %u is not available.", id);
         if (callback) {
@@ -174,11 +185,23 @@ void HardwareCoordinator::apply_regulator_settings_to_hardware(
     set_hw_regulator_settings_client_->async_send_request(request, response_callback);
     RCLCPP_INFO(node_->get_logger(), "[HW Coordinator] Asynchronously applying regulator settings for ID %u.", id);
 }
+
 void HardwareCoordinator::apply_circuit_settings_to_hardware(
     uint8_t id,
     const ros2_interfaces::msg::HardwareCircuitSettings& settings,
     HardwareCallback callback)
 {
+    // [新增] 检查 Hardware Node 在线状态 以及 PLC 连接状态
+    bool hw_connected = this->is_connected();
+    bool plc_connected = state_manager_->get_system_status().hardware_system_status.plc_connected;
+
+    if (!hw_connected || !plc_connected) {
+        std::string err_msg = !hw_connected ? "Hardware Node is offline." : "PLC is disconnected.";
+        RCLCPP_WARN(node_->get_logger(), "Aborting apply_circuit_settings_to_hardware: %s", err_msg.c_str());
+        if (callback) callback(false, err_msg);
+        return;
+    }
+
     if (!set_hw_circuit_settings_client_->service_is_ready()) {
         RCLCPP_WARN(node_->get_logger(), "Set hardware circuit settings service for ID %u is not available.", id);
         if (callback) {
@@ -210,6 +233,11 @@ void HardwareCoordinator::apply_circuit_settings_to_hardware(
 // 5个Command (2 TOPIC PUB , 3 SERVICE CLIENT)
 void HardwareCoordinator::send_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr command_msg)
 {
+    // Topic 发布，不涉及阻塞问题，但为了安全一致性，也可以增加硬件在线拦截
+    bool hw_connected = this->is_connected();
+    bool plc_connected = state_manager_->get_system_status().hardware_system_status.plc_connected;
+    if (!hw_connected || !plc_connected) return; // 不在线直接丢弃降压等 Topic 指令
+
     if (hw_regulator_operation_pub_->get_subscription_count() > 0) {
         hw_regulator_operation_pub_->publish(*command_msg);
         RCLCPP_DEBUG(node_->get_logger(), "[HW Coordinator] Published regulator operation command for ID %u: %u", command_msg->regulator_id, command_msg->command);
@@ -217,6 +245,7 @@ void HardwareCoordinator::send_regulator_operation_command(const ros2_interfaces
         RCLCPP_WARN(node_->get_logger(), "[HW Coordinator] No subscribers for hardware regulator operation command topic. Command for ID %u: %u not sent.", command_msg->regulator_id, command_msg->command);
     }
 }
+
 void HardwareCoordinator::send_clear_alarm()
 {
     if (hw_clear_alarm_pub_->get_subscription_count() > 0) {
@@ -231,6 +260,17 @@ void HardwareCoordinator::execute_regulator_breaker_command(
     const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request,
     HardwareCallback callback)
 {
+    // [新增] 检查 Hardware Node 在线状态 以及 PLC 连接状态
+    bool hw_connected = this->is_connected();
+    bool plc_connected = state_manager_->get_system_status().hardware_system_status.plc_connected;
+
+    if (!hw_connected || !plc_connected) {
+        std::string err_msg = !hw_connected ? "Hardware Node is offline." : "PLC is disconnected.";
+        RCLCPP_WARN(node_->get_logger(), "Aborting execute_regulator_breaker_command: %s", err_msg.c_str());
+        if (callback) callback(false, err_msg);
+        return;
+    }
+
     if (!hw_regulator_breaker_client_->service_is_ready()) {
         RCLCPP_WARN(node_->get_logger(), "Hardware regulator breaker service for ID %u is not available.", request->regulator_id);
         if (callback) {
@@ -259,6 +299,17 @@ void HardwareCoordinator::execute_circuit_breaker_command(
     const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request> request,
     HardwareCallback callback)
 {
+    // [新增] 检查 Hardware Node 在线状态 以及 PLC 连接状态
+    bool hw_connected = this->is_connected();
+    bool plc_connected = state_manager_->get_system_status().hardware_system_status.plc_connected;
+
+    if (!hw_connected || !plc_connected) {
+        std::string err_msg = !hw_connected ? "Hardware Node is offline." : "PLC is disconnected.";
+        RCLCPP_WARN(node_->get_logger(), "Aborting execute_circuit_breaker_command: %s", err_msg.c_str());
+        if (callback) callback(false, err_msg);
+        return;
+    }
+
     if (!hw_circuit_breaker_client_->service_is_ready()) {
         RCLCPP_WARN(node_->get_logger(), "Hardware circuit breaker service for ID %u is not available.", request->circuit_id);
         if (callback) {
@@ -285,11 +336,22 @@ void HardwareCoordinator::execute_circuit_breaker_command(
 
 void HardwareCoordinator::set_circuit_control_mode(uint8_t circuit_id, uint8_t loop_type, uint8_t mode)
 {
+    // [新增] 检查 Hardware Node 在线状态 以及 PLC 连接状态
+    // 此方法通常由 ControlLogic 内部定时器循环调用，失败不传回调，而是直接返回让下次循环重试。
+    bool hw_connected = this->is_connected();
+    bool plc_connected = state_manager_->get_system_status().hardware_system_status.plc_connected;
+
+    if (!hw_connected || !plc_connected) {
+        RCLCPP_WARN(node_->get_logger(), "Aborting set_circuit_control_mode: %s",
+                    !hw_connected ? "Hardware Node is offline." : "PLC is disconnected.");
+        return;
+    }
+
     if (!hw_set_control_mode_client_ || !hw_set_control_mode_client_->service_is_ready()) return;
 
     auto request = std::make_shared<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request>();
     request->circuit_id = circuit_id;
-    request->loop_type = loop_type; // [NEW] 1=Test, 2=Ref
+    request->loop_type = loop_type; // 1=Test, 2=Ref
     request->mode = mode;
 
     auto future_callback = [this, circuit_id, loop_type, mode](rclcpp::Client<ros2_interfaces::srv::SetHardwareCircuitControlMode>::SharedFuture future) {

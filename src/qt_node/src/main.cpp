@@ -3,6 +3,7 @@
 #include <QQmlContext>
 #include <QThread>
 #include <QQuickStyle>
+#include <QCoreApplication>
 
 #include "include/qt_node/qt_ros_node.hpp" // 引入我们的节点头文件
 #include "qt_node/ros_proxy.hpp"
@@ -47,7 +48,9 @@ int main(int argc, char *argv[])
     rclcpp::init(argc, argv);
 
     // 2. 使用 std::make_shared 来管理节点的生命周期
-    auto ros_node = std::make_shared<QtROSNode>("qt_ros_node");
+    //QString node_name = "qt_ros_node_" + QString::number(QCoreApplication::applicationPid());
+	QString node_name = "qt_ros_node";
+    auto ros_node = std::make_shared<QtROSNode>(node_name.toStdString());
     auto ros_proxy = std::make_shared<ROSProxy>(); // Proxy活在主线程
 
     // 3. 创建一个QThread来运行ROS事件循环

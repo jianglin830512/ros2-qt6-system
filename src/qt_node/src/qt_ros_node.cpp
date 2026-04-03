@@ -183,7 +183,7 @@ QtROSNode::QtROSNode(const std::string &node_name, QObject *parent)
 
     circuit_breaker_command_service_name_ = this->declare_parameter<std::string>(
         qt_node_constants::CIRCUIT_BREAKER_COMMAND_SERVICE_PARAM,
-        qt_node_constants::CIRCUIT_REGULATOR_BREAKER_COMMAND_SERVICE);
+        qt_node_constants::DEFAULT_CIRCUIT_BREAKER_COMMAND_SERVICE);
     RCLCPP_INFO(this->get_logger(), "Using CircuitBreakerCommand service: '%s'", circuit_breaker_command_service_name_.c_str());
     circuit_breaker_command_client_ =
         this->create_client<ros2_interfaces::srv::CircuitBreakerCommand>(circuit_breaker_command_service_name_);

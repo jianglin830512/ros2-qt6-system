@@ -7,6 +7,52 @@ HistoryPageForm {
     id: page
 
     // ==========================================================
+    // 智能日期与时间清洗函数
+    // ==========================================================
+    function normalizeDateStr(str) {
+        if (!str) return "";
+        var cleanStr = str.replace(/[\/\.]/g, "-");
+        var parts = cleanStr.split("-");
+        if (parts.length === 3) {
+            var y = parts[0];
+            var m = parts[1].toString().padStart(2, '0');
+            var d = parts[2].toString().padStart(2, '0');
+            return y + "-" + m + "-" + d;
+        }
+        return str;
+    }
+
+    function normalizeTimeStr(str) {
+        if (!str) return "";
+        // 允许用户不小心用点或者横杠代替冒号
+        var cleanStr = str.replace(/[\/\.\-]/g, ":");
+        var parts = cleanStr.split(":");
+        if (parts.length === 2) {
+            var h = parts[0].toString().padStart(2, '0');
+            var m = parts[1].toString().padStart(2, '0');
+            return h + ":" + m;
+        }
+        return str;
+    }
+
+    // ==========================================================
+    // 监听 UI 层的输入完成事件 (回车或失去焦点)
+    // ==========================================================
+    Connections {
+        target: page.dateInput
+        function onEditingFinished() {
+            page.dateInput.text = page.normalizeDateStr(page.dateInput.text);
+        }
+    }
+
+    Connections {
+        target: page.timeInput
+        function onEditingFinished() {
+            page.timeInput.text = page.normalizeTimeStr(page.timeInput.text);
+        }
+    }
+
+    // ==========================================================
     // 1. 动态生成数据列 (主辅调压器 + 回路1/2 试验/参考 各种温度电流)
     // ==========================================================
     property var availableColumns: []

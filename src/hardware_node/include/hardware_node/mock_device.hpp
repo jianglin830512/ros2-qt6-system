@@ -19,6 +19,8 @@ public:
         bool upper_limit_on = false;
         bool lower_limit_on = true;
 
+        std::chrono::steady_clock::time_point last_cmd_time;
+
         // --- 参数设置 ---
         // 对应 RegulatorSettings.msg
         int32_t over_current_limit = 450;       // [修改] 调压器最大过流默认改为 450A

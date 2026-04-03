@@ -94,6 +94,7 @@ private:
 
     // 存储当前的调压指令: key=regulator_id (1,2), value=command (1=Up, 2=Down, 0/3=Stop)
     std::map<uint8_t, uint8_t> active_voltage_cmd_;
+    std::map<uint8_t, std::chrono::steady_clock::time_point> last_voltage_cmd_time_;
     std::mutex cmd_mutex_;
 
     // --- PLC Register Address Constants (Updated) ---
@@ -129,6 +130,9 @@ private:
     // End is VD184 (0x005C + 0x005D).
     // Length = 0x005D - 0x0010 + 1 = 78 registers.
     static const uint16_t ADDR_DATA_LEN   = 78;
+
+    // 用于记录当前有多少个 VIP 写入请求正在排队
+    std::atomic<int> pending_writes_{0};
 };
 
 #endif // TCP_HARDWARE_DRIVER_HPP_

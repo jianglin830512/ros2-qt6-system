@@ -29,7 +29,6 @@
 
     # 为 qt_node 提供一次性命令服务
     regulator_breaker_command_service: "regulator_breaker_command"
-    circuit_mode_command_service: "circuit_mode_command"
     circuit_breaker_command_service: "circuit_breaker_command"
 
     # 为 qt_node 提供参数设置服务
@@ -47,11 +46,6 @@
     database_status_topic: "database_status"
 
     # --- 服务调用方 (Clients) ---
-
-    # 调用 record_node 的保存服务
-    save_system_settings_service: "save_system_settings"
-    save_regulator_settings_service: "save_regulator_settings"
-    save_circuit_settings_service: "save_circuit_settings"
 
     get_system_settings_service: "get_system_settings"
     get_regulator_settings_service: "get_regulator_settings"
@@ -93,3 +87,5 @@
 
     # 调用 hardware_node 的 PLC 状态控制服务
     hardware_set_control_mode_service: "hardware_set_control_mode"
+
+    plc_command_timeout: 2.0

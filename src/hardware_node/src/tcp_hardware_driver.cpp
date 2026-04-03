@@ -193,6 +193,12 @@ bool modbus_write_float(SimpleTcpClient* client, uint8_t unit_id, uint16_t addr,
 // TcpHardwareDriver Implementation
 // ============================================================================
 
+struct PendingWriteGuard {
+    std::atomic<int>& count_;
+    PendingWriteGuard(std::atomic<int>& c) : count_(c) { count_++; }
+    ~PendingWriteGuard() { count_--; }
+};
+
 TcpHardwareDriver::TcpHardwareDriver(rclcpp::Logger logger,
                                      std::string plc_ip, int plc_port,
                                      std::string temp_ip, int temp_port)
@@ -208,6 +214,9 @@ TcpHardwareDriver::TcpHardwareDriver(rclcpp::Logger logger,
 
     active_voltage_cmd_[1] = 0;
     active_voltage_cmd_[2] = 0;
+
+    last_voltage_cmd_time_[1] = std::chrono::steady_clock::now();
+    last_voltage_cmd_time_[2] = std::chrono::steady_clock::now();
 
     keep_alive_running_ = true;
     keep_alive_thread_ = std::thread(&TcpHardwareDriver::voltage_keep_alive_loop, this);
@@ -250,26 +259,40 @@ void TcpHardwareDriver::voltage_keep_alive_loop()
     while (keep_alive_running_) {
         auto next_wake = std::chrono::steady_clock::now() + std::chrono::milliseconds(15);
 
+        // 【修复核心】：如果发现有 SRV 写入请求在排队，15ms 轮询主动让路！
+        if (pending_writes_.load() > 0) {
+            std::this_thread::sleep_until(next_wake);
+            continue;
+        }
+
         std::map<uint8_t, uint8_t> cmds;
         {
             std::lock_guard<std::mutex> cmd_lock(cmd_mutex_);
+            auto now = std::chrono::steady_clock::now();
+
+            // [新增] 安全超时检测：50ms内无更新则自动停止
+            for (auto& kv : active_voltage_cmd_) {
+                uint8_t id = kv.first;
+                if (kv.second != 0) { // 当前处于运行状态
+                    auto last_time = last_voltage_cmd_time_[id];
+                    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count() > 50) {
+                        RCLCPP_WARN(logger_, "Regulator %u operation command timeout (>50ms). Auto-stopping.", id);
+                        kv.second = 0;
+                    }
+                }
+            }
             cmds = active_voltage_cmd_;
         }
 
         for (auto const&[id, cmd] : cmds) {
             uint16_t addr = 0xFFFF;
-            if (cmd == 1) {
-                addr = (id == 1) ? ADDR_CMD_REG1_UP : ADDR_CMD_REG2_UP;
-            }
-            else if (cmd == 2) {
-                addr = (id == 1) ? ADDR_CMD_REG1_DOWN : ADDR_CMD_REG2_DOWN;
-            }
+            if (cmd == 1) addr = (id == 1) ? ADDR_CMD_REG1_UP : ADDR_CMD_REG2_UP;
+            else if (cmd == 2) addr = (id == 1) ? ADDR_CMD_REG1_DOWN : ADDR_CMD_REG2_DOWN;
 
             if (addr != 0xFFFF) {
                 modbus_write_single_register(client_plc_.get(), 1, addr, 256);
             }
         }
-
         std::this_thread::sleep_until(next_wake);
     }
 }
@@ -278,10 +301,11 @@ void TcpHardwareDriver::update()
 {
     update_tick_count_++;
 
-    // Read PLC Status (0x0010 to 0x005D, Len=78)
-    read_plc_data();
+    // 【修复核心】：如果发现有 SRV 写入请求在排队，直接跳过当前 200ms 的读取！
+    if (pending_writes_.load() <= 0) {
+        read_plc_data();
+    }
 
-    // Read Temp (Every 1s -> 5 * 200ms)
     if (update_tick_count_ % 5 == 0) {
         read_temp_monitor_data();
     }
@@ -573,26 +597,21 @@ void TcpHardwareDriver::handle_regulator_operation_command(const ros2_interfaces
     } else {
         active_voltage_cmd_[msg->regulator_id] = msg->command;
     }
+
+    last_voltage_cmd_time_[msg->regulator_id] = std::chrono::steady_clock::now();
 }
 
 void TcpHardwareDriver::handle_regulator_breaker_command(
     const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request, AsyncCallback callback)
 {
     uint16_t addr = 0xFFFF;
-    if (request->regulator_id == 1) {
-        // 调压器1 (主调压器/试验支路) 的合/分闸
-        addr = (request->command == 1) ? ADDR_CMD_REG1_CLOSE : ADDR_CMD_REG1_OPEN;
-    } else if (request->regulator_id == 2) {
-        // 调压器2 (辅调压器/模拟支路) 的合/分闸
-        addr = (request->command == 1) ? ADDR_CMD_REG2_CLOSE : ADDR_CMD_REG2_OPEN;
-    }
+    if (request->regulator_id == 1) addr = (request->command == 1) ? ADDR_CMD_REG1_CLOSE : ADDR_CMD_REG1_OPEN;
+    else if (request->regulator_id == 2) addr = (request->command == 1) ? ADDR_CMD_REG2_CLOSE : ADDR_CMD_REG2_OPEN;
 
-    if (addr == 0xFFFF) {
-        callback(false, "Invalid ID or Command");
-        return;
-    }
+    if (addr == 0xFFFF) { callback(false, "Invalid ID or Command"); return; }
 
     std::thread([this, addr, callback]() {
+        PendingWriteGuard guard(pending_writes_); // 开启 VIP 通道
         bool ok = modbus_write_single_register(client_plc_.get(), 1, addr, 256);
         callback(ok, ok ? "Breaker CMD Sent" : "Modbus Write Failed");
     }).detach();
@@ -618,12 +637,10 @@ void TcpHardwareDriver::handle_circuit_breaker_command(
         }
     }
 
-    if (addr == 0xFFFF) {
-        callback(false, "Invalid ID or Command");
-        return;
-    }
+    if (addr == 0xFFFF) { callback(false, "Invalid ID or Command"); return; }
 
     std::thread([this, addr, callback]() {
+        PendingWriteGuard guard(pending_writes_); // 开启 VIP 通道
         bool ok = modbus_write_single_register(client_plc_.get(), 1, addr, 256);
         callback(ok, ok ? "Loop Breaker CMD Sent" : "Modbus Write Failed");
     }).detach();
@@ -633,28 +650,18 @@ void TcpHardwareDriver::handle_set_control_mode(
     const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request, AsyncCallback callback)
 {
     uint16_t addr = 0xFFFF;
-    if (request->circuit_id == 1) {
-        addr = (request->loop_type == 1) ? ADDR_MODE_C1_TEST : ADDR_MODE_C1_SIM;
-    } else if (request->circuit_id == 2) {
-        addr = (request->loop_type == 1) ? ADDR_MODE_C2_TEST : ADDR_MODE_C2_SIM;
-    }
+    if (request->circuit_id == 1) addr = (request->loop_type == 1) ? ADDR_MODE_C1_TEST : ADDR_MODE_C1_SIM;
+    else if (request->circuit_id == 2) addr = (request->loop_type == 1) ? ADDR_MODE_C2_TEST : ADDR_MODE_C2_SIM;
 
     uint16_t val = (request->mode == 2) ? 2 : 1;
-
-    // 1. 记录发起写入的日志
     RCLCPP_INFO(logger_, "PLC Service [Mode]: Circuit %u -> Setting to %u (%s) at Addr 0x%04X",
                 request->circuit_id, val, (val == 2 ? "AUTO/CONST_CURRENT" : "MANUAL"), addr);
 
     std::thread([this, addr, val, circ_id = request->circuit_id, callback]() {
+        PendingWriteGuard guard(pending_writes_); // 开启 VIP 通道
         bool ok = modbus_write_single_register(client_plc_.get(), 1, addr, val);
-
-        // 2. 记录写入结果日志
-        if (ok) {
-            RCLCPP_INFO(logger_, "PLC Success: Mode for Circuit %u updated to %u.", circ_id, val);
-        } else {
-            RCLCPP_ERROR(logger_, "PLC Error: Failed to write Mode for Circuit %u at Addr 0x%04X", circ_id, addr);
-        }
-
+        if (ok) RCLCPP_INFO(logger_, "PLC Success: Mode for Circuit %u updated to %u.", circ_id, val);
+        else RCLCPP_ERROR(logger_, "PLC Error: Failed to write Mode for Circuit %u at Addr 0x%04X", circ_id, addr);
         callback(ok, ok ? "Control Mode Sent" : "Modbus Write Failed");
     }).detach();
 }
@@ -667,16 +674,14 @@ void TcpHardwareDriver::handle_set_hardware_regulator_settings_request(
 
     uint16_t addr_speed = (id == 1) ? 0x0028 : 0x0029;
     uint16_t addr_ocp   = (id == 1) ? 0x005A : 0x005C;
-
     int32_t speed_pct = std::clamp(request->settings.voltage_up_speed_percent, 0, 100);
     uint16_t plc_val = static_cast<uint16_t>(speed_pct * 5);
-
     float ocp_val = static_cast<float>(request->settings.over_current_a);
 
     std::thread([this, id, addr_speed, addr_ocp, plc_val, ocp_val, request, callback]() {
+        PendingWriteGuard guard(pending_writes_); // 开启 VIP 通道
         bool all_ok = true;
         if (!modbus_write_single_register(client_plc_.get(), 1, addr_speed, plc_val)) all_ok = false;
-
         if (!modbus_write_float(client_plc_.get(), 1, addr_ocp, ocp_val)) all_ok = false;
 
         if(all_ok) {
@@ -696,27 +701,24 @@ void TcpHardwareDriver::handle_set_hardware_circuit_settings_request(
     if (id != 1 && id != 2) { callback(false, "Invalid Circuit ID"); return; }
 
     std::thread([this, id, request, callback]() {
+        PendingWriteGuard guard(pending_writes_); // 开启 VIP 通道
         bool all_ok = true;
 
-        // CT 变比
         uint16_t addr_ct_test = (id == 1) ? 0x002A : 0x002B;
         uint16_t addr_ct_ref  = (id == 1) ? 0x002C : 0x002D;
         if (!modbus_write_single_register(client_plc_.get(), 1, addr_ct_test, (uint16_t)request->settings.test_loop.ct_ratio)) all_ok = false;
         if (!modbus_write_single_register(client_plc_.get(), 1, addr_ct_ref,  (uint16_t)request->settings.ref_loop.ct_ratio)) all_ok = false;
 
-        // 范围
         uint16_t addr_range_test = (id == 1) ? 0x002E : 0x0030;
         uint16_t addr_range_ref  = (id == 1) ? 0x0032 : 0x0034;
         if (!modbus_write_float(client_plc_.get(), 1, addr_range_test, static_cast<float>(request->settings.test_loop.current_change_range_percent))) all_ok = false;
         if (!modbus_write_float(client_plc_.get(), 1, addr_range_ref,  static_cast<float>(request->settings.ref_loop.current_change_range_percent)))  all_ok = false;
 
-        // 起始电流
         uint16_t addr_const_test = (id == 1) ? 0x004A : 0x004C;
         uint16_t addr_const_ref  = (id == 1) ? 0x004E : 0x0050;
         if (!modbus_write_float(client_plc_.get(), 1, addr_const_test, static_cast<float>(request->settings.test_loop.start_current_a))) all_ok = false;
         if (!modbus_write_float(client_plc_.get(), 1, addr_const_ref,  static_cast<float>(request->settings.ref_loop.start_current_a))) all_ok = false;
 
-        // 最大电流
         uint16_t addr_max_test = (id == 1) ? 0x0052 : 0x0054;
         uint16_t addr_max_ref  = (id == 1) ? 0x0056 : 0x0058;
         if (!modbus_write_float(client_plc_.get(), 1, addr_max_test, static_cast<float>(request->settings.test_loop.max_current_a))) all_ok = false;
@@ -734,13 +736,11 @@ void TcpHardwareDriver::handle_set_hardware_circuit_settings_request(
 
 void TcpHardwareDriver::handle_clear_alarm() {
     std::thread([this]() {
+        PendingWriteGuard guard(pending_writes_); // 开启 VIP 通道
         bool ok1 = modbus_write_single_register(client_plc_.get(), 1, 0x0016, 0);
         bool ok2 = modbus_write_single_register(client_plc_.get(), 1, 0x0017, 0);
-        if (ok1 && ok2) {
-            RCLCPP_INFO(logger_, "Successfully cleared over-current alarms in PLC.");
-        } else {
-            RCLCPP_ERROR(logger_, "Failed to clear over-current alarms in PLC.");
-        }
+        if (ok1 && ok2) RCLCPP_INFO(logger_, "Successfully cleared over-current alarms in PLC.");
+        else RCLCPP_ERROR(logger_, "Failed to clear over-current alarms in PLC.");
     }).detach();
 }
 

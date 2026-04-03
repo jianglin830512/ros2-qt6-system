@@ -17,12 +17,6 @@ def generate_launch_description():
         description='Path to the ROS2 config file (e.g., topics).'
     )
     
-    declare_params_file_cmd = DeclareLaunchArgument(
-        'params_file',
-        default_value=os.path.join(package_share_dir, 'config', 'settings_params.yaml'),
-        description='Path to the ROS2 parameters file (e.g., settings).'
-    )
-    
     # 保留有用的日志打印，这不会导致错误
     log_resolved_paths = LogInfo(
         msg=[

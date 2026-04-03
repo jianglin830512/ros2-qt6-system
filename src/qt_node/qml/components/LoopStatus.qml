@@ -92,9 +92,9 @@ LoopStatusForm {
 
     statusLabel.text: {
         if (loopStatusData && loopStatusData.is_heat) {
-            return "加热中";
+            return "加热时段";
         }
-        return "冷却中";
+        return "冷却时段";
     }
 
     statusLabel.color: {

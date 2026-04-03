@@ -14,8 +14,7 @@ ControlLogic::ControlLogic(
     std::shared_ptr<IPersistenceCoordinator> persistence_coordinator)
     : state_manager_(state_manager),
     hardware_coordinator_(hardware_coordinator),
-    persistence_coordinator_(persistence_coordinator),
-    last_plc_cmd_time_(0,0,RCL_SYSTEM_TIME)
+    persistence_coordinator_(persistence_coordinator)
 {
     initialize_all_default_settings();
 }
@@ -35,6 +34,23 @@ void ControlLogic::update()
     } else {
         process_manual_interlock();
     }
+}
+
+// ---------------------------------------------------------
+// 定时器辅助方法
+// ---------------------------------------------------------
+bool ControlLogic::can_execute_command(const std::string& cmd_key) {
+    auto now = rclcpp::Clock(RCL_SYSTEM_TIME).now();
+    auto it = last_command_times_.find(cmd_key);
+    // 如果从来没执行过，或者距离上次执行已经超过设定的超时时间
+    if (it == last_command_times_.end() || (now - it->second).seconds() > command_timeout_sec_) {
+        return true;
+    }
+    return false;
+}
+
+void ControlLogic::mark_command_executed(const std::string& cmd_key) {
+    last_command_times_[cmd_key] = rclcpp::Clock(RCL_SYSTEM_TIME).now();
 }
 
 // ---------------------------------------------------------
@@ -191,143 +207,230 @@ void ControlLogic::process_manual_interlock() {
     else sys_status.circuit_work_status = ros2_interfaces::msg::SystemStatus::NONE_CIRCUIT_WORKING;
     state_manager_->update_system_status(sys_status);
 
-    auto now = rclcpp::Clock(RCL_SYSTEM_TIME).now();
-    if ((now - last_plc_cmd_time_).seconds() > 1.0) {
-        auto check_and_set_mode = [this](uint8_t cid, uint8_t ltype, uint8_t target_mode) {
-            auto c_status = state_manager_->get_circuit_status(cid);
-            uint8_t current_mode = (ltype == 1) ? c_status.test_loop.hardware_loop_status.plc_control_mode : c_status.ref_loop.hardware_loop_status.plc_control_mode;
-            if (current_mode != target_mode) {
+    // [修改] 移除旧的 1 秒全局拦截器，改用独立部件的超时追踪
+    auto check_and_set_mode = [this](uint8_t cid, uint8_t ltype, uint8_t target_mode) {
+        auto c_status = state_manager_->get_circuit_status(cid);
+        uint8_t current_mode = (ltype == 1) ? c_status.test_loop.hardware_loop_status.plc_control_mode : c_status.ref_loop.hardware_loop_status.plc_control_mode;
+        if (current_mode != target_mode) {
+            std::string key = "PLC_MODE_" + std::to_string(cid) + "_" + std::to_string(ltype);
+            if (can_execute_command(key)) {
                 hardware_coordinator_->set_circuit_control_mode(cid, ltype, target_mode);
+                mark_command_executed(key);
             }
-        };
-        check_and_set_mode(1, 1, 1);
-        check_and_set_mode(1, 2, 1);
-        check_and_set_mode(2, 1, 1);
-        check_and_set_mode(2, 2, 1);
-        last_plc_cmd_time_ = now;
-    }
+        }
+    };
+    check_and_set_mode(1, 1, 1);
+    check_and_set_mode(1, 2, 1);
+    check_and_set_mode(2, 1, 1);
+    check_and_set_mode(2, 2, 1);
 }
 
 void ControlLogic::process_auto_logic() {
     auto sys_status = state_manager_->get_system_status();
-    auto c1 = state_manager_->get_circuit_status(1); auto c2 = state_manager_->get_circuit_status(2);
-    auto c1_set = state_manager_->get_circuit_settings(1); auto c2_set = state_manager_->get_circuit_settings(2);
+    auto c1 = state_manager_->get_circuit_status(1);
+    auto c2 = state_manager_->get_circuit_status(2);
 
     bool c1_heat = c1.test_loop.is_heat || c1.ref_loop.is_heat;
     bool c2_heat = c2.test_loop.is_heat || c2.ref_loop.is_heat;
+
+    // 1. 顶层状态判定：严格判定互锁状态（有且仅有1个工作，或都不工作）
     if (c1_heat) sys_status.circuit_work_status = ros2_interfaces::msg::SystemStatus::CIRCUIT_1_WORKING;
     else if (c2_heat) sys_status.circuit_work_status = ros2_interfaces::msg::SystemStatus::CIRCUIT_2_WORKING;
     else sys_status.circuit_work_status = ros2_interfaces::msg::SystemStatus::NONE_CIRCUIT_WORKING;
     state_manager_->update_system_status(sys_status);
 
-    auto now = rclcpp::Clock(RCL_SYSTEM_TIME).now();
-    bool can_send_cmd = (now - last_plc_cmd_time_).seconds() > 1.0;
+    // 2. 根据顶层状态，生成目标需求 (Target State)
+    bool t_c1_test = false, t_c1_ref = false, t_c2_test = false, t_c2_ref = false;
+    if (sys_status.circuit_work_status == ros2_interfaces::msg::SystemStatus::CIRCUIT_1_WORKING) {
+        t_c1_test = c1.test_loop.is_heat;
+        t_c1_ref  = c1.ref_loop.is_heat;
+    } else if (sys_status.circuit_work_status == ros2_interfaces::msg::SystemStatus::CIRCUIT_2_WORKING) {
+        t_c2_test = c2.test_loop.is_heat;
+        t_c2_ref  = c2.ref_loop.is_heat;
+    }
 
-    if (sys_status.circuit_work_status == ros2_interfaces::msg::SystemStatus::NONE_CIRCUIT_WORKING) {
-        if(can_send_cmd) execute_auto_shutdown();
-    }
-    else if (sys_status.circuit_work_status == ros2_interfaces::msg::SystemStatus::CIRCUIT_1_WORKING) {
-        if(can_send_cmd) {
-            // 回路2闲置，让它关闭，但不允许它动调压器（传 false）
-            manage_loop_auto(2, 1, false, 1, 1, false);
-            manage_loop_auto(2, 2, false, 2, 1, false);
-            // 回路1工作，拥有调压器控制权（传 true）
-            manage_loop_auto(1, 1, c1.test_loop.is_heat, 1, c1_set.test_loop.auto_strategy, true);
-            manage_loop_auto(1, 2, c1.ref_loop.is_heat,  2, c1_set.ref_loop.auto_strategy, true);
-        }
-    }
-    else if (sys_status.circuit_work_status == ros2_interfaces::msg::SystemStatus::CIRCUIT_2_WORKING) {
-        if(can_send_cmd) {
-            // 回路1闲置，不允许它动调压器（传 false）
-            manage_loop_auto(1, 1, false, 1, 1, false);
-            manage_loop_auto(1, 2, false, 2, 1, false);
-            // 回路2工作，拥有调压器控制权（传 true）
-            manage_loop_auto(2, 1, c2.test_loop.is_heat, 1, c2_set.test_loop.auto_strategy, true);
-            manage_loop_auto(2, 2, c2.ref_loop.is_heat,  2, c2_set.ref_loop.auto_strategy, true);
-        }
-    }
-    if (can_send_cmd) last_plc_cmd_time_ = now;
+    // 3. 驱动底层状态机：以调压器（物理核心节点）为视角进行仲裁
+    // 调压器 1 负责管理所有的 试验支路 (loop_type = 1)
+    execute_regulator_fsm(1, 1, t_c1_test, t_c2_test);
+
+    // 调压器 2 负责管理所有的 参考支路 (loop_type = 2)
+    execute_regulator_fsm(2, 2, t_c1_ref, t_c2_ref);
 }
 
-void ControlLogic::execute_auto_shutdown() {
-    // 彻底停机时，为了避免两遍代码都给调压器发分闸指令导致冲突
-    // 只让回路 1 负责分闸调压器，回路 2 仅分闸自己的支路即可
-    manage_loop_auto(1, 1, false, 1, 1, true);
-    manage_loop_auto(1, 2, false, 2, 1, true);
-    manage_loop_auto(2, 1, false, 1, 1, false);
-    manage_loop_auto(2, 2, false, 2, 1, false);
+// 调压器资源管理器（仲裁器）：决定某个调压器该为什么电路服务，避免1和2冲突
+void ControlLogic::execute_regulator_fsm(uint8_t reg_id, uint8_t loop_type, bool target_c1, bool target_c2) {
+    auto c1_status = state_manager_->get_circuit_status(1);
+    auto c2_status = state_manager_->get_circuit_status(2);
+    auto l1_hw = (loop_type == 1) ? c1_status.test_loop.hardware_loop_status : c1_status.ref_loop.hardware_loop_status;
+    auto l2_hw = (loop_type == 1) ? c2_status.test_loop.hardware_loop_status : c2_status.ref_loop.hardware_loop_status;
+    auto reg_status = state_manager_->get_regulator_status(reg_id);
+
+    // --- PHASE 1: 关停越权支路 ---
+    // 如果某个支路不该工作，但它的断路器还闭合着，或者还在自动模式，强制关停它。
+    // 注意：这里的 return 构成了硬件锁，不关停干净，代码绝对走不到下面去。
+    if (!target_c1 && (l1_hw.breaker_closed_switch_ack || l1_hw.plc_control_mode != 1)) {
+        run_branch_shutdown_sequence(1, loop_type, reg_id);
+        return;
+    }
+    if (!target_c2 && (l2_hw.breaker_closed_switch_ack || l2_hw.plc_control_mode != 1)) {
+        run_branch_shutdown_sequence(2, loop_type, reg_id);
+        return;
+    }
+
+    // --- PHASE 2: 全局关机 ---
+    // 如果两个支路都不该工作，且主调压器还闭合着，那么断开主调压器
+    if (!target_c1 && !target_c2) {
+        if (reg_status.breaker_closed_switch_ack) {
+            run_regulator_shutdown_sequence(reg_id);
+        }
+        return;
+    }
+
+    // --- PHASE 3: 启动合法支路 ---
+    // 走到这里，说明“不该运行的”已经全断开了，现在可以安全启动该运行的电路了
+    if (target_c1) {
+        run_branch_startup_sequence(1, loop_type, reg_id);
+    } else if (target_c2) {
+        run_branch_startup_sequence(2, loop_type, reg_id);
+    }
 }
 
-void ControlLogic::manage_loop_auto(uint8_t circuit_id, uint8_t loop_type, bool is_heating, uint8_t regulator_id, uint8_t target_plc_mode, bool control_regulator) {
-    auto circ_status = state_manager_->get_circuit_status(circuit_id);
-    auto loop_hw = (loop_type == 1) ? circ_status.test_loop.hardware_loop_status : circ_status.ref_loop.hardware_loop_status;
-    auto reg_status = state_manager_->get_regulator_status(regulator_id);
+// FSM 状态机 1：支路关停序列
+void ControlLogic::run_branch_shutdown_sequence(uint8_t circuit_id, uint8_t loop_type, uint8_t reg_id) {
+    auto c_status = state_manager_->get_circuit_status(circuit_id);
+    auto l_hw = (loop_type == 1) ? c_status.test_loop.hardware_loop_status : c_status.ref_loop.hardware_loop_status;
 
-    if (is_heating) {
-        // 【优化】只要是加热状态，绝对不允许发送分闸指令！
-        if (!loop_hw.breaker_closed_switch_ack || !reg_status.breaker_closed_switch_ack) {
-            if (!is_regulator_at_lower_limit(regulator_id)) {
-                // 如果不在零位，先降压到零（只有拥有控制权才允许操作）
-                if (control_regulator) {
-                    auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
-                    op->regulator_id = regulator_id; op->command = 2; // Move down
-                    hardware_coordinator_->send_regulator_operation_command(op);
-                }
-            } else {
-                // 已经在零位。严格按照 PLC 硬件约束：必须先合调压器，再合支路！
-                if (!reg_status.breaker_closed_switch_ack) {
-                    // 1. 调压器没合，优先合调压器
-                    if (control_regulator) {
-                        auto cmd = std::make_shared<ros2_interfaces::srv::RegulatorBreakerCommand::Request>();
-                        cmd->regulator_id = regulator_id; cmd->command = 1; // Close Regulator
-                        hardware_coordinator_->execute_regulator_breaker_command(cmd, nullptr);
-                    }
-                }
-                else if (!loop_hw.breaker_closed_switch_ack) {
-                    // 2. 只有确认调压器已经合闸后，才允许发送支路合闸指令（避免 PLC 拒绝）
-                    auto cmd = std::make_shared<ros2_interfaces::srv::CircuitBreakerCommand::Request>();
-                    cmd->circuit_id = circuit_id; cmd->command = (loop_type == 1) ? 1 : 3; // Close Loop
-                    hardware_coordinator_->execute_circuit_breaker_command(cmd, nullptr);
-                }
-            }
-        } else {
-            // 都已合闸，且在零位，切换到目标 PLC 自动模式
-            if (loop_hw.plc_control_mode != target_plc_mode) {
-                hardware_coordinator_->set_circuit_control_mode(circuit_id, loop_type, target_plc_mode);
-            }
-        }
-    } else {
-        // 【停止加热的逻辑】
-        if (loop_hw.plc_control_mode != 1) {
+    std::string plc_key = "PLC_MODE_" + std::to_string(circuit_id) + "_" + std::to_string(loop_type);
+    std::string cir_breaker_key = "CIR_BREAKER_" + std::to_string(circuit_id) + "_" + std::to_string(loop_type);
+    std::string reg_stop_key = "REG_STOP_" + std::to_string(reg_id);
+
+    // Step 1: 切换到手动模式以切断 PID 输出
+    if (l_hw.plc_control_mode != 1) { // 1 = Manual
+        if (can_execute_command(plc_key)) {
             hardware_coordinator_->set_circuit_control_mode(circuit_id, loop_type, 1);
-        } else {
-            if (loop_hw.breaker_closed_switch_ack) {
-                // 支路还合着。如果允许控调压器且没归零，先归零以防电弧
-                if (control_regulator && !is_regulator_at_lower_limit(regulator_id)) {
-                    auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
-                    op->regulator_id = regulator_id; op->command = 2;
-                    hardware_coordinator_->send_regulator_operation_command(op);
-                } else {
-                    // 已归零（或者不允许控调压器），安全分闸支路
-                    auto cmd = std::make_shared<ros2_interfaces::srv::CircuitBreakerCommand::Request>();
-                    cmd->circuit_id = circuit_id; cmd->command = (loop_type == 1) ? 2 : 4; // Open Loop
-                    hardware_coordinator_->execute_circuit_breaker_command(cmd, nullptr);
-                }
-            } else {
-                // 支路已经分闸了。如果拥有控制权，再去分闸调压器
-                if (control_regulator && reg_status.breaker_closed_switch_ack) {
-                    if (!is_regulator_at_lower_limit(regulator_id)) {
-                        auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
-                        op->regulator_id = regulator_id; op->command = 2;
-                        hardware_coordinator_->send_regulator_operation_command(op);
-                    } else {
-                        auto cmd = std::make_shared<ros2_interfaces::srv::RegulatorBreakerCommand::Request>();
-                        cmd->regulator_id = regulator_id; cmd->command = 2; // Open Regulator
-                        hardware_coordinator_->execute_regulator_breaker_command(cmd, nullptr);
-                    }
-                }
-            }
+            mark_command_executed(plc_key);
         }
+        return; // 等待反馈，不进入下一步
+    }
+
+    // Step 2: 降压直至下限位
+    if (!is_regulator_at_lower_limit(reg_id)) {
+        auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
+        op->regulator_id = reg_id; op->command = 2; // 下降
+        hardware_coordinator_->send_regulator_operation_command(op);
+        return; // 等待降到底，不进入下一步
+    }
+
+    // 刚刚降到底位时，补发一次停止指令 (无需return，直接进入下一步分闸)
+    if (can_execute_command(reg_stop_key)) {
+        auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
+        op->regulator_id = reg_id; op->command = 3; // 停止
+        hardware_coordinator_->send_regulator_operation_command(op);
+        mark_command_executed(reg_stop_key);
+    }
+
+    // Step 3: 断开支路断路器
+    if (l_hw.breaker_closed_switch_ack) {
+        if (can_execute_command(cir_breaker_key)) {
+            auto cmd = std::make_shared<ros2_interfaces::srv::CircuitBreakerCommand::Request>();
+            cmd->circuit_id = circuit_id; cmd->command = (loop_type == 1) ? 2 : 4; // 分支路
+            hardware_coordinator_->execute_circuit_breaker_command(cmd, nullptr);
+            mark_command_executed(cir_breaker_key);
+        }
+        return;
+    }
+}
+
+// FSM 状态机 2：调压器关停序列
+void ControlLogic::run_regulator_shutdown_sequence(uint8_t reg_id) {
+    std::string reg_breaker_key = "REG_BREAKER_" + std::to_string(reg_id);
+    std::string reg_stop_key = "REG_STOP_" + std::to_string(reg_id);
+
+    // Step 1: 确保调压器降至底位
+    if (!is_regulator_at_lower_limit(reg_id)) {
+        auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
+        op->regulator_id = reg_id; op->command = 2;
+        hardware_coordinator_->send_regulator_operation_command(op);
+        return;
+    }
+
+    if (can_execute_command(reg_stop_key)) {
+        auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
+        op->regulator_id = reg_id; op->command = 3;
+        hardware_coordinator_->send_regulator_operation_command(op);
+        mark_command_executed(reg_stop_key);
+    }
+
+    // Step 2: 断开主调压器断路器
+    auto reg_status = state_manager_->get_regulator_status(reg_id);
+    if (reg_status.breaker_closed_switch_ack) {
+        if (can_execute_command(reg_breaker_key)) {
+            auto cmd = std::make_shared<ros2_interfaces::srv::RegulatorBreakerCommand::Request>();
+            cmd->regulator_id = reg_id; cmd->command = 2; // 分调压器
+            hardware_coordinator_->execute_regulator_breaker_command(cmd, nullptr);
+            mark_command_executed(reg_breaker_key);
+        }
+        return;
+    }
+}
+
+// FSM 状态机 3：启动支路序列
+void ControlLogic::run_branch_startup_sequence(uint8_t circuit_id, uint8_t loop_type, uint8_t reg_id) {
+    auto c_status = state_manager_->get_circuit_status(circuit_id);
+    auto l_hw = (loop_type == 1) ? c_status.test_loop.hardware_loop_status : c_status.ref_loop.hardware_loop_status;
+    auto reg_status = state_manager_->get_regulator_status(reg_id);
+
+    std::string plc_key = "PLC_MODE_" + std::to_string(circuit_id) + "_" + std::to_string(loop_type);
+    std::string cir_breaker_key = "CIR_BREAKER_" + std::to_string(circuit_id) + "_" + std::to_string(loop_type);
+    std::string reg_breaker_key = "REG_BREAKER_" + std::to_string(reg_id);
+    std::string reg_stop_key = "REG_STOP_" + std::to_string(reg_id);
+
+    // Step 1: 只要有任意一个断路器没合上，就必须确保调压器在最低位（安全原则）
+    if (!reg_status.breaker_closed_switch_ack || !l_hw.breaker_closed_switch_ack) {
+        if (!is_regulator_at_lower_limit(reg_id)) {
+            auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
+            op->regulator_id = reg_id; op->command = 2;
+            hardware_coordinator_->send_regulator_operation_command(op);
+            return; // 还没到底，拒绝执行下面的合闸
+        }
+
+        if (can_execute_command(reg_stop_key)) {
+            auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
+            op->regulator_id = reg_id; op->command = 3;
+            hardware_coordinator_->send_regulator_operation_command(op);
+            mark_command_executed(reg_stop_key);
+        }
+    }
+
+    // Step 2: 合上主调压器断路器
+    if (!reg_status.breaker_closed_switch_ack) {
+        if (can_execute_command(reg_breaker_key)) {
+            auto cmd = std::make_shared<ros2_interfaces::srv::RegulatorBreakerCommand::Request>();
+            cmd->regulator_id = reg_id; cmd->command = 1; // 合调压器
+            hardware_coordinator_->execute_regulator_breaker_command(cmd, nullptr);
+            mark_command_executed(reg_breaker_key);
+        }
+        return;
+    }
+
+    // Step 3: 合上支路断路器
+    if (!l_hw.breaker_closed_switch_ack) {
+        if (can_execute_command(cir_breaker_key)) {
+            auto cmd = std::make_shared<ros2_interfaces::srv::CircuitBreakerCommand::Request>();
+            cmd->circuit_id = circuit_id; cmd->command = (loop_type == 1) ? 1 : 3; // 合支路
+            hardware_coordinator_->execute_circuit_breaker_command(cmd, nullptr);
+            mark_command_executed(cir_breaker_key);
+        }
+        return;
+    }
+
+    // Step 4: 切换至自动模式
+    if (l_hw.plc_control_mode != 2) { // 2 = Auto Current
+        if (can_execute_command(plc_key)) {
+            hardware_coordinator_->set_circuit_control_mode(circuit_id, loop_type, 2);
+            mark_command_executed(plc_key);
+        }
+        return;
     }
 }
 

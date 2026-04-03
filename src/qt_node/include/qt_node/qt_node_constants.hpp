@@ -72,7 +72,7 @@ constexpr const char* SET_REGULATOR_SETTINGS_SERVICE_PARAM = "set_regulator_sett
 constexpr const char* SET_CIRCUIT_SETTINGS_SERVICE_PARAM = "set_circuit_settings_service";
 
 constexpr const char* DEFAULT_REGULATOR_BREAKER_COMMAND_SERVICE = "default_regulator_breaker_command";
-constexpr const char* CIRCUIT_REGULATOR_BREAKER_COMMAND_SERVICE = "default_circuit_breaker_command";
+constexpr const char* DEFAULT_CIRCUIT_BREAKER_COMMAND_SERVICE = "default_circuit_breaker_command";
 constexpr const char* DEFAULT_SET_SYSTEM_SETTINGS_SERVICE = "default_set_system_settings";
 constexpr const char* DEFAULT_SET_REGULATOR_SETTINGS_SERVICE = "default_set_regulator_settings";
 constexpr const char* DEFAULT_SET_CIRCUIT_SETTINGS_SERVICE = "default_set_circuit_settings";

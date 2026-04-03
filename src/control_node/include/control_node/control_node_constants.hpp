@@ -75,6 +75,9 @@ namespace control_node_constants
 [[maybe_unused]] constexpr const char* HARDWARE_SET_CONTROL_MODE_SERVICE_PARAM = "hardware_set_control_mode_service";
 [[maybe_unused]] constexpr const char* DEFAULT_HARDWARE_SET_CONTROL_MODE_SERVICE = "default_hardware_set_control_mode";
 
+[[maybe_unused]] constexpr const char* PLC_COMMAND_TIMEOUT_PARAM = "plc_command_timeout";
+[[maybe_unused]] constexpr double DEFAULT_PLC_COMMAND_TIMEOUT = 2.0;
+
 } // namespace control_node_constants
 
 #endif // CONTROL_NODE_CONSTANTS_HPP
