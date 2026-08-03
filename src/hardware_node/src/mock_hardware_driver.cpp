@@ -19,7 +19,7 @@ void MockHardwareDriver::update()
 void MockHardwareDriver::handle_regulator_breaker_command(
     const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request, AsyncCallback callback)
 {
-    device_->set_regulator_breaker(request->regulator_id, request->command == 1);
+    device_->set_regulator_breaker(request->regulator_id, request->command); // [修改]
     callback(true, "Mock: Regulator breaker command processed.");
 }
 
@@ -98,6 +98,7 @@ bool MockHardwareDriver::get_regulator_status(uint8_t regulator_id, ros2_interfa
     status.over_current_on = dev.over_current_alarm;
     status.upper_limit_switch_on = dev.upper_limit_on;
     status.lower_limit_switch_on = dev.lower_limit_on;
+    status.auto_reduce_opening = dev.auto_reduce_opening;
     return true;
 }
 

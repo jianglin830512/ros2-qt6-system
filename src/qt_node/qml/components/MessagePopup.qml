@@ -13,16 +13,18 @@ Dialog {
 
     // 居中显示
     anchors.centerIn: Overlay.overlay
-    width: 400
-    height: 240
+
+    // 【核心修复 1】：固定一个较宽的宽度。
+    // 去掉高度 height 属性，完全交给 Dialog 自动排版撑开，彻底杜绝重叠！
+    width: 500
+
     modal: true
     title: isError ? "错误" : "提示"
 
     // 背景样式
     background: Rectangle {
-        color: Theme.backgroundColor
-        // 根据是否报错显示红边框或主题色边框
-        border.color: root.isError ? "red" : Theme.highlightColor
+        color: Theme.popupBackgroundColor
+        border.color: root.isError ? Theme.errorColor : Theme.highlightColor
         border.width: 2
         radius: 10
     }
@@ -30,32 +32,28 @@ Dialog {
     // 标题栏
     header: Label {
         text: root.title
-        color: root.isError ? "red" : Theme.textColor
+        color: root.isError ? Theme.errorColor : Theme.textColor
         font: Theme.titleFont
         padding: 15
         horizontalAlignment: Text.AlignHCenter
         background: Rectangle { color: "transparent" }
     }
 
-    // 内容区域
-    contentItem: ColumnLayout {
-        spacing: 20
+    // 【核心修复 2】：简化内容区域，直接使用 Label。
+    // 依靠 wrapMode 自动换行，依靠 padding 撑开上下空间，不再需要 Layout 计算。
+    contentItem: Label {
+        text: root.message
+        color: Theme.textColor
+        font: Theme.labelFont
+        wrapMode: Text.Wrap
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
 
-        // 稍微加点弹性空间让文字居中
-        Item { Layout.fillHeight: true }
-
-        Label {
-            text: root.message
-            color: Theme.textColor
-            font: Theme.defaultFont
-            Layout.fillWidth: true
-            Layout.leftMargin: 20
-            Layout.rightMargin: 20
-            wrapMode: Text.Wrap
-            horizontalAlignment: Text.AlignHCenter
-        }
-
-        Item { Layout.fillHeight: true }
+        // 使用内边距提供“呼吸感”，避免文字贴着标题或按钮
+        topPadding: 20
+        bottomPadding: 30
+        leftPadding: 20
+        rightPadding: 20
     }
 
     // 底部按钮
@@ -63,15 +61,17 @@ Dialog {
         alignment: Qt.AlignHCenter
         background: Rectangle { color: "transparent" }
         padding: 10
+        bottomPadding: 20 // 底部边缘留一点白
 
         Button {
             text: root.buttonText
+            implicitWidth: 120
+            implicitHeight: 40
 
-            // 复用 StyledButton 的一些样式逻辑
             background: Rectangle {
                 color: parent.down ? Qt.darker(Theme.highlightColor) : Theme.highlightColor
                 radius: 5
-                border.color: root.isError ? "red" : Theme.highlightColor
+                border.color: root.isError ? Theme.errorColor : Theme.highlightColor
                 border.width: root.isError ? 1 : 0
             }
             contentItem: Text {
@@ -87,7 +87,7 @@ Dialog {
         }
     }
 
-    // 打开时的动画效果（可选）
+    // 打开时的动画效果
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 100 }
         NumberAnimation { property: "scale"; from: 0.9; to: 1.0; duration: 100 }

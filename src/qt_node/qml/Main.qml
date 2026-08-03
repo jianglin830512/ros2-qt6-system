@@ -53,9 +53,9 @@ ApplicationWindow {
         property point dragPos: Qt.point(0, 0)
         dragArea.onPressed: (mouse) => { dragPos = Qt.point(mouse.x, mouse.y) }
         dragArea.onPositionChanged: (mouse) => {
-            window.x += mouse.x - dragPos.x
-            window.y += mouse.y - dragPos.y
-        }
+                                        window.x += mouse.x - dragPos.x
+                                        window.y += mouse.y - dragPos.y
+                                    }
 
         // 4. 按钮交互事件
         exitButton.onClicked: exitDialog.open()
@@ -107,14 +107,24 @@ ApplicationWindow {
     // ROS 状态更新响应
     Connections {
         target: rosProxy
-        function onQmlCircuitSettings1Changed() { updateMainStatus() }
-        function onQmlCircuitSettings2Changed() { updateMainStatus() }
+        function onSystemStatusChanged() { updateMainStatus() }
     }
 
     function updateMainStatus() {
-        let isRunning = rosProxy.qmlCircuitSettings1.test_loop.enabled ||
-                        rosProxy.qmlCircuitSettings2.test_loop.enabled;
-        ui.statusLabel.text = "系统状态: " + (isRunning ? "运行中" : "待机")
+        let state = rosProxy.systemStatus.system_state;
+        if (state === 0) {
+            ui.statusLabel.text = "系统状态: 初始化"
+        } else if (state === 1) {
+            ui.statusLabel.text = "系统状态: 运行中"
+        } else if (state === 2) {
+            ui.statusLabel.text = "系统状态: 错误"
+        } else {
+            ui.statusLabel.text = "系统状态: 未知"
+        }
+    }
+
+    Component.onCompleted: {
+        updateMainStatus()
     }
 
     // 过流报警弹窗触发逻辑
@@ -171,15 +181,15 @@ ApplicationWindow {
         closePolicy: Popup.NoAutoClose // 必须手动点击取消
 
         background: Rectangle {
-            color: "#222222"
-            border.color: "red"
+            color: Theme.popupBackgroundColor
+            border.color: Theme.errorColor
             border.width: 3
             radius: 10
         }
 
         header: Label {
             text: "！ 调压器过流告警"
-            color: "red"
+            color: Theme.errorColor
             font: Theme.largeLabelFont
             horizontalAlignment: Text.AlignHCenter
             padding: 10
@@ -191,14 +201,14 @@ ApplicationWindow {
 
             Label {
                 text: "⚠️ 主调压器发生过流保护"
-                color: "white"
+                color: Theme.errorColor
                 font: Theme.defaultFont
                 visible: mainOverCurrent
                 Layout.alignment: Qt.AlignHCenter
             }
             Label {
                 text: "⚠️ 辅调压器发生过流保护"
-                color: "white"
+                color: Theme.errorColor
                 font: Theme.defaultFont
                 visible: auxOverCurrent
                 Layout.alignment: Qt.AlignHCenter
@@ -220,7 +230,7 @@ ApplicationWindow {
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    color: parent.pressed ? "#661111" : "#AA2222"
+                    color: parent.pressed ? Theme.buttonDangerPressedColor : Theme.buttonDangerColor
                     radius: 5
                 }
                 onClicked: {

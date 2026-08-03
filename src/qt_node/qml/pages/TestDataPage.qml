@@ -94,7 +94,7 @@ TestDataPageForm {
         // 鼠标悬停行高亮
         Rectangle {
             anchors.fill: parent
-            color: ma.containsMouse ? Qt.rgba(Theme.highlightColor.r, Theme.highlightColor.g, Theme.highlightColor.b, 0.5) : (index % 2 === 0 ? "transparent" : "#1AFFFFFF")
+            color: ma.containsMouse ? Theme.tableHoverColor : (index % 2 === 0 ? "transparent" : Theme.tableAlternateColor)
         }
 
         MouseArea {
@@ -113,13 +113,13 @@ TestDataPageForm {
                     width: getColWidth(index)
                     height: 35
                     color: "transparent"
-                    border.color: Qt.rgba(Theme.gridLineColor.r, Theme.gridLineColor.g, Theme.gridLineColor.b, 0.3)
+                    border.color: Theme.gridLineTransparentColor
                     border.width: 1
 
                     Text {
                         anchors.centerIn: parent
                         text: modelData
-                        color: "white"
+                        color: Theme.valueColor
                         font: Theme.smallLabelFont
                     }
                 }

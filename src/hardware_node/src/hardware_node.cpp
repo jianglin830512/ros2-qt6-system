@@ -9,7 +9,7 @@ using namespace std::chrono_literals;
 using std::placeholders::_1;
 using std::placeholders::_2;
 
-HardwareNode::HardwareNode() : Node("hardware_node")
+HardwareNode::HardwareNode() : Node("hardware_node"), service_call_timeout_(2000ms)
 {
     RCLCPP_INFO(this->get_logger(), "HardwareNode is starting up.");
 }
@@ -21,6 +21,13 @@ HardwareNode::~HardwareNode()
 void HardwareNode::initialize_components()
 {
     RCLCPP_INFO(this->get_logger(), "Initializing HardwareNode components...");
+
+    int tcp_connect_timeout_ms = this->declare_parameter<int>(hardware_node_constants::TCP_CONNECT_TIMEOUT_MS_PARAM, 200);
+    int tcp_recv_timeout_ms = this->declare_parameter<int>(hardware_node_constants::TCP_RECV_TIMEOUT_MS_PARAM, 200);
+    int regulator_cmd_timeout_ms = this->declare_parameter<int>(hardware_node_constants::REGULATOR_CMD_TIMEOUT_MS_PARAM, 100);
+    int service_timeout_ms = this->declare_parameter<int>(hardware_node_constants::SERVICE_CALL_TIMEOUT_MS_PARAM, 400);
+
+    service_call_timeout_ = std::chrono::milliseconds(service_timeout_ms);
 
     bool use_mock = this->declare_parameter<bool>(hardware_node_constants::USE_MOCK_DRIVER, false);
     if (use_mock)
@@ -40,18 +47,18 @@ void HardwareNode::initialize_components()
         int temp_port = this->declare_parameter<int>(
             hardware_node_constants::TEMP_MONITOR_PORT_PARAM, 3000);
 
+        // 【修改】将超时参数下发给 TCP Driver
         hardware_driver_ = std::make_unique<TcpHardwareDriver>(
-            this->get_logger(), plc_ip, plc_port, temp_ip, temp_port);
+            this->get_logger(), plc_ip, plc_port, temp_ip, temp_port,
+            tcp_connect_timeout_ms, tcp_recv_timeout_ms, regulator_cmd_timeout_ms);
 
         RCLCPP_WARN(this->get_logger(), "Using TcpHardwareDriver. PLC[%s:%d], TempMon[%s:%d]",
                     plc_ip.c_str(), plc_port, temp_ip.c_str(), temp_port);
     }
 
-    // 定时器任务自身不能重入，保持互斥
     timer_update_cb_group_       = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     timer_pub_cb_group_          = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-    // Sub 和 Srv 允许并发重入，由底层的 mutex 和节流逻辑保证安全
     sub_cb_group_                = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
     srv_reg_settings_cb_group_   = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
     srv_circ_settings_cb_group_  = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
@@ -109,14 +116,12 @@ void HardwareNode::initialize_components()
         set_mode_service, std::bind(&HardwareNode::hardware_set_control_mode_callback, this, _1, _2), rmw_qos_profile_services_default, srv_mode_cb_group_);
 
     // --- 初始化 Timers ---
-    int polling_rate_ms = this->declare_parameter<int>(hardware_node_constants::POLLING_RATE_MS_PARAM, 200);
+    int polling_rate_ms = this->declare_parameter<int>(hardware_node_constants::POLLING_RATE_MS_PARAM, 100);
 
-    // Timer 1: 负责底层可能阻塞的 TCP 抓取 (独立线程执行)
     hardware_update_timer_ = this->create_wall_timer(
         std::chrono::milliseconds(polling_rate_ms),
         std::bind(&HardwareNode::update_hardware_data, this), timer_update_cb_group_);
 
-    // Timer 2: 负责从缓存读取数据并极速发布 (独立线程执行，100ms保证心跳永不断)
     hardware_publish_timer_ = this->create_wall_timer(
         std::chrono::milliseconds(100),
         std::bind(&HardwareNode::publish_hardware_data, this), timer_pub_cb_group_);
@@ -124,7 +129,6 @@ void HardwareNode::initialize_components()
     RCLCPP_INFO(this->get_logger(), "HardwareNode initialization complete. System is running.");
 }
 
-// --- Topic Callbacks ---
 void HardwareNode::hardware_regulator_operation_command_callback(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg) {
     hardware_driver_->handle_regulator_operation_command(msg);
 }
@@ -133,7 +137,7 @@ void HardwareNode::hardware_clear_alarm_callback(const std_msgs::msg::Empty::Sha
     hardware_driver_->handle_clear_alarm();
 }
 
-// --- Service Callbacks: 折中设置超时为 2s，兼容 TCP 排队场景 ---
+// 【修改】：使用 service_call_timeout_ 代替硬编码的 2s
 void HardwareNode::set_hardware_regulator_settings_callback(const std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Request> request, std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Response> response) {
     std::string key = "set_regulator_settings_" + std::to_string(request->settings.regulator_id);
     if (is_request_throttled(key, response)) { return; }
@@ -142,7 +146,7 @@ void HardwareNode::set_hardware_regulator_settings_callback(const std::shared_pt
     hardware_driver_->handle_set_hardware_regulator_settings_request(request,[response, promise](bool success, const std::string& message) {
         response->success = success; response->message = message; promise->set_value();
     });
-    if (future.wait_for(2s) == std::future_status::timeout) { // 改为2s，防止网络瞬时排队导致误报
+    if (future.wait_for(service_call_timeout_) == std::future_status::timeout) {
         response->success = false; response->message = "Timeout waiting for driver.";
     }
 }
@@ -155,7 +159,7 @@ void HardwareNode::set_hardware_circuit_settings_callback(const std::shared_ptr<
     hardware_driver_->handle_set_hardware_circuit_settings_request(request,[response, promise](bool success, const std::string& message) {
         response->success = success; response->message = message; promise->set_value();
     });
-    if (future.wait_for(2s) == std::future_status::timeout) {
+    if (future.wait_for(service_call_timeout_) == std::future_status::timeout) {
         response->success = false; response->message = "Timeout waiting for driver.";
     }
 }
@@ -168,7 +172,7 @@ void HardwareNode::hardware_regulator_breaker_command_callback(const std::shared
     hardware_driver_->handle_regulator_breaker_command(request,[response, promise](bool success, const std::string& message) {
         response->success = success; response->message = message; promise->set_value();
     });
-    if (future.wait_for(2s) == std::future_status::timeout) {
+    if (future.wait_for(service_call_timeout_) == std::future_status::timeout) {
         response->success = false; response->message = "Timeout waiting for driver.";
     }
 }
@@ -181,7 +185,7 @@ void HardwareNode::hardware_circuit_breaker_command_callback(const std::shared_p
     hardware_driver_->handle_circuit_breaker_command(request, [response, promise](bool success, const std::string& message) {
         response->success = success; response->message = message; promise->set_value();
     });
-    if (future.wait_for(2s) == std::future_status::timeout) {
+    if (future.wait_for(service_call_timeout_) == std::future_status::timeout) {
         response->success = false; response->message = "Timeout waiting for driver.";
     }
 }
@@ -194,18 +198,16 @@ void HardwareNode::hardware_set_control_mode_callback(const std::shared_ptr<ros2
     hardware_driver_->handle_set_control_mode(request, [response, promise](bool success, const std::string& message) {
         response->success = success; response->message = message; promise->set_value();
     });
-    if (future.wait_for(2s) == std::future_status::timeout) {
+    if (future.wait_for(service_call_timeout_) == std::future_status::timeout) {
         response->success = false; response->message = "Timeout waiting for driver.";
     }
 }
 
-// --- 数据抓取动作 (可能被阻塞) ---
 void HardwareNode::update_hardware_data()
 {
     hardware_driver_->update();
 }
 
-// --- 纯发布动作 (极速内存读取，不受TCP断线阻塞影响) ---
 void HardwareNode::publish_hardware_data()
 {
     ros2_interfaces::msg::HardwareSystemStatus system_status;
@@ -215,7 +217,7 @@ void HardwareNode::publish_hardware_data()
     }
 
     if (!system_status.plc_connected) {
-        return; // PLC 断线时，只保活系统状态，不发回路状态
+        return;
     }
 
     for (uint8_t id = 1; id <= 2; ++id)

@@ -18,6 +18,7 @@ public:
         bool over_current_alarm = false;
         bool upper_limit_on = false;
         bool lower_limit_on = true;
+        bool auto_reduce_opening = false;
 
         std::chrono::steady_clock::time_point last_cmd_time;
 
@@ -56,7 +57,7 @@ public:
     ~MockDevice();
 
     // --- 控制接口 (由 Driver 调用) ---
-    void set_regulator_breaker(uint8_t id, bool close);
+    void set_regulator_breaker(uint8_t id, uint8_t command);
     void set_loop_breaker(uint8_t circ_id, uint8_t command);
     void set_regulator_op(uint8_t id, uint8_t cmd);
     void clear_alarms();

@@ -36,6 +36,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.preferredHeight: 50
+            Layout.minimumHeight: 40 // 保护标题区域不被极限压缩
             RowLayout {
                 anchors.fill: parent
                 Item{
@@ -89,7 +90,7 @@ Rectangle {
                     color: Theme.titleColor
                     font: Theme.largeLabelFont
                 }
-                Rectangle { // [修改] 为设定电流值添加边框
+                Rectangle {
                     color: "transparent"
                     border.color: Theme.textColor
                     border.width: 2
@@ -100,7 +101,7 @@ Rectangle {
                     Label {
                         id: setCurrentLabel
                         text: "0"
-                        color: Theme.textColor
+                        color: Theme.valueColor
                         font: Theme.largeLabelFont
                         anchors.centerIn: parent
                     }
@@ -118,52 +119,60 @@ Rectangle {
             }
         }
 
-        Item {
+        // 【纯净版】超大红色电流显示区 (整体绝对居中布局)
+        Rectangle {
             id: currentValuePanle
+
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredHeight: 50
-            RowLayout{
-                anchors.fill: parent
+            // 字体加到了100，高度再拉大一点确保容纳得下
+            Layout.preferredHeight: 120
+            Layout.minimumHeight: 105
+
+            color: "transparent"
+            border.color: Theme.circuitCurrentValue
+            border.width: 3
+            radius: 8
+
+            // 放弃 Layout 弹簧，将数字和单位打包为一个普通的 Row，并在红框内绝对居中
+            Row {
+                anchors.centerIn: parent
+                spacing: 15
+
+                // 核心：红色超大数字
                 Label {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    text: "测量电流:"
-                    color: Theme.titleColor
-                    font: Theme.largeLabelFont
+                    id: measureCurrentLabel
+                    text: "0"       // 初始化为占位符
+                    color: Theme.circuitCurrentValue
+                    font.pixelSize: 100  // 字体达到 100
+                    font.bold: true
+                    // 使用等宽字体，确保 0001.0 和 0008.0 占据完全相同的物理宽度，不抖动
+                    font.family: "Courier New"
+                    anchors.verticalCenter: parent.verticalCenter
                 }
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.preferredWidth: 120
-                    Label {
-                        id: measureCurrentLabel
-                        text: "0"
-                        color: Theme.textColor
-                        font: Theme.largeLabelFont
-                        anchors.centerIn: parent
-                    }
-                }
+
+                // 单位 "A"
                 Label {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.preferredWidth: 50
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
                     text: "A"
-                    color: Theme.titleColor
-                    font: Theme.largeLabelFont
+                    color: Theme.circuitCurrentValue
+                    font.pixelSize: 80   // 单位字体达到 80
+                    font.bold: true
+                    font.family: "Arial" // 单位不受宽度变化影响，保持清晰的 Arial
+                    anchors.bottom: measureCurrentLabel.bottom
+                    anchors.bottomMargin: 14 // 微调底部对齐，让A的底线跟数字持平
                 }
             }
         }
+
         Item {
             id: breakerButtonPanle
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.preferredHeight: 60
-            RowLayout { // 2 button
+            // 【修改1】：强制最低高度 55，保证 45 高度的按钮绝不会溢出容器，遮罩也能完全包覆
+            Layout.minimumHeight: 55
+
+            RowLayout {
                 anchors.centerIn: parent
                 spacing: Theme.subSpacing
                 ToggleActionButton {
@@ -178,14 +187,14 @@ Rectangle {
                 }
             }
 
-            // 专门针对按钮的遮罩
             InputBlocker {
                 id: buttonBlocker
                 radius: 5
-                statusText: "" // 不需要文字，变暗即可，或者写“自动”
-                overlayColor: "#AA000000" // 稍微深一点
+                statusText: ""
+                overlayColor: Theme.blockerOverlayColor
             }
         }
+
         Item {
             id: timePanle
             Layout.fillWidth: true
@@ -259,12 +268,13 @@ Rectangle {
         }
     }
 
+    // 面板全局遮罩
     InputBlocker {
         id: inputBlocker
-        // 继承父级的圆角，让遮罩看起来不突兀
         radius: root.radius
-        // 这里的 statusText 可以留空，因为面板上已经有红色的“停用”字样了，
-        // 纯粹变暗在视觉上更干净。
         statusText: ""
+        overlayColor: Theme.blockerOverlayColor
+        // 【修改2】：精准计算顶部偏移 (容器 Margin 10 + 标题高 + 5px空隙)，从而完美避开标题行
+        anchors.topMargin: titleArea.height + 15
     }
 }

@@ -55,43 +55,41 @@ HistoryPageForm {
     // ==========================================================
     // 1. 动态生成数据列 (主辅调压器 + 回路1/2 试验/参考 各种温度电流)
     // ==========================================================
-    property var availableColumns: []
+
+    // 【修改】使用 ListModel 便于更新内部颜色状态
+    ListModel {
+        id: columnsModel
+    }
 
     function generateColumns() {
-        var cols = [];
-
+        columnsModel.clear();
         function addCircuitColumns(cid) {
-            // 调压器 (回路1关联A/C支路，分别对应调压器1和2; 回路2关联B/C，也对应1和2)
-            cols.push({ key: cid + "|regulator_1_voltage", label: "回路" + cid + " 调压器1 电压(V)" });
-            cols.push({ key: cid + "|regulator_1_current", label: "回路" + cid + " 调压器1 电流(A)" });
-            cols.push({ key: cid + "|test_loop_current",   label: "回路" + cid + " 试验支路电流(A)" });
+            columnsModel.append({ key: cid + "|regulator_1_voltage", label: "回路" + cid + " 调压器1 电压(V)", lineColor: "" });
+            columnsModel.append({ key: cid + "|regulator_1_current", label: "回路" + cid + " 调压器1 电流(A)", lineColor: "" });
+            columnsModel.append({ key: cid + "|test_loop_current",   label: "回路" + cid + " 试验支路电流(A)", lineColor: "" });
 
-            cols.push({ key: cid + "|regulator_2_voltage", label: "回路" + cid + " 调压器2 电压(V)" });
-            cols.push({ key: cid + "|regulator_2_current", label: "回路" + cid + " 调压器2 电流(A)" });
-            cols.push({ key: cid + "|ref_loop_current",    label: "回路" + cid + " 参考支路电流(A)" });
+            columnsModel.append({ key: cid + "|regulator_2_voltage", label: "回路" + cid + " 调压器2 电压(V)", lineColor: "" });
+            columnsModel.append({ key: cid + "|regulator_2_current", label: "回路" + cid + " 调压器2 电流(A)", lineColor: "" });
+            columnsModel.append({ key: cid + "|ref_loop_current",    label: "回路" + cid + " 参考支路电流(A)", lineColor: "" });
 
-            // 试验支路温度 1~16
             for (var i = 1; i <= 16; i++) {
                 var numStr1 = (i < 10 ? "0" : "") + i;
-                cols.push({ key: cid + "|test_loop_temp" + numStr1, label: "回路" + cid + " 试验温度 " + numStr1 });
+                columnsModel.append({ key: cid + "|test_loop_temp" + numStr1, label: "回路" + cid + " 试验温度 " + numStr1, lineColor: "" });
             }
 
-            // 参考支路温度 1~16 (已更新为16路)
             for (var j = 1; j <= 16; j++) {
                 var numStr2 = (j < 10 ? "0" : "") + j;
-                cols.push({ key: cid + "|ref_loop_temp" + numStr2, label: "回路" + cid + " 参考温度 " + numStr2 });
+                columnsModel.append({ key: cid + "|ref_loop_temp" + numStr2, label: "回路" + cid + " 参考温度 " + numStr2, lineColor: "" });
             }
         }
 
         addCircuitColumns(1);
         addCircuitColumns(2);
-
-        return cols;
     }
 
     Component.onCompleted: {
-        availableColumns = generateColumns();
-        colRepeater.model = availableColumns;
+        generateColumns();
+        page.colRepeater.model = columnsModel;
     }
 
     // ==========================================================
@@ -115,6 +113,9 @@ HistoryPageForm {
                     messagePopup.message = "最多只能同时查看 10 条曲线！";
                     messagePopup.isError = false;
                     messagePopup.open();
+                } else if (!item.checked) {
+                    // 当取消勾选时，清除该项之前分配过的历史颜色
+                    columnsModel.setProperty(index, "lineColor", "");
                 }
             });
         }
@@ -128,7 +129,8 @@ HistoryPageForm {
         for (var i = 0; i < colRepeater.count; i++) {
             var item = colRepeater.itemAt(i);
             if (item.checked) {
-                selectedCols.push(availableColumns[i].key);
+                // 现在是从 ListModel 里面取 key
+                selectedCols.push(columnsModel.get(i).key);
             }
         }
 
@@ -143,13 +145,19 @@ HistoryPageForm {
         var timeStr = timeInput.text;
         var span = parseInt(spanCombo.currentValue);
 
-        // 【安全修复】绝对不要使用 chartView.removeAllSeries() ！
         // 我们通过遍历将现有的曲线清空数据并隐藏，这样可以保留所有坐标轴的命
         for (var idx = 0; idx < chartView.count; idx++) {
             var s = chartView.series(idx);
             if (s) {
                 s.clear();
                 s.visible = false;
+            }
+        }
+
+        // 并在重新查询时清除掉左侧的所有旧颜色标记
+        for (var m = 0; m < columnsModel.count; m++) {
+            if (colRepeater.itemAt(m).checked) {
+                columnsModel.setProperty(m, "lineColor", "");
             }
         }
 
@@ -266,35 +274,51 @@ HistoryPageForm {
                 return;
             }
 
+            // 【修改点】强制所有 Y 轴从 0 开始
+            axisYTemp.visible = hasTemp;
             axisYTemp.visible = hasTemp;
             if (hasTemp) {
-                var marginT = (maxTemp - minTemp) * 0.1;
-                if (marginT === 0) marginT = 5;
-                axisYTemp.min = Math.max(0, minTemp - marginT);
+                // 为了防止极端情况下计算出错，余量按跨度来计算
+                var marginT = Math.max(5, (maxTemp - (-15)) * 0.1);
+                axisYTemp.min = -15;  // 设定为 -15
                 axisYTemp.max = maxTemp + marginT;
             }
 
             axisYVoltage.visible = hasVol;
             if (hasVol) {
-                var marginV = (maxVol - minVol) * 0.1;
+                var marginV = maxVol * 0.1;
                 if (marginV === 0) marginV = 10;
-                axisYVoltage.min = Math.max(0, minVol - marginV);
+                axisYVoltage.min = 0;
                 axisYVoltage.max = maxVol + marginV;
             }
 
             axisYCurrent.visible = hasCur;
             if (hasCur) {
-                var marginC = (maxCur - minCur) * 0.1;
+                var marginC = maxCur * 0.1;
                 if (marginC === 0) marginC = 10;
                 axisYCurrent.min = 0;
                 axisYCurrent.max = maxCur + marginC;
+            }
+
+            // --- 【核心精髓】将图表分配的曲线颜色反向注入到左侧勾选标签中 ---
+            for (var q = 0; q < chartView.count; q++) {
+                var visSeries = chartView.series(q);
+                if (visSeries && visSeries.visible) {
+                    for (var n = 0; n < columnsModel.count; n++) {
+                        if (columnsModel.get(n).label === visSeries.name) {
+                            // 使用 .toString() 提取实际 hex 颜色码写回 model
+                            columnsModel.setProperty(n, "lineColor", visSeries.color.toString());
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
 
     function getLabelByKey(key) {
-        for (var i=0; i<availableColumns.length; i++) {
-            if (availableColumns[i].key === key) return availableColumns[i].label;
+        for (var i=0; i<columnsModel.count; i++) {
+            if (columnsModel.get(i).key === key) return columnsModel.get(i).label;
         }
         return key;
     }

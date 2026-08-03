@@ -62,7 +62,7 @@ Rectangle{
             right: parent.right
             leftMargin: Theme.subSpacing
         }
-        height: 550
+        height: 720
         spacing: Theme.subSpacing
 
         CircuitStatus {
@@ -77,8 +77,10 @@ Rectangle{
         }
     }
 
-    // 右边中间：全局控制栏
-    Rectangle {
+    // ==============================================
+    // 右边中间：全局控制栏 (拆分为左右两个独立区块)
+    // ==============================================
+    RowLayout {
         id: globalControlBar
         anchors.top: circuitPanle.bottom
         anchors.left: regulatorPanle.right
@@ -87,63 +89,148 @@ Rectangle{
         anchors.leftMargin: Theme.subSpacing
 
         height: 60
-        color: "transparent"
-        border.color: Theme.highlightColor
-        border.width: 2
-        radius: 8
+        spacing: Theme.subSpacing
 
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 10
-            spacing: 30
-
-            Label { text: "控制模式:"; color: Theme.orange; font: Theme.defaultFont }
-
-            // 替换为 ToggleActionButton（自带指示灯效果）
-            ToggleActionButton {
-                id: btnManualMode
-                Layout.preferredWidth: 120
-                Layout.preferredHeight: 40
-                labelText: "手 动"
-                colorWhenOn: "lime"
-                indicatorOn: rosProxy.qmlSystemSettings && !rosProxy.qmlSystemSettings.auto_on
-            }
-
-            ToggleActionButton {
-                id: btnAutoMode
-                Layout.preferredWidth: 120
-                Layout.preferredHeight: 40
-                labelText: "自 动"
-                colorWhenOn: "lime"
-                indicatorOn: rosProxy.qmlSystemSettings && rosProxy.qmlSystemSettings.auto_on
-            }
-
-            Item { Layout.preferredWidth: 40 } // Spacer
-
-            Label { text: "当前运行状态:"; color: Theme.orange; font: Theme.defaultFont }
+        // --- 1. 左侧：手动/自动模式控制 ---
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            color: "transparent"
+            border.color: Theme.highlightColor
+            border.width: 2
+            radius: 8
 
             RowLayout {
-                spacing: 15
-                Rectangle {
-                    width: 16; height: 16; radius: 8
-                    color: rosProxy.systemStatus.circuit_work_status === 1 ? "lime" : "#333333"
-                }
-                Label { text: "回路 1 运行"; color: Theme.textColor; font: Theme.defaultFont }
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 30
 
-                Rectangle {
-                    width: 16; height: 16; radius: 8
-                    color: rosProxy.systemStatus.circuit_work_status === 2 ? "lime" : "#333333"
-                }
-                Label { text: "回路 2 运行"; color: Theme.textColor; font: Theme.defaultFont }
+                Item { Layout.fillWidth: true } // 左侧弹簧占位
 
-                Rectangle {
-                    width: 16; height: 16; radius: 8
-                    color: rosProxy.systemStatus.circuit_work_status === 0 ? "orange" : "#333333"
+                ToggleActionButton {
+                    id: btnManualMode
+                    Layout.preferredWidth: 140
+                    Layout.preferredHeight: 45
+                    labelText: "手 动"
+                    colorWhenOn: "lime"
+                    indicatorOn: rosProxy.qmlSystemSettings && !rosProxy.qmlSystemSettings.auto_on
                 }
-                Label { text: "全系统待机"; color: Theme.textColor; font: Theme.defaultFont }
+
+                ToggleActionButton {
+                    id: btnAutoMode
+                    Layout.preferredWidth: 140
+                    Layout.preferredHeight: 45
+                    labelText: "自 动"
+                    colorWhenOn: "lime"
+                    indicatorOn: rosProxy.qmlSystemSettings && rosProxy.qmlSystemSettings.auto_on
+                }
+
+                Item { Layout.fillWidth: true } // 右侧弹簧占位
             }
+        }
 
-            Item { Layout.fillWidth: true } // 弹性占位
+        // --- 2. 中间：运行状态指示 ---
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            color: "transparent"
+            border.color: Theme.highlightColor
+            border.width: 2
+            radius: 8
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 8
+
+                Item { Layout.fillWidth: true } // 左侧弹簧占位
+
+                // [回路 1]
+                Label { text: "回路 1 运行:"; color: Theme.textColor; font: Theme.defaultFont; Layout.alignment: Qt.AlignVCenter }
+                Rectangle {
+                    width: 16; height: 16; radius: 8; Layout.alignment: Qt.AlignVCenter
+                    color: rosProxy.systemStatus.circuit_work_status === 1 ? Theme.statusOkColor : Theme.indicatorOffColor
+                    border.color: Theme.indicatorBorderColor; border.width: 1
+                }
+
+                // 分割线
+                Item { Layout.preferredWidth: 10 }
+                Rectangle { width: 2; Layout.preferredHeight: 24; color: Theme.buttonBorderColor; Layout.alignment: Qt.AlignVCenter }
+                Item { Layout.preferredWidth: 10 }
+
+                // [回路 2]
+                Label { text: "回路 2 运行:"; color: Theme.textColor; font: Theme.defaultFont; Layout.alignment: Qt.AlignVCenter }
+                Rectangle {
+                    width: 16; height: 16; radius: 8; Layout.alignment: Qt.AlignVCenter
+                    // 根据要求回路2同样采取（灰/绿）配色
+                    color: rosProxy.systemStatus.circuit_work_status === 2 ? Theme.statusOkColor : Theme.indicatorOffColor
+                    border.color: Theme.indicatorBorderColor; border.width: 1
+                }
+
+                // 分割线
+                Item { Layout.preferredWidth: 10 }
+                Rectangle { width: 2; Layout.preferredHeight: 24; color: Theme.buttonBorderColor; Layout.alignment: Qt.AlignVCenter }
+                Item { Layout.preferredWidth: 10 }
+
+                // [系统待机]
+                Label { text: "全系统待机:"; color: Theme.textColor; font: Theme.defaultFont; Layout.alignment: Qt.AlignVCenter }
+                Rectangle {
+                    width: 16; height: 16; radius: 8; Layout.alignment: Qt.AlignVCenter
+                    // 根据要求待机采取（灰/金黄）配色
+                    color: rosProxy.systemStatus.circuit_work_status === 0 ? Theme.statusStandbyColor : Theme.indicatorOffColor
+                    border.color: Theme.indicatorBorderColor; border.width: 1
+                }
+
+                Item { Layout.fillWidth: true } // 右侧弹簧占位
+            }
+        }
+
+        // --- 3. 右侧：设备连接状态指示 (新增面板) ---
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            color: "transparent"
+            border.color: Theme.highlightColor
+            border.width: 2
+            radius: 8
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 8
+
+                Item { Layout.fillWidth: true } // 左侧弹簧占位
+
+                // [PLC连接]
+                Label { text: "PLC 连接:"; color: Theme.textColor; font: Theme.defaultFont; Layout.alignment: Qt.AlignVCenter }
+                Rectangle {
+                    width: 16; height: 16; radius: 8; Layout.alignment: Qt.AlignVCenter
+                    // 采取（红/绿）配色，先判定全局硬件连接是否正常，否则显示红
+                    color: {
+                        if (!rosProxy.systemStatus.hardware_connected) return Theme.errorColor;
+                        return rosProxy.systemStatus.plc_connected ? Theme.statusOkColor : Theme.errorColor;
+                    }
+                    border.color: Theme.indicatorBorderColor; border.width: 1
+                }
+
+                // 分割线
+                Item { Layout.preferredWidth: 10 }
+                Rectangle { width: 2; Layout.preferredHeight: 24; color: Theme.buttonBorderColor; Layout.alignment: Qt.AlignVCenter }
+                Item { Layout.preferredWidth: 10 }
+
+                // [测温设备]
+                Label { text: "测温设备:"; color: Theme.textColor; font: Theme.defaultFont; Layout.alignment: Qt.AlignVCenter }
+                Rectangle {
+                    width: 16; height: 16; radius: 8; Layout.alignment: Qt.AlignVCenter
+                    color: {
+                        if (!rosProxy.systemStatus.hardware_connected) return Theme.errorColor;
+                        return rosProxy.systemStatus.temp_monitor_connected ? Theme.statusOkColor : Theme.errorColor;
+                    }
+                    border.color: Theme.indicatorBorderColor; border.width: 1
+                }
+
+                Item { Layout.fillWidth: true } // 右侧弹簧占位
+            }
         }
     }
 
@@ -220,7 +307,7 @@ Rectangle{
             backgroundColor: Theme.chartBgColor
             legend.visible: true
             legend.alignment: Qt.AlignTop
-            legend.labelColor: "white"
+            legend.labelColor: Theme.textColor // 让图例文字颜色自适应主题
             legend.font: Theme.smallLabelFont
 
             LineSeries {
@@ -228,7 +315,7 @@ Rectangle{
                 name: "选中通道温度"
                 axisX: axisX
                 axisY: axisYTemp
-                color: Theme.orange
+                color: Theme.statusHeatColor
                 width: 2
             }
             LineSeries {
@@ -244,30 +331,30 @@ Rectangle{
                 id: axisX
                 format: "MM-dd hh:mm"
                 tickCount: 5
-                labelsColor: "white"
+                labelsColor: Theme.axisLabelColor
                 gridLineColor: Theme.gridLineColor
                 labelsFont: Theme.smallLabelFont
             }
 
             ValueAxis {
                 id: axisYTemp
-                min: 0
-                max: 120
+                min: -30
+                max: 150
                 tickCount: 7
-                titleText: '<font color="' + Theme.orange + '">温度 (°C)</font>'
+                titleText: '<font color="' + Theme.statusHeatColor + '">温度 (°C)</font>'
                 titleFont: Theme.smallLabelFont
-                labelsColor: "white"
+                labelsColor: Theme.axisLabelColor
                 gridVisible: false
             }
 
             ValueAxis {
                 id: axisYCurrent
                 min: 0
-                max: 3600
+                max: 480
                 tickCount: 7
                 titleText: '<font color="' + Theme.titleColor + '">电流 (A)</font>'
                 titleFont: Theme.smallLabelFont
-                labelsColor: "white"
+                labelsColor: Theme.axisLabelColor
                 gridLineColor: Theme.gridLineColor
             }
         }

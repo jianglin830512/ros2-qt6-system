@@ -85,9 +85,9 @@ LoopStatusForm {
 
     enableLabel.color: {
         if (loopSettingsData && loopSettingsData.enabled) {
-            return "lime";
+            return Theme.statusOkColor;
         }
-        return "#888888";
+        return Theme.statusDisabledColor;
     }
 
     statusLabel.text: {
@@ -99,9 +99,9 @@ LoopStatusForm {
 
     statusLabel.color: {
         if (loopStatusData && loopStatusData.is_heat) {
-            return "red";
+            return Theme.statusHeatColor;
         }
-        return "green";
+        return Theme.statusCoolColor;
     }
 
     statusLabel.visible: {

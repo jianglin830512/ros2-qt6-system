@@ -24,8 +24,8 @@ RowLayout {
         Rectangle {
             width: 20; height: 20
             radius: 10
-            color: root.isRunning ? "lime" : "#333"
-            border.color: "black"
+            color: root.isRunning ? Theme.statusOkColor : Theme.indicatorOffColor
+            border.color: Theme.indicatorBorderColor
             anchors.right: parent.right
             anchors.rightMargin: 15
             anchors.verticalCenter: parent.verticalCenter
@@ -43,8 +43,8 @@ RowLayout {
         Rectangle {
             width: 20; height: 20
             radius: 10
-            color: !root.isRunning ? "red" : "#333"
-            border.color: "black"
+            color: !root.isRunning ? Theme.statusHeatColor : Theme.indicatorOffColor
+            border.color: Theme.indicatorBorderColor
             anchors.right: parent.right
             anchors.rightMargin: 15
             anchors.verticalCenter: parent.verticalCenter

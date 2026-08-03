@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtCharts
@@ -59,15 +59,39 @@ Item {
 
                         Repeater {
                             id: colRepeater
-                            // model 在逻辑层设置
+                            // model 在逻辑层设置，现在是一个 ListModel
                             delegate: CheckBox {
-                                text: modelData.label
+                                text: model.label !== undefined ? model.label : ""
                                 checked: false
-                                // 简单的样式覆盖
+
+                                // 自定义选框，增加中间颜色块来指示图例颜色
+                                indicator: Rectangle {
+                                    implicitWidth: 18
+                                    implicitHeight: 18
+                                    x: parent.leftPadding
+                                    y: parent.height / 2 - height / 2
+                                    radius: 3
+                                    border.color: parent.checked ? Theme.highlightColor : Theme.checkboxUncheckedColor
+                                    color: "transparent"
+
+                                    // 内部实心块显示对应的曲线颜色
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: 12
+                                        height: 12
+                                        radius: 2
+                                        visible: parent.checked && model.lineColor !== undefined && model.lineColor !== ""
+                                        color: model.lineColor !== undefined && model.lineColor !== "" ? model.lineColor : "transparent"
+                                    }
+                                }
+
                                 contentItem: Text {
                                     text: parent.text
                                     font: Theme.smallLabelFont
-                                    color: parent.checked ? "white" : "#AAAAAA"
+                                    // 被选中并生成了图表 lineColor 时，采用 lineColor；否则用普通的选中高亮色
+                                    color: parent.checked
+                                           ? ((model.lineColor !== undefined && model.lineColor !== "") ? model.lineColor : Theme.checkboxCheckedColor)
+                                           : Theme.checkboxUncheckedColor
                                     verticalAlignment: Text.AlignVCenter
                                     leftPadding: parent.indicator.width + parent.spacing
                                 }
@@ -102,16 +126,22 @@ Item {
                     RowLayout {
                         Label { text: "日期:"; color: Theme.textColor; font: Theme.defaultFont }
                         Rectangle {
-                            width: 140; height: 36; color: Theme.highlightColor; radius: 5
+                            width: 140; height: 36
+                            color: "transparent"
+                            border.color: Theme.highlightColor
+                            border.width: 2
+                            radius: 10 // 统一圆角
                             TextInput {
                                 id: dateInput
-                                anchors.fill: parent; anchors.leftMargin: 5
+                                anchors.fill: parent; anchors.margins: 5
                                 verticalAlignment: Text.AlignVCenter
-                                color: "white"; font: Theme.defaultFont
+                                horizontalAlignment: Text.AlignHCenter
+                                color: Theme.textColor // 深碳灰色
+                                font: Theme.defaultFont
                                 text: Qt.formatDateTime(new Date(), "yyyy-MM-dd")
-                                // 【替换】删掉 inputMask: "9999-99-99"
-                                // 【新增】只允许输入数字和分隔符
                                 validator: RegularExpressionValidator { regularExpression: /^[0-9\-\/\.]+$/ }
+                                // 添加焦点变色逻辑（与回路设置一致）
+                                onActiveFocusChanged: parent.border.color = activeFocus ? Theme.orange : Theme.highlightColor
                             }
                         }
                     }
@@ -120,16 +150,21 @@ Item {
                     RowLayout {
                         Label { text: "时间:"; color: Theme.textColor; font: Theme.defaultFont }
                         Rectangle {
-                            width: 80; height: 36; color: Theme.highlightColor; radius: 5
+                            width: 80; height: 36
+                            color: "transparent"
+                            border.color: Theme.highlightColor
+                            border.width: 2
+                            radius: 10
                             TextInput {
                                 id: timeInput
-                                anchors.fill: parent; anchors.leftMargin: 5
+                                anchors.fill: parent; anchors.margins: 5
                                 verticalAlignment: Text.AlignVCenter
-                                color: "white"; font: Theme.defaultFont
+                                horizontalAlignment: Text.AlignHCenter
+                                color: Theme.textColor
+                                font: Theme.defaultFont
                                 text: Qt.formatDateTime(new Date(), "hh:mm")
-                                // 【替换】删掉 inputMask: "99:99"
-                                // 【新增】只允许输入数字和冒号
                                 validator: RegularExpressionValidator { regularExpression: /^[0-9:]+$/ }
+                                onActiveFocusChanged: parent.border.color = activeFocus ? Theme.orange : Theme.highlightColor
                             }
                         }
                     }
@@ -154,13 +189,6 @@ Item {
                         text: "查询"
                         implicitWidth: 120
                         implicitHeight: 40
-                        // 样式微调，使其显眼
-                        background: Rectangle {
-                            color: Theme.highlightColor
-                            border.color: Theme.orange
-                            border.width: 2
-                            radius: 5
-                        }
                     }
                 }
             }
@@ -189,8 +217,8 @@ Item {
                 // 左侧 Y 轴 1：温度 (橙色)
                 ValueAxis {
                     id: axisYTemp
-                    labelsColor: Theme.orange
-                    titleText: "<font color='" + Theme.orange + "'>温度 (°C)</font>"
+                    labelsColor: Theme.statusHeatColor
+                    titleText: "<font color='" + Theme.statusHeatColor + "'>温度 (°C)</font>"
                     gridLineColor: Theme.gridLineColor
                     visible: false
                 }
@@ -198,7 +226,7 @@ Item {
                 // 左侧 Y 轴 2：电压 (黄色)
                 ValueAxis {
                     id: axisYVoltage
-                    labelsColor: "#E0E000"
+                    labelsColor: Theme.chartVoltageColor
                     titleText: "<font color='#E0E000'>电压 (V)</font>"
                     gridVisible: false
                     visible: false

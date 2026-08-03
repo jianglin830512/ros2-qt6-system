@@ -6,7 +6,7 @@ Item {
     visible: false
 
     // 遮罩颜色
-    property color overlayColor: "#99000000"
+    property color overlayColor: Theme.blockerOverlayColor
 
     // 提示文字
     property string statusText: "未启用"
@@ -27,7 +27,7 @@ Item {
         Text {
             anchors.centerIn: parent
             text: root.statusText
-            color: "#AAAAAA"
+            color: Theme.blockerTextColor
             font.pixelSize: 24
             font.bold: true
             visible: root.statusText !== ""

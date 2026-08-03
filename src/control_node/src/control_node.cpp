@@ -148,7 +148,7 @@ void ControlNode::set_system_settings_callback(const std::shared_ptr<ros2_interf
         if (success) system_settings_pub_->publish(state_manager_->get_system_settings());
         promise->set_value();
     });
-    if (future.wait_for(3s) == std::future_status::timeout) response->success = false;
+    if (future.wait_for(8s) == std::future_status::timeout) response->success = false;
 }
 
 void ControlNode::set_regulator_settings_callback(const std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Request> request, std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Response> response) {
@@ -158,7 +158,7 @@ void ControlNode::set_regulator_settings_callback(const std::shared_ptr<ros2_int
         if (success) regulator_settings_pub_->publish(state_manager_->get_regulator_settings(request->settings.regulator_id));
         promise->set_value();
     });
-    if (future.wait_for(3s) == std::future_status::timeout) response->success = false;
+    if (future.wait_for(8s) == std::future_status::timeout) response->success = false;
 }
 
 void ControlNode::set_circuit_settings_callback(const std::shared_ptr<ros2_interfaces::srv::SetCircuitSettings::Request> request, std::shared_ptr<ros2_interfaces::srv::SetCircuitSettings::Response> response) {
@@ -168,7 +168,7 @@ void ControlNode::set_circuit_settings_callback(const std::shared_ptr<ros2_inter
         if (success) circuit_settings_pub_->publish(state_manager_->get_circuit_settings(request->settings.circuit_id));
         promise->set_value();
     });
-    if (future.wait_for(3s) == std::future_status::timeout) response->success = false;
+    if (future.wait_for(8s) == std::future_status::timeout) response->success = false;
 }
 
 void ControlNode::broadcast_status_callback() {

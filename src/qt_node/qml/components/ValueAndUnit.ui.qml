@@ -27,11 +27,9 @@ Rectangle {
         Label {
             Layout.fillHeight: true
             Layout.fillWidth: true
-            //Layout.preferredWidth: 35
-            //horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             text: value
-            color: Theme.textColor
+            color: Theme.valueColor
             font: Theme.labelFont
         }
         Label {

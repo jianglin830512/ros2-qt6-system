@@ -14,7 +14,6 @@
 #include "ros2_interfaces/msg/regulator_status.hpp"
 #include "ros2_interfaces/msg/regulator_settings.hpp"
 #include "ros2_interfaces/srv/set_hardware_circuit_control_mode.hpp"
-#include "ros2_interfaces/srv/set_hardware_circuit_control_source.hpp"
 #include "ros2_interfaces/msg/hardware_system_status.hpp" // 包含消息定义
 // Include command messages for publishers
 #include "std_msgs/msg/empty.hpp"
@@ -81,7 +80,7 @@ private:
     rclcpp::Client<ros2_interfaces::srv::RegulatorBreakerCommand>::SharedPtr hw_regulator_breaker_client_;
     rclcpp::Client<ros2_interfaces::srv::CircuitBreakerCommand>::SharedPtr hw_circuit_breaker_client_;
     rclcpp::Client<ros2_interfaces::srv::SetHardwareCircuitControlMode>::SharedPtr hw_set_control_mode_client_;
-    rclcpp::Client<ros2_interfaces::srv::SetHardwareCircuitControlSource>::SharedPtr hw_set_control_source_client_;
+
 
     // --- 状态追踪 ---
     rclcpp::Time last_hw_status_time_{0, 0, RCL_SYSTEM_TIME}; // [NEW] 记录硬件心跳时间，默认0 (断线)

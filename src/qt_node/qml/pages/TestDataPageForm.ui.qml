@@ -39,16 +39,21 @@ Item {
                 RowLayout {
                     Label { text: "日期:"; color: Theme.textColor; font: Theme.defaultFont }
                     Rectangle {
-                        width: 140; height: 36; color: Theme.highlightColor; radius: 5
+                        width: 140; height: 36
+                        color: "transparent"
+                        border.color: Theme.highlightColor
+                        border.width: 2
+                        radius: 10
                         TextInput {
                             id: dateInput
-                            anchors.fill: parent; anchors.leftMargin: 5
+                            anchors.fill: parent; anchors.margins: 5
                             verticalAlignment: Text.AlignVCenter
-                            color: "white"; font: Theme.defaultFont
+                            horizontalAlignment: Text.AlignHCenter
+                            color: Theme.textColor
+                            font: Theme.defaultFont
                             text: Qt.formatDateTime(new Date(), "yyyy-MM-dd")
-                            // 【替换】删掉 inputMask: "9999-99-99"
-                            // 【新增】只允许输入数字和分隔符
                             validator: RegularExpressionValidator { regularExpression: /^[0-9\-\/\.]+$/ }
+                            onActiveFocusChanged: parent.border.color = activeFocus ? Theme.orange : Theme.highlightColor
                         }
                     }
                 }
@@ -57,16 +62,21 @@ Item {
                 RowLayout {
                     Label { text: "时间:"; color: Theme.textColor; font: Theme.defaultFont }
                     Rectangle {
-                        width: 80; height: 36; color: Theme.highlightColor; radius: 5
+                        width: 80; height: 36
+                        color: "transparent"
+                        border.color: Theme.highlightColor
+                        border.width: 2
+                        radius: 10
                         TextInput {
                             id: timeInput
-                            anchors.fill: parent; anchors.leftMargin: 5
+                            anchors.fill: parent; anchors.margins: 5
                             verticalAlignment: Text.AlignVCenter
-                            color: "white"; font: Theme.defaultFont
+                            horizontalAlignment: Text.AlignHCenter
+                            color: Theme.textColor
+                            font: Theme.defaultFont
                             text: Qt.formatDateTime(new Date(), "hh:mm")
-                            // 【替换】删掉 inputMask: "99:99"
-                            // 【新增】只允许输入数字和冒号
                             validator: RegularExpressionValidator { regularExpression: /^[0-9:]+$/ }
+                            onActiveFocusChanged: parent.border.color = activeFocus ? Theme.orange : Theme.highlightColor
                         }
                     }
                 }
@@ -102,12 +112,6 @@ Item {
                     text: "查 询"
                     implicitWidth: 120
                     implicitHeight: 40
-                    background: Rectangle {
-                        color: Theme.highlightColor
-                        border.color: Theme.orange
-                        border.width: 2
-                        radius: 5
-                    }
                 }
             }
         }

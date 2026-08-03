@@ -88,11 +88,17 @@ struct SystemStatusData {
     Q_PROPERTY(bool emergency_stop_on MEMBER emergency_stop_on)
     Q_PROPERTY(uint8_t system_state MEMBER system_state)
     Q_PROPERTY(uint8_t circuit_work_status MEMBER circuit_work_status) // 新增：全局工作状态
+    Q_PROPERTY(bool hardware_connected MEMBER hardware_connected)       // 新增：硬件总连接状态
+    Q_PROPERTY(bool plc_connected MEMBER plc_connected)                 // 新增：PLC连接状态
+    Q_PROPERTY(bool temp_monitor_connected MEMBER temp_monitor_connected) // 新增：测温设备连接状态
 public:
     bool is_remote = false;
     bool emergency_stop_on = false;
     uint8_t system_state = 0;
     uint8_t circuit_work_status = 0;
+    bool hardware_connected = false;
+    bool plc_connected = false;
+    bool temp_monitor_connected = false;
 };
 
 Q_DECLARE_METATYPE(LoopStatusData)

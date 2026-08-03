@@ -299,6 +299,9 @@ void QtROSNode::system_status_callback(const ros2_interfaces::msg::SystemStatus:
     data.emergency_stop_on = msg->hardware_system_status.emergency_stop_on;
     data.system_state = msg->system_state;
     data.circuit_work_status = msg->circuit_work_status;
+    data.hardware_connected = msg->hardware_connected;
+    data.plc_connected = msg->hardware_system_status.plc_connected;
+    data.temp_monitor_connected = msg->hardware_system_status.temp_monitor_connected;
     emit systemStatusReceived(data);
 }
 

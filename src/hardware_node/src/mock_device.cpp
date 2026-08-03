@@ -73,31 +73,49 @@ void MockDevice::plc_cycle() {
 
 void MockDevice::update_regulator_loops(RegulatorState& reg, LoopState& loop1, LoopState& loop2) {
 
-    // 0. [新增] 安全超时检测：50ms内无更新则自动停止
-    if (reg.direction != 0) {
+    // 0. 安全超时检测：100ms内无更新则自动停止 (不影响自动降压分闸模式)
+    if (reg.direction != 0 && !reg.auto_reduce_opening) {
         auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - reg.last_cmd_time).count() > 50) {
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - reg.last_cmd_time).count() > 100) {
             reg.direction = 0; // 超时自动停止
         }
     }
 
+    // [新增] 模拟自动降压逻辑
+    if (reg.auto_reduce_opening) {
+        reg.direction = -1; // 强制设为降压
+        if (reg.voltage <= 0.0) {
+            // 已降到下限，触发自动分闸
+            reg.breaker_closed = false;
+            reg.auto_reduce_opening = false;
+            reg.direction = 0;
+
+            // 同步断开子回路
+            if (reg.id == 1) {
+                circ1.test_loop.breaker_closed = false;
+                circ2.test_loop.breaker_closed = false;
+            } else {
+                circ1.ref_loop.breaker_closed = false;
+                circ2.ref_loop.breaker_closed = false;
+            }
+        }
+    }
+
     // 1. 电压变化逻辑 (区分升/降压速度)
-    if (reg.breaker_closed) {
+    if (reg.breaker_closed || reg.auto_reduce_opening) {
         double max_step = 0.9; // 假设20ms内最大变化0.9V (45V/s) 适配 450V 满量程
 
         if (reg.direction == 1) {
-            // 升压
             double step = max_step * (reg.speed_up_percent / 100.0);
             reg.voltage += step;
         }
         else if (reg.direction == -1) {
-            // 降压
             double step = max_step * (reg.speed_down_percent / 100.0);
             reg.voltage -= step;
         }
     }
 
-    // 2. 物理限位 [修改为 450V]
+    // 2. 物理限位
     reg.upper_limit_on = (reg.voltage >= 450.0);
     reg.lower_limit_on = (reg.voltage <= 0.0);
 
@@ -113,21 +131,15 @@ void MockDevice::update_regulator_loops(RegulatorState& reg, LoopState& loop1, L
     // 4. 回路耦合与过流保护
     auto update_loop = [&](LoopState& loop) {
         if (loop.breaker_closed && reg.breaker_closed) {
-            // [修改] 根据调节器 ID 动态设置满载电压对应的电流
             double max_loop_current = (reg.id == 1) ? 7200.0 : 3600.0;
-
-            // [修改] 电流与电压成正比 (按 450V 量程比例计算)
             loop.current = (reg.voltage / 450.0) * max_loop_current;
 
-            // 温度跟随电流变化
             float base_temp = 20.0f + (float)(reg.voltage / 450.0) * 80.0f;
             for (int i = 0; i < 16; ++i) {
                 if (std::isnan(loop.temperatures[i])) continue;
-                // 添加一点随机扰动
                 loop.temperatures[i] = base_temp - (float)(rand() % 200 / 100.0);
             }
 
-            // 过流保护
             if (loop.current > loop.max_current_setting) {
                 loop.over_current_alarm = true;
                 loop.breaker_closed = false; // 跳闸
@@ -135,7 +147,6 @@ void MockDevice::update_regulator_loops(RegulatorState& reg, LoopState& loop1, L
             }
         } else {
             loop.current = 0;
-            // 冷却回常温
             for (int i = 0; i < 16; ++i) {
                 if (!std::isnan(loop.temperatures[i])) {
                     loop.temperatures[i] = loop.temperatures[i] * 0.99f + 20.0f * 0.01f;
@@ -147,29 +158,37 @@ void MockDevice::update_regulator_loops(RegulatorState& reg, LoopState& loop1, L
     update_loop(loop1);
     update_loop(loop2);
 
-    // 5. [修改] 总电流 = （TEST_LOOP + REF_LOOP）电流 / 32
-    // Regulator 1 (7200 + 7200) / 32 -> 最大 450A
-    // Regulator 2 (3600 + 3600) / 32 -> 最大 225A
+    // 5. 总电流
     reg.current = (loop1.current + loop2.current) / 32.0;
 }
 
 // --- 命令处理 ---
 
-void MockDevice::set_regulator_breaker(uint8_t id, bool close) {
+void MockDevice::set_regulator_breaker(uint8_t id, uint8_t command) {
     std::lock_guard<std::mutex> lock(data_mutex_);
     auto& reg = (id == 1) ? reg1 : reg2;
 
-    reg.breaker_closed = close;
-    if (!close) {
+    if (command == 1) { // 合闸
+        reg.breaker_closed = true;
+        reg.auto_reduce_opening = false; // 清除自动状态
+    }
+    else if (command == 2) { // 立即分闸
+        reg.breaker_closed = false;
+        reg.auto_reduce_opening = false;
         reg.direction = 0;
         reg.current = 0;
-        // 按照拓扑：Reg1 断开 Test回路；Reg2 断开 Ref回路
+
         if (id == 1) {
             circ1.test_loop.breaker_closed = false;
             circ2.test_loop.breaker_closed = false;
         } else {
             circ1.ref_loop.breaker_closed = false;
             circ2.ref_loop.breaker_closed = false;
+        }
+    }
+    else if (command == 3) { // 自动降压分闸
+        if (reg.breaker_closed) {
+            reg.auto_reduce_opening = true; // 进入自动降压分闸状态
         }
     }
 }

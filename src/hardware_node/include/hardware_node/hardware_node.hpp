@@ -40,7 +40,6 @@ private:
     void hardware_circuit_breaker_command_callback(const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request> request, std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Response> response);
     void hardware_set_control_mode_callback(const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request, std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Response> response);
 
-    // 【修改点】拆分为负责数据读取和负责话题发布的两个函数
     void update_hardware_data();
     void publish_hardware_data();
 
@@ -67,7 +66,7 @@ private:
     }
 
     // === 回调组 ===
-    rclcpp::CallbackGroup::SharedPtr timer_update_cb_group_; // 新增：用于阻塞的IO
+    rclcpp::CallbackGroup::SharedPtr timer_update_cb_group_;
     rclcpp::CallbackGroup::SharedPtr timer_pub_cb_group_;
     rclcpp::CallbackGroup::SharedPtr sub_cb_group_;
     rclcpp::CallbackGroup::SharedPtr srv_reg_settings_cb_group_;
@@ -92,13 +91,16 @@ private:
     rclcpp::Service<ros2_interfaces::srv::CircuitBreakerCommand>::SharedPtr hardware_circuit_breaker_command_service_;
     rclcpp::Service<ros2_interfaces::srv::SetHardwareCircuitControlMode>::SharedPtr hardware_set_control_mode_service_;
 
-    rclcpp::TimerBase::SharedPtr hardware_update_timer_;  // 负责底层 TCP IO
-    rclcpp::TimerBase::SharedPtr hardware_publish_timer_; // 负责高频心跳发送
+    rclcpp::TimerBase::SharedPtr hardware_update_timer_;
+    rclcpp::TimerBase::SharedPtr hardware_publish_timer_;
 
     std::unique_ptr<IHardwareDriver> hardware_driver_;
 
     std::mutex service_throttle_mutex_;
     std::map<std::string, std::chrono::steady_clock::time_point> service_call_timestamps_;
+
+    // 【新增】保存读取自 yaml 的服务阻塞超时时长
+    std::chrono::milliseconds service_call_timeout_;
 };
 
 #endif // HARDWARE_NODE_HPP_

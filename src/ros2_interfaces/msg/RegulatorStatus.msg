@@ -26,3 +26,5 @@ bool lower_limit_switch_on     # 下限位
 
 bool over_current_on  # 过流报警
 bool over_voltage_on  # 过压报警
+
+bool auto_reduce_opening # 正在自动降压

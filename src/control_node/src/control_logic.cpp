@@ -207,8 +207,9 @@ void ControlLogic::process_manual_interlock() {
     else sys_status.circuit_work_status = ros2_interfaces::msg::SystemStatus::NONE_CIRCUIT_WORKING;
     state_manager_->update_system_status(sys_status);
 
-    // [修改] 移除旧的 1 秒全局拦截器，改用独立部件的超时追踪
-    auto check_and_set_mode = [this](uint8_t cid, uint8_t ltype, uint8_t target_mode) {
+    bool is_remote = sys_status.hardware_system_status.is_remote;
+    auto check_and_set_mode = [this, is_remote](uint8_t cid, uint8_t ltype, uint8_t target_mode) {
+        if (!is_remote) return;
         auto c_status = state_manager_->get_circuit_status(cid);
         uint8_t current_mode = (ltype == 1) ? c_status.test_loop.hardware_loop_status.plc_control_mode : c_status.ref_loop.hardware_loop_status.plc_control_mode;
         if (current_mode != target_mode) {
@@ -247,6 +248,11 @@ void ControlLogic::process_auto_logic() {
     } else if (sys_status.circuit_work_status == ros2_interfaces::msg::SystemStatus::CIRCUIT_2_WORKING) {
         t_c2_test = c2.test_loop.is_heat;
         t_c2_ref  = c2.ref_loop.is_heat;
+    }
+
+    // 本地模式下，禁止操作
+    if (!sys_status.hardware_system_status.is_remote) {
+        return;
     }
 
     // 3. 驱动底层状态机：以调压器（物理核心节点）为视角进行仲裁
@@ -299,10 +305,11 @@ void ControlLogic::execute_regulator_fsm(uint8_t reg_id, uint8_t loop_type, bool
 void ControlLogic::run_branch_shutdown_sequence(uint8_t circuit_id, uint8_t loop_type, uint8_t reg_id) {
     auto c_status = state_manager_->get_circuit_status(circuit_id);
     auto l_hw = (loop_type == 1) ? c_status.test_loop.hardware_loop_status : c_status.ref_loop.hardware_loop_status;
+    auto reg_status = state_manager_->get_regulator_status(reg_id);
 
     std::string plc_key = "PLC_MODE_" + std::to_string(circuit_id) + "_" + std::to_string(loop_type);
     std::string cir_breaker_key = "CIR_BREAKER_" + std::to_string(circuit_id) + "_" + std::to_string(loop_type);
-    std::string reg_stop_key = "REG_STOP_" + std::to_string(reg_id);
+    std::string reg_auto_open_key = "REG_AUTO_OPEN_" + std::to_string(reg_id);
 
     // Step 1: 切换到手动模式以切断 PID 输出
     if (l_hw.plc_control_mode != 1) { // 1 = Manual
@@ -313,23 +320,22 @@ void ControlLogic::run_branch_shutdown_sequence(uint8_t circuit_id, uint8_t loop
         return; // 等待反馈，不进入下一步
     }
 
-    // Step 2: 降压直至下限位
-    if (!is_regulator_at_lower_limit(reg_id)) {
-        auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
-        op->regulator_id = reg_id; op->command = 2; // 下降
-        hardware_coordinator_->send_regulator_operation_command(op);
-        return; // 等待降到底，不进入下一步
+    // Step 2: 发出1次自动降压分闸指令，等待调压器分闸
+    if (reg_status.breaker_closed_switch_ack) {
+        // 尚未处于自动降压中时，每隔2秒判定可再次下发(以防丢失)
+        if (!reg_status.auto_reduce_opening) {
+            if (can_execute_command(reg_auto_open_key)) {
+                auto cmd = std::make_shared<ros2_interfaces::srv::RegulatorBreakerCommand::Request>();
+                cmd->regulator_id = reg_id;
+                cmd->command = 3; // CMD_AUTO_REDUCE_OPEN
+                hardware_coordinator_->execute_regulator_breaker_command(cmd, nullptr);
+                mark_command_executed(reg_auto_open_key);
+            }
+        }
+        return; // 等待调压器分闸，不进入下一步
     }
 
-    // 刚刚降到底位时，补发一次停止指令 (无需return，直接进入下一步分闸)
-    if (can_execute_command(reg_stop_key)) {
-        auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
-        op->regulator_id = reg_id; op->command = 3; // 停止
-        hardware_coordinator_->send_regulator_operation_command(op);
-        mark_command_executed(reg_stop_key);
-    }
-
-    // Step 3: 断开支路断路器
+    // Step 3: 收到调压器分闸信号后，断开支路断路器
     if (l_hw.breaker_closed_switch_ack) {
         if (can_execute_command(cir_breaker_key)) {
             auto cmd = std::make_shared<ros2_interfaces::srv::CircuitBreakerCommand::Request>();
@@ -343,32 +349,20 @@ void ControlLogic::run_branch_shutdown_sequence(uint8_t circuit_id, uint8_t loop
 
 // FSM 状态机 2：调压器关停序列
 void ControlLogic::run_regulator_shutdown_sequence(uint8_t reg_id) {
-    std::string reg_breaker_key = "REG_BREAKER_" + std::to_string(reg_id);
-    std::string reg_stop_key = "REG_STOP_" + std::to_string(reg_id);
-
-    // Step 1: 确保调压器降至底位
-    if (!is_regulator_at_lower_limit(reg_id)) {
-        auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
-        op->regulator_id = reg_id; op->command = 2;
-        hardware_coordinator_->send_regulator_operation_command(op);
-        return;
-    }
-
-    if (can_execute_command(reg_stop_key)) {
-        auto op = std::make_shared<ros2_interfaces::msg::RegulatorOperationCommand>();
-        op->regulator_id = reg_id; op->command = 3;
-        hardware_coordinator_->send_regulator_operation_command(op);
-        mark_command_executed(reg_stop_key);
-    }
-
-    // Step 2: 断开主调压器断路器
     auto reg_status = state_manager_->get_regulator_status(reg_id);
+    std::string reg_auto_open_key = "REG_AUTO_OPEN_" + std::to_string(reg_id);
+
+    // Step 1: 发出1次自动降压分闸指令，等待调压器分闸
     if (reg_status.breaker_closed_switch_ack) {
-        if (can_execute_command(reg_breaker_key)) {
-            auto cmd = std::make_shared<ros2_interfaces::srv::RegulatorBreakerCommand::Request>();
-            cmd->regulator_id = reg_id; cmd->command = 2; // 分调压器
-            hardware_coordinator_->execute_regulator_breaker_command(cmd, nullptr);
-            mark_command_executed(reg_breaker_key);
+        // 尚未处于自动降压中时，每隔2秒判定可再次下发(以防丢失)
+        if (!reg_status.auto_reduce_opening) {
+            if (can_execute_command(reg_auto_open_key)) {
+                auto cmd = std::make_shared<ros2_interfaces::srv::RegulatorBreakerCommand::Request>();
+                cmd->regulator_id = reg_id;
+                cmd->command = 3; // CMD_AUTO_REDUCE_OPEN
+                hardware_coordinator_->execute_regulator_breaker_command(cmd, nullptr);
+                mark_command_executed(reg_auto_open_key);
+            }
         }
         return;
     }
@@ -442,12 +436,18 @@ bool ControlLogic::is_regulator_at_lower_limit(uint8_t regulator_id) {
 void ControlLogic::process_regulator_operation_command(const ros2_interfaces::msg::RegulatorOperationCommand::SharedPtr msg) {
     if (!is_system_ready()) return;
     if (state_manager_->get_system_settings().auto_on) return;
+    if (!state_manager_->get_system_status().hardware_system_status.is_remote) return;
+
     hardware_coordinator_->send_regulator_operation_command(msg);
 }
 
 void ControlLogic::handle_regulator_breaker_command_request(const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request>& request, LogicResultCallback callback) {
     if (!is_system_ready()) { if(callback) callback(false, "System not READY"); return; }
     if (state_manager_->get_system_settings().auto_on) { if(callback) callback(false, "Rejected: System in AUTO mode."); return; }
+    if (!state_manager_->get_system_status().hardware_system_status.is_remote) {
+        if(callback) callback(false, "Rejected: System is in LOCAL mode.");
+        return;
+    }
     if (request->command == 1 && !is_regulator_at_lower_limit(request->regulator_id)) { if(callback) callback(false, "Rejected: Regulator not at Lower Limit."); return; }
     hardware_coordinator_->execute_regulator_breaker_command(request, callback);
 }
@@ -455,6 +455,10 @@ void ControlLogic::handle_regulator_breaker_command_request(const std::shared_pt
 void ControlLogic::handle_circuit_breaker_command_request(const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request>& request, LogicResultCallback callback) {
     if (!is_system_ready()) { if(callback) callback(false, "System not READY"); return; }
     if (state_manager_->get_system_settings().auto_on) { if(callback) callback(false, "Rejected: System in AUTO mode."); return; }
+    if (!state_manager_->get_system_status().hardware_system_status.is_remote) {
+        if(callback) callback(false, "Rejected: System is in LOCAL mode.");
+        return;
+    }
     auto c_set = state_manager_->get_circuit_settings(request->circuit_id);
     bool is_test = (request->command == 1 || request->command == 2);
     if ((is_test && !c_set.test_loop.enabled) || (!is_test && !c_set.ref_loop.enabled)) { if(callback) callback(false, "Rejected: Loop is NOT Enabled."); return; }
