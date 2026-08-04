@@ -87,7 +87,7 @@ void ControlLogic::maintain_lifecycle() {
     }
 
     // 3. 更新系统综合状态标记 (System State)
-    if (!hw_ok || !db_ok || !plc_ok || !temp_ok) {
+    if (!hw_ok || !db_ok) {
         sys_status.system_state = ros2_interfaces::msg::SystemStatus::STATE_ERROR;
 
         // 增加诊断日志：每 3 秒打印一次到底是谁掉线了，避免盲猜
@@ -95,8 +95,8 @@ void ControlLogic::maintain_lifecycle() {
         auto now = rclcpp::Clock(RCL_SYSTEM_TIME).now();
         if ((now - last_print_time).seconds() > 3.0) {
             RCLCPP_WARN(rclcpp::get_logger("ControlLogic"),
-                        "System is in ERROR/STANDBY state! Diagnostics -> DB Node: %d, HW Node: %d, PLC: %d, Temp Monitor: %d",
-                        db_ok, hw_ok, plc_ok, temp_ok);
+                        "System is in ERROR/STANDBY state! Diagnostics -> DB Node: %d, HW Node: %d",
+                        db_ok, hw_ok);
             last_print_time = now;
         }
     }

@@ -21,7 +21,9 @@ Rectangle {
     property alias openBreakerButton: openBreakerButton
     property alias voltageUpButton: voltageUpButton
     property alias voltageDownButton: voltageDownButton
-    property alias isBlocked: inputBlocker.visible
+
+    // 【修改核心】：变更为标准的 bool 类型
+    property bool isBlocked: false
 
     // --- Chart Aliases ---
     property alias voltageAxis: voltageAxis
@@ -41,7 +43,7 @@ Rectangle {
         spacing: 10
 
         Rectangle {
-            id: topTitleArea  // 【修改1】：分配一个 ID 供底部遮罩定位
+            id: topTitleArea
             color: Theme.controlBgColor
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -74,11 +76,12 @@ Rectangle {
             }
         }
 
+        // --- 分合闸按钮面板 ---
         Rectangle {
             color: Theme.controlBgColor
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.minimumHeight: 60 // 调压器原本就有 60 的最低限制，所以这里的按钮不会溢出
+            Layout.minimumHeight: 60
             RowLayout {
                 anchors.fill: parent
                 spacing: Theme.subSpacing
@@ -86,16 +89,20 @@ Rectangle {
                     id: closeBreakerButton
                     labelText: "合闸"
                     colorWhenOn: "red"
+                    // 【修改核心】：当阻塞时，按钮变为灰色不可交互
+                    enabled: !root.isBlocked
                 }
                 ToggleActionButton {
                     id: openBreakerButton
                     labelText: "分闸"
                     colorWhenOn: "lime"
+                    // 【修改核心】：当阻塞时，按钮变为灰色不可交互
+                    enabled: !root.isBlocked
                 }
             }
         }
 
-        // --- Chart ---
+        // --- 图表及数值显示面板 (未作任何禁用/遮罩处理) ---
         Rectangle {
             Layout.fillWidth: true
             Layout.minimumHeight: 200
@@ -205,6 +212,7 @@ Rectangle {
             }
         }
 
+        // --- 升降压按钮面板 ---
         Rectangle {
             color: Theme.controlBgColor
             Layout.fillWidth: true
@@ -213,23 +221,10 @@ Rectangle {
             RowLayout {
                 anchors.fill: parent
                 spacing: Theme.subSpacing
+                // 这两个按钮的 enabled 状态因为还需判断“限位保护开关”，已在 qml 逻辑文件中统一绑定设置
                 ContinuousActionButton { id: voltageUpButton; labelText: "升压" }
                 ContinuousActionButton { id: voltageDownButton; labelText: "降压"; colorWhenOn: "lime" }
             }
         }
-    }
-
-    InputBlocker {
-        id: inputBlocker
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.top: parent.top
-        // 【修改2】：用动态绑定的方式精准推开标题，取代原本硬编码的 50px
-        anchors.topMargin: topTitleArea.height + 15
-        radius: root.radius
-        statusText: "非手动模式"
-        visible: false
-        overlayColor: Theme.blockerOverlayColor
     }
 }

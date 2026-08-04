@@ -9,6 +9,9 @@ CircuitStatusForm {
     property var statusData: null
     property var settingsData: null
 
+    property bool mainRegulatorClosed: false
+    property bool auxRegulatorClosed: false
+
     // ==========================================================
     // 启用状态计算逻辑 (增强健壮性)
     // ==========================================================
@@ -38,6 +41,7 @@ CircuitStatusForm {
     testLoop.loopStatusData: statusData ? statusData.test_loop : null
     testLoop.loopSettingsData: settingsData ? settingsData.test_loop : null
     testLoop.isBlocked: !control.isTestEnabled
+    testLoop.regulatorClosed: control.mainRegulatorClosed
 
     // 【修复报错点】明确检查 undefined，防止强类型转换失败
     testLoop.controlMode: (statusData && statusData.control_mode !== undefined) ? statusData.control_mode : 0
@@ -54,6 +58,7 @@ CircuitStatusForm {
     refLoop.loopStatusData: statusData ? statusData.ref_loop : null
     refLoop.loopSettingsData: settingsData ? settingsData.ref_loop : null
     refLoop.isBlocked: !control.isRefEnabled
+    refLoop.regulatorClosed: control.auxRegulatorClosed
 
     // 【修复报错点】明确检查 undefined，防止强类型转换失败
     refLoop.controlMode: (statusData && statusData.control_mode !== undefined) ? statusData.control_mode : 0

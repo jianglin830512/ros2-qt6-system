@@ -1,9 +1,8 @@
 ﻿# 'record_node' 节点的参数
 record_node:
   ros__parameters:
-
-    # 数据库文件路径。可以是绝对路径，也可以是相对于节点运行目录的相对路径。
-    db_path: "records_and_settings.db"
+  
+    db_path: "records_and_settings.db" # 数据库文件路径。
 
     # --- 数据记录配置 ---
     # 定时记录间隔 (单位: 分钟)

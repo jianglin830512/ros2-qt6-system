@@ -2,7 +2,7 @@
 # 注意: 这里的节点名需要和您在C++代码中创建节点时使用的名称一致
 qt_ros_node:
   ros__parameters:
-
+  
     # --- 订阅的主题名称 ---
     
     # 这个键名必须与 qt_node_constants::CIRCUIT_STATUS_TOPIC_PARAM 的值匹配

@@ -32,10 +32,14 @@ TemperatureMonitorPageForm {
     circuit1.circuitId: 1
     circuit1.statusData: rosProxy.circuitStatus1
     circuit1.settingsData: rosProxy.qmlCircuitSettings1
+    circuit1.mainRegulatorClosed: rosProxy.regulatorStatus1 ? rosProxy.regulatorStatus1.breaker_closed_switch_ack : false
+    circuit1.auxRegulatorClosed: rosProxy.regulatorStatus2 ? rosProxy.regulatorStatus2.breaker_closed_switch_ack : false
 
     circuit2.circuitId: 2
     circuit2.statusData: rosProxy.circuitStatus2
     circuit2.settingsData: rosProxy.qmlCircuitSettings2
+    circuit2.mainRegulatorClosed: rosProxy.regulatorStatus1 ? rosProxy.regulatorStatus1.breaker_closed_switch_ack : false
+    circuit2.auxRegulatorClosed: rosProxy.regulatorStatus2 ? rosProxy.regulatorStatus2.breaker_closed_switch_ack : false
 
     currentSeries.axisYRight: axisYCurrent
 

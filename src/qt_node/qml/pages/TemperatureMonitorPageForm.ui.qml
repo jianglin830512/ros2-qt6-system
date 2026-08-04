@@ -31,6 +31,16 @@ Rectangle{
     property alias channelSelector: channelSelector
     property alias timeRangeSelector: timeRangeSelector
 
+    // 【新增】全局指示灯闪烁定时器 (提供给断线红色闪烁)
+    Timer {
+        id: errorFlashTimer
+        interval: 500
+        running: true
+        repeat: true
+        property bool flashState: false
+        onTriggered: flashState = !flashState
+    }
+
     // --- 左侧: 调压器 ---
     ColumnLayout {
         id: regulatorPanle
@@ -112,7 +122,7 @@ Rectangle{
                     Layout.preferredWidth: 140
                     Layout.preferredHeight: 45
                     labelText: "手 动"
-                    colorWhenOn: "lime"
+                    colorWhenOn: Theme.statusHeatColor
                     indicatorOn: rosProxy.qmlSystemSettings && !rosProxy.qmlSystemSettings.auto_on
                 }
 
@@ -121,7 +131,7 @@ Rectangle{
                     Layout.preferredWidth: 140
                     Layout.preferredHeight: 45
                     labelText: "自 动"
-                    colorWhenOn: "lime"
+                    colorWhenOn: Theme.statusHeatColor
                     indicatorOn: rosProxy.qmlSystemSettings && rosProxy.qmlSystemSettings.auto_on
                 }
 
@@ -149,7 +159,7 @@ Rectangle{
                 Label { text: "回路 1 运行:"; color: Theme.textColor; font: Theme.defaultFont; Layout.alignment: Qt.AlignVCenter }
                 Rectangle {
                     width: 16; height: 16; radius: 8; Layout.alignment: Qt.AlignVCenter
-                    color: rosProxy.systemStatus.circuit_work_status === 1 ? Theme.statusOkColor : Theme.indicatorOffColor
+                    color: rosProxy.systemStatus.circuit_work_status === 1 ? Theme.statusHeatColor : Theme.indicatorOffColor
                     border.color: Theme.indicatorBorderColor; border.width: 1
                 }
 
@@ -162,8 +172,7 @@ Rectangle{
                 Label { text: "回路 2 运行:"; color: Theme.textColor; font: Theme.defaultFont; Layout.alignment: Qt.AlignVCenter }
                 Rectangle {
                     width: 16; height: 16; radius: 8; Layout.alignment: Qt.AlignVCenter
-                    // 根据要求回路2同样采取（灰/绿）配色
-                    color: rosProxy.systemStatus.circuit_work_status === 2 ? Theme.statusOkColor : Theme.indicatorOffColor
+                    color: rosProxy.systemStatus.circuit_work_status === 2 ? Theme.statusHeatColor : Theme.indicatorOffColor
                     border.color: Theme.indicatorBorderColor; border.width: 1
                 }
 
@@ -176,8 +185,7 @@ Rectangle{
                 Label { text: "全系统待机:"; color: Theme.textColor; font: Theme.defaultFont; Layout.alignment: Qt.AlignVCenter }
                 Rectangle {
                     width: 16; height: 16; radius: 8; Layout.alignment: Qt.AlignVCenter
-                    // 根据要求待机采取（灰/金黄）配色
-                    color: rosProxy.systemStatus.circuit_work_status === 0 ? Theme.statusStandbyColor : Theme.indicatorOffColor
+                    color: rosProxy.systemStatus.circuit_work_status === 0 ? Theme.statusOkColor : Theme.indicatorOffColor
                     border.color: Theme.indicatorBorderColor; border.width: 1
                 }
 
@@ -205,10 +213,11 @@ Rectangle{
                 Label { text: "PLC 连接:"; color: Theme.textColor; font: Theme.defaultFont; Layout.alignment: Qt.AlignVCenter }
                 Rectangle {
                     width: 16; height: 16; radius: 8; Layout.alignment: Qt.AlignVCenter
-                    // 采取（红/绿）配色，先判定全局硬件连接是否正常，否则显示红
+                    // 【修改点 3】断线时红色闪烁
                     color: {
-                        if (!rosProxy.systemStatus.hardware_connected) return Theme.errorColor;
-                        return rosProxy.systemStatus.plc_connected ? Theme.statusOkColor : Theme.errorColor;
+                        let isOk = rosProxy.systemStatus.hardware_connected && rosProxy.systemStatus.plc_connected;
+                        if (isOk) return Theme.statusOkColor;
+                        return errorFlashTimer.flashState ? Theme.errorColor : Theme.indicatorOffColor;
                     }
                     border.color: Theme.indicatorBorderColor; border.width: 1
                 }
@@ -222,9 +231,11 @@ Rectangle{
                 Label { text: "测温设备:"; color: Theme.textColor; font: Theme.defaultFont; Layout.alignment: Qt.AlignVCenter }
                 Rectangle {
                     width: 16; height: 16; radius: 8; Layout.alignment: Qt.AlignVCenter
+                    // 【修改点 3】断线时红色闪烁
                     color: {
-                        if (!rosProxy.systemStatus.hardware_connected) return Theme.errorColor;
-                        return rosProxy.systemStatus.temp_monitor_connected ? Theme.statusOkColor : Theme.errorColor;
+                        let isOk = rosProxy.systemStatus.hardware_connected && rosProxy.systemStatus.temp_monitor_connected;
+                        if (isOk) return Theme.statusOkColor;
+                        return errorFlashTimer.flashState ? Theme.errorColor : Theme.indicatorOffColor;
                     }
                     border.color: Theme.indicatorBorderColor; border.width: 1
                 }
@@ -350,7 +361,7 @@ Rectangle{
             ValueAxis {
                 id: axisYCurrent
                 min: 0
-                max: 480
+                max: 4800 // 【修改点 5】最大刻度乘以10
                 tickCount: 7
                 titleText: '<font color="' + Theme.titleColor + '">电流 (A)</font>'
                 titleFont: Theme.smallLabelFont

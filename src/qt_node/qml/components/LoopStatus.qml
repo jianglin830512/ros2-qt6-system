@@ -11,6 +11,10 @@ LoopStatusForm {
     property var loopSettingsData: null
     property var temperatureTitles: []
     property int controlMode: 0  // 接收控制模式
+    property bool regulatorClosed: false // 接收对应调压器是否合闸的标志位
+
+    // 【修改点 1】判断“加热中”的核心条件：回路合闸 且 对应的调压器合闸
+    property bool isHeatingNow: (loopStatusData && loopStatusData.breaker_closed_switch_ack && control.regulatorClosed)
 
     Component.onCompleted: {
         control.titleLabel.text = title
@@ -90,19 +94,9 @@ LoopStatusForm {
         return Theme.statusDisabledColor;
     }
 
-    statusLabel.text: {
-        if (loopStatusData && loopStatusData.is_heat) {
-            return "加热时段";
-        }
-        return "冷却时段";
-    }
+    statusLabel.text: isHeatingNow ? "加热中" : "冷却中"
 
-    statusLabel.color: {
-        if (loopStatusData && loopStatusData.is_heat) {
-            return Theme.statusHeatColor;
-        }
-        return Theme.statusCoolColor;
-    }
+    statusLabel.color: isHeatingNow ? Theme.statusHeatColor : Theme.statusCoolColor
 
     statusLabel.visible: {
         return (loopSettingsData && loopSettingsData.enabled);

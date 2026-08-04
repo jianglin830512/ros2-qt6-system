@@ -25,8 +25,10 @@ Rectangle {
     property alias tempRepeater: tempRepeater
     property alias closeBreakerButton: closeBreakerButton
     property alias openBreakerButton: openBreakerButton
+
+    // 【修改核心 1】：保留全局遮罩别名，将按钮遮罩变更为普通的 bool 属性
     property alias isBlocked: inputBlocker.visible
-    property alias isButtonsBlocked: buttonBlocker.visible
+    property bool isButtonsBlocked: false
 
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 10; spacing: 8
@@ -169,7 +171,6 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.preferredHeight: 60
-            // 【修改1】：强制最低高度 55，保证 45 高度的按钮绝不会溢出容器，遮罩也能完全包覆
             Layout.minimumHeight: 55
 
             RowLayout {
@@ -179,20 +180,19 @@ Rectangle {
                     id: closeBreakerButton
                     labelText: "合闸"
                     colorWhenOn: "red"
+                    // 【修改核心 2】：直接绑定禁用状态
+                    enabled: !root.isButtonsBlocked
                 }
                 ToggleActionButton {
                     id: openBreakerButton
                     labelText: "分闸"
                     colorWhenOn: "lime"
+                    // 【修改核心 2】：直接绑定禁用状态
+                    enabled: !root.isButtonsBlocked
                 }
             }
 
-            InputBlocker {
-                id: buttonBlocker
-                radius: 5
-                statusText: ""
-                overlayColor: Theme.blockerOverlayColor
-            }
+            // 【修改核心 3】：彻底删除了原本在这里覆盖按钮的 buttonBlocker 遮罩
         }
 
         Item {
@@ -268,13 +268,12 @@ Rectangle {
         }
     }
 
-    // 面板全局遮罩
+    // 面板全局遮罩（保留，用于“回路停用”时的整体遮蔽）
     InputBlocker {
         id: inputBlocker
         radius: root.radius
         statusText: ""
         overlayColor: Theme.blockerOverlayColor
-        // 【修改2】：精准计算顶部偏移 (容器 Margin 10 + 标题高 + 5px空隙)，从而完美避开标题行
         anchors.topMargin: titleArea.height + 15
     }
 }

@@ -25,6 +25,26 @@ RegulatorControlForm {
         control.voltageAxis.max = 450;
     }
 
+    // 闪烁定时器
+    Timer {
+        id: blinkTimer
+        interval: 500
+        running: true
+        repeat: true
+        property bool flashState: false
+        onTriggered: flashState = !flashState
+    }
+
+    // --- 【修改核心】将 isBlocked 状态与 限位状态 进行综合判定 ---
+    voltageUpButton.indicatorOn: (statusData && statusData.upper_limit_switch_on) ? blinkTimer.flashState : false
+    // 只有在非阻塞状态下，且没有触碰上限位时，按钮才可用
+    voltageUpButton.enabled: !control.isBlocked && !(statusData && statusData.upper_limit_switch_on)
+
+    voltageDownButton.indicatorOn: (statusData && statusData.lower_limit_switch_on) ? blinkTimer.flashState : false
+    // 只有在非阻塞状态下，且没有触碰下限位时，按钮才可用
+    voltageDownButton.enabled: !control.isBlocked && !(statusData && statusData.lower_limit_switch_on)
+
+
     // --- Data Binding ---
     Connections {
         target: control
@@ -42,8 +62,6 @@ RegulatorControlForm {
             control.downArrow.visible = statusData.voltage_direction === -1
             control.closeBreakerButton.indicatorOn = statusData.breaker_closed_switch_ack
             control.openBreakerButton.indicatorOn = statusData.breaker_opened_switch_ack
-            control.voltageUpButton.indicatorOn = statusData.upper_limit_switch_on
-            control.voltageDownButton.indicatorOn = statusData.lower_limit_switch_on
 
             // 2. 动态更新图表
             updateChart(vol, cur);
@@ -69,7 +87,6 @@ RegulatorControlForm {
             dangerV_val = vol - dangerV;
         }
 
-        // 索引 0 表示第一列（Category "V"）
         control.volBaseSet.replace(0, baseV_val);
         control.volWarnSet.replace(0, warnV_val);
         control.volDangerSet.replace(0, dangerV_val);
@@ -93,7 +110,6 @@ RegulatorControlForm {
             dangerA_val = cur - dangerA;
         }
 
-        // 索引 1 表示第二列（Category "A"）
         control.curBaseSet.replace(1, baseA_val);
         control.curWarnSet.replace(1, warnA_val);
         control.curDangerSet.replace(1, dangerA_val);

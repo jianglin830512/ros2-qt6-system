@@ -59,19 +59,22 @@ Item {
 
                         Repeater {
                             id: colRepeater
-                            // model 在逻辑层设置，现在是一个 ListModel
                             delegate: CheckBox {
-                                text: model.label !== undefined ? model.label : ""
+                                // 【修复点 1】: 显式定义 ID，避免 parent 指向混乱
+                                id: colCheckBox
+
+                                text: typeof model !== "undefined" && model.label ? model.label : ""
                                 checked: false
 
                                 // 自定义选框，增加中间颜色块来指示图例颜色
                                 indicator: Rectangle {
                                     implicitWidth: 18
                                     implicitHeight: 18
-                                    x: parent.leftPadding
-                                    y: parent.height / 2 - height / 2
+                                    x: colCheckBox.leftPadding
+                                    y: colCheckBox.height / 2 - height / 2
                                     radius: 3
-                                    border.color: parent.checked ? Theme.highlightColor : Theme.checkboxUncheckedColor
+                                    // 使用 ID 访问 checked 属性
+                                    border.color: colCheckBox.checked ? Theme.highlightColor : Theme.checkboxUncheckedColor
                                     color: "transparent"
 
                                     // 内部实心块显示对应的曲线颜色
@@ -80,20 +83,22 @@ Item {
                                         width: 12
                                         height: 12
                                         radius: 2
-                                        visible: parent.checked && model.lineColor !== undefined && model.lineColor !== ""
-                                        color: model.lineColor !== undefined && model.lineColor !== "" ? model.lineColor : "transparent"
+                                        // 【修复点 2】: 使用 colCheckBox.checked 替代 parent.checked
+                                        // 同时确保模型颜色的判断返回绝对的 true/false
+                                        visible: colCheckBox.checked ? (typeof model !== "undefined" && typeof model.lineColor === "string" && model.lineColor !== "") : false
+                                        color: (typeof model !== "undefined" && typeof model.lineColor === "string" && model.lineColor !== "") ? model.lineColor : "transparent"
                                     }
                                 }
 
                                 contentItem: Text {
-                                    text: parent.text
+                                    text: colCheckBox.text
                                     font: Theme.smallLabelFont
-                                    // 被选中并生成了图表 lineColor 时，采用 lineColor；否则用普通的选中高亮色
-                                    color: parent.checked
-                                           ? ((model.lineColor !== undefined && model.lineColor !== "") ? model.lineColor : Theme.checkboxCheckedColor)
+                                    // 同样使用 ID 访问
+                                    color: colCheckBox.checked
+                                           ? ((typeof model !== "undefined" && typeof model.lineColor === "string" && model.lineColor !== "") ? model.lineColor : Theme.checkboxCheckedColor)
                                            : Theme.checkboxUncheckedColor
                                     verticalAlignment: Text.AlignVCenter
-                                    leftPadding: parent.indicator.width + parent.spacing
+                                    leftPadding: colCheckBox.indicator.width + colCheckBox.spacing
                                 }
                             }
                         }

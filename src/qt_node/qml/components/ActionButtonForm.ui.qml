@@ -21,14 +21,12 @@ Button {
         radius: 8
 
         // 【核心反色逻辑】
-        // 按下瞬间，背景填充深蓝色；平时是背景白色
-        color: root.pressed ? Theme.buttonSelectedGradientEnd : Theme.buttonBackgroundColor
+        // 按下瞬间，背景填充深蓝色；禁用时使用浅灰背景；平时是背景白色
+        color: root.pressed ? Theme.buttonSelectedGradientEnd : (!root.enabled ? Theme.buttonHoverColor : Theme.buttonBackgroundColor)
 
-        // 边框：按下时边框与背景同色融为一体，平时是蓝色边框
-        border.color: root.pressed ? Theme.buttonSelectedGradientEnd : Theme.highlightColor
+        // 边框：按下时边框与背景同色融为一体，禁用时使用灰色边框；平时是蓝色边框
+        border.color: root.pressed ? Theme.buttonSelectedGradientEnd : (!root.enabled ? Theme.buttonBorderColor : Theme.highlightColor)
         border.width: 2
-
-        opacity: root.enabled ? 1.0 : 0.5
 
         Item {
             id: textArea
@@ -46,7 +44,7 @@ Button {
 
                 // 【文本反色】禁用时变灰；按下时文字强制纯白；平时为主色调蓝
                 color: !root.enabled ? Theme.statusDisabledColor :
-                       (root.pressed ? "#FFFFFF" : Theme.titleColor)
+                                       (root.pressed ? "#FFFFFF" : Theme.titleColor)
             }
         }
 
