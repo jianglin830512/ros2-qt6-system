@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import qt.theme 1.0
@@ -8,112 +8,21 @@ Item {
     id: root
 
     // Aliases
-    property alias dateInput: dateInput
-    property alias timeInput: timeInput
-    property alias spanCombo: spanCombo
-    property alias circuitCombo: circuitCombo
-    property alias queryBtn: queryBtn
+    property alias queryPanel: queryPanel
     property alias tableListView: tableListView
     property alias headerRowLayout: headerRowLayout
+
+    // 暴露根属性：动态计算的内容总宽度，通过 TestDataPage.qml 自动更新
+    property int tableContentWidth: 0
 
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 10
         spacing: 10
 
-        // === 顶部：查询控制栏 ===
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 70
-            color: Theme.controlBgColor
-            border.color: Theme.highlightColor
-            border.width: 2
-            radius: 5
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 10
-                spacing: 20
-
-                // 日期
-                RowLayout {
-                    Label { text: "日期:"; color: Theme.textColor; font: Theme.defaultFont }
-                    Rectangle {
-                        width: 140; height: 36
-                        color: "transparent"
-                        border.color: Theme.highlightColor
-                        border.width: 2
-                        radius: 10
-                        TextInput {
-                            id: dateInput
-                            anchors.fill: parent; anchors.margins: 5
-                            verticalAlignment: Text.AlignVCenter
-                            horizontalAlignment: Text.AlignHCenter
-                            color: Theme.textColor
-                            font: Theme.defaultFont
-                            text: Qt.formatDateTime(new Date(), "yyyy-MM-dd")
-                            validator: RegularExpressionValidator { regularExpression: /^[0-9\-\/\.]+$/ }
-                            onActiveFocusChanged: parent.border.color = activeFocus ? Theme.orange : Theme.highlightColor
-                        }
-                    }
-                }
-
-                // 时间
-                RowLayout {
-                    Label { text: "时间:"; color: Theme.textColor; font: Theme.defaultFont }
-                    Rectangle {
-                        width: 80; height: 36
-                        color: "transparent"
-                        border.color: Theme.highlightColor
-                        border.width: 2
-                        radius: 10
-                        TextInput {
-                            id: timeInput
-                            anchors.fill: parent; anchors.margins: 5
-                            verticalAlignment: Text.AlignVCenter
-                            horizontalAlignment: Text.AlignHCenter
-                            color: Theme.textColor
-                            font: Theme.defaultFont
-                            text: Qt.formatDateTime(new Date(), "hh:mm")
-                            validator: RegularExpressionValidator { regularExpression: /^[0-9:]+$/ }
-                            onActiveFocusChanged: parent.border.color = activeFocus ? Theme.orange : Theme.highlightColor
-                        }
-                    }
-                }
-
-                // 时长
-                RowLayout {
-                    Label { text: "时长:"; color: Theme.textColor; font: Theme.defaultFont }
-                    ComboBox {
-                        id: spanCombo
-                        width: 100
-                        model: [2, 4, 8, 12, 24]
-                        currentIndex: 0
-                    }
-                    Label { text: "小时"; color: Theme.textColor; font: Theme.defaultFont }
-                }
-
-                // 回路选择
-                RowLayout {
-                    Label { text: "目标回路:"; color: Theme.textColor; font: Theme.defaultFont }
-                    ComboBox {
-                        id: circuitCombo
-                        width: 140
-                        model: ["回路 1", "回路 2"]
-                        currentIndex: 0
-                    }
-                }
-
-                Item { Layout.fillWidth: true } // 弹簧占位
-
-                // 查询按钮
-                StyledButton {
-                    id: queryBtn
-                    text: "查 询"
-                    implicitWidth: 120
-                    implicitHeight: 40
-                }
-            }
+        // === 顶部：通用查询控制栏 ===
+        QueryPanel {
+            id: queryPanel
         }
 
         // === 底部：表格数据区域 ===
@@ -124,53 +33,58 @@ Item {
             border.color: Theme.highlightColor
             border.width: 2
             radius: 5
-            clip: true // 保证边角裁剪
+            clip: true
 
-            // 外层 Flickable 专门控制【横向滚动】，同步带动表头和表格数据
-            Flickable {
-                id: horizontalFlick
+            // 【核心修复】：增加一个带有 2px margins 的容器，保护外层边框不被列表背景覆盖
+            Item {
                 anchors.fill: parent
                 anchors.margins: 2
 
-                // 【核心修改】固定总宽度：1列时间(180) + 38列数值(100) = 3980
-                contentWidth: 3980
+                // 表头部分：只作为背景展示，不截获手势，跟随下方的 ListView 联动
+                Flickable {
+                    id: headerFlick
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 60 // 为了容纳换行，表头高度提升为 60
+                    contentWidth: root.tableContentWidth
+                    interactive: false
+                    clip: true
 
-                // 纵向不在此处滚动，因此高度设为与容器相同
-                contentHeight: height
-                clip: true
-
-                // 外层的横向滚动条
-                ScrollBar.horizontal: ScrollBar {
-                    policy: ScrollBar.AlwaysOn
-                }
-
-                Column {
-                    anchors.fill: parent
-
-                    // 1. 固定表头
                     Rectangle {
-                        id: headerRect
-                        width: 3980  // 同步修改宽度
-                        height: 40
-                        color: Theme.highlightColor
+                        width: root.tableContentWidth
+                        height: 60
+                        color: Theme.highlightColor // 深蓝色底色
 
                         Row {
                             id: headerRowLayout
                             anchors.fill: parent
                         }
                     }
+                }
 
-                    // 2. 数据列表 (占据剩余高度)
-                    ListView {
-                        id: tableListView
-                        width: 3980  // 同步修改宽度
-                        height: parent.height - headerRect.height
-                        clip: true
+                // 数据列表：利用 ListView 原生的内容滚动实现二维拖动
+                ListView {
+                    id: tableListView
+                    anchors.top: headerFlick.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
 
-                        // 纵向滚动条属于 ListView，仅数据区上下滚动
-                        ScrollBar.vertical: ScrollBar {
-                            policy: ScrollBar.AlwaysOn
-                        }
+                    contentWidth: root.tableContentWidth
+                    clip: true
+
+                    // 表格横向拖动时，同步更新顶部的表头坐标
+                    onContentXChanged: {
+                        headerFlick.contentX = contentX;
+                    }
+
+                    // 完美的水平及垂直滚动条，垂直滑块将永远出现在屏幕最右侧边缘
+                    ScrollBar.horizontal: ScrollBar {
+                        policy: ScrollBar.AlwaysOn
+                    }
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AlwaysOn
                     }
                 }
             }

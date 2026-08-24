@@ -1,4 +1,5 @@
-﻿import QtQuick
+﻿
+import QtQuick
 import QtQuick.Controls
 import qt_node 1.0
 import qt.theme 1.0
@@ -12,53 +13,7 @@ TestDataPageForm {
 
     // 辅助函数：确定列宽，时间列宽一些，其他列较窄
     function getColWidth(index) {
-        return index === 0 ? 180 : 100;
-    }
-
-    // ==========================================================
-    // 智能日期与时间清洗函数
-    // ==========================================================
-    function normalizeDateStr(str) {
-        if (!str) return "";
-        var cleanStr = str.replace(/[\/\.]/g, "-");
-        var parts = cleanStr.split("-");
-        if (parts.length === 3) {
-            var y = parts[0];
-            var m = parts[1].toString().padStart(2, '0');
-            var d = parts[2].toString().padStart(2, '0');
-            return y + "-" + m + "-" + d;
-        }
-        return str;
-    }
-
-    function normalizeTimeStr(str) {
-        if (!str) return "";
-        // 允许用户不小心用点或者横杠代替冒号
-        var cleanStr = str.replace(/[\/\.\-]/g, ":");
-        var parts = cleanStr.split(":");
-        if (parts.length === 2) {
-            var h = parts[0].toString().padStart(2, '0');
-            var m = parts[1].toString().padStart(2, '0');
-            return h + ":" + m;
-        }
-        return str;
-    }
-
-    // ==========================================================
-    // 监听 UI 层的输入完成事件 (回车或失去焦点)
-    // ==========================================================
-    Connections {
-        target: page.dateInput
-        function onEditingFinished() {
-            page.dateInput.text = page.normalizeDateStr(page.dateInput.text);
-        }
-    }
-
-    Connections {
-        target: page.timeInput
-        function onEditingFinished() {
-            page.timeInput.text = page.normalizeTimeStr(page.timeInput.text);
-        }
+        return index === 0 ? 180 : 120; // 稍微拉宽一点，为了让两行字排版更好看
     }
 
     // 1. 动态生成表头
@@ -68,7 +23,7 @@ TestDataPageForm {
 
         delegate: Rectangle {
             width: getColWidth(index)
-            height: 40
+            height: 60
             color: "transparent"
             border.color: Theme.gridLineColor
             border.width: 1
@@ -76,8 +31,10 @@ TestDataPageForm {
             Text {
                 anchors.centerIn: parent
                 text: modelData
-                color: Theme.orange
+                color: Theme.buttonSelectedTextColor // 使用 Theme 里的白色 (#FFFFFF)
                 font: Theme.smallLabelFont
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
             }
         }
     }
@@ -86,10 +43,9 @@ TestDataPageForm {
     tableListView.model: page.tableRows
     tableListView.delegate: Item {
         id: rowItem
-        // 宽度由内部的 Row 撑开，高度固定 35
         width: innerRow.width
         height: 35
-        property var rowData: modelData // modelData 是 QVariantList 转化来的 JS Array
+        property var rowData: modelData
 
         // 鼠标悬停行高亮
         Rectangle {
@@ -121,20 +77,25 @@ TestDataPageForm {
                         text: modelData
                         color: Theme.valueColor
                         font: Theme.smallLabelFont
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
                 }
             }
         }
     }
 
-    // 3. 按钮点击请求数据
-    queryBtn.onClicked: {
-        var dateStr = dateInput.text;
-        var timeStr = timeInput.text;
-        var span = parseInt(spanCombo.currentValue);
-        var cid = circuitCombo.currentIndex + 1; // 0->1, 1->2
+    // 3. 按钮点击请求数据 (通过监听 queryPanel 发出的信号)
+    Connections {
+        target: page.queryPanel
+        function onQueryClicked() {
+            var dateStr = page.queryPanel.dateString;
+            var spanHours = parseInt(page.queryPanel.spanDays) * 24;
+            var cid = page.queryPanel.circuitId + 1; // 0->1, 1->2
 
-        rosProxy.queryTable(dateStr, timeStr, span, cid);
+            // 将时间硬编码为 "00:00"
+            rosProxy.queryTable(dateStr, "00:00", spanHours, cid);
+        }
     }
 
     // 4. 处理后端发来的数据
@@ -144,6 +105,9 @@ TestDataPageForm {
         function onTableDataReady(dataMap) {
             page.tableHeaders = dataMap.headers;
             page.tableRows = dataMap.rows;
+
+            // 动态计算该表格的总宽度：(时间列的 180 + 其他列的数量 * 120)
+            page.tableContentWidth = page.tableHeaders.length > 0 ? (180 + (page.tableHeaders.length - 1) * 120) : 0;
 
             if (page.tableRows.length === 0) {
                 messagePopup.isError = false;

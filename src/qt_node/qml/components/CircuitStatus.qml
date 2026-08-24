@@ -38,6 +38,11 @@ CircuitStatusForm {
     testLoop.circuitId: control.circuitId
     testLoop.isSimulated: false
     testLoop.title: "试验回路" + control.circuitId
+
+    // 根据具体回路动态分配指定的采集卡标题
+    testLoop.leftCardTitle: control.circuitId === 1 ? "采集卡1" : "采集卡4"
+    testLoop.rightCardTitle: control.circuitId === 1 ? "采集卡2" : "采集卡5"
+
     testLoop.loopStatusData: statusData ? statusData.test_loop : null
     testLoop.loopSettingsData: settingsData ? settingsData.test_loop : null
     testLoop.isBlocked: !control.isTestEnabled
@@ -55,6 +60,11 @@ CircuitStatusForm {
     refLoop.circuitId: control.circuitId
     refLoop.isSimulated: true
     refLoop.title: "模拟回路" + control.circuitId
+
+    // 根据具体回路动态分配指定的采集卡标题 (模拟回路右侧为空)
+    refLoop.leftCardTitle: control.circuitId === 1 ? "采集卡3" : "采集卡6"
+    refLoop.rightCardTitle: ""
+
     refLoop.loopStatusData: statusData ? statusData.ref_loop : null
     refLoop.loopSettingsData: settingsData ? settingsData.ref_loop : null
     refLoop.isBlocked: !control.isRefEnabled

@@ -78,6 +78,12 @@ namespace control_node_constants
 [[maybe_unused]] constexpr const char* PLC_COMMAND_TIMEOUT_PARAM = "plc_command_timeout";
 [[maybe_unused]] constexpr double DEFAULT_PLC_COMMAND_TIMEOUT = 2.0;
 
+// --- 与【GLOBAL_NODE】通信 (新增) ---
+[[maybe_unused]] constexpr const char* GET_CABLE_INFO_BATCH_SERVICE_PARAM = "get_cable_info_batch_service";
+[[maybe_unused]] constexpr const char* DEFAULT_GET_CABLE_INFO_BATCH_SERVICE = "/global/cable_manager/get_batch";
+[[maybe_unused]] constexpr const char* CABLE_SYNC_INTERVAL_SEC_PARAM = "cable_sync_interval_sec";
+[[maybe_unused]] constexpr int DEFAULT_CABLE_SYNC_INTERVAL_SEC = 10;
+
 } // namespace control_node_constants
 
 #endif // CONTROL_NODE_CONSTANTS_HPP

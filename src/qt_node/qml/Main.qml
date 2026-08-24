@@ -42,7 +42,7 @@ ApplicationWindow {
         anchors.fill: parent
 
         // 1. 设置侧边栏导航模型
-        navModel: ["温度监控", "系统设置", "回路1设置", "回路2设置", "试验数据", "历史数据"]
+        navModel: ["温度监控", "系统设置", "回路1设置", "回路2设置", "试验数据", "历史曲线", "数据导出", "电缆管理"]
 
         // 2. 指示灯状态绑定
         remoteIndicator.color: isRemote ? Theme.remoteGreen : Theme.localRed
@@ -75,7 +75,9 @@ ApplicationWindow {
                 statusData: rosProxy.circuitStatus2
             },
             TestDataPage {},
-            HistoryPage {}
+            HistoryPage {},
+            DataExportPage {},
+            CableManagementPage {}
         ]
     }
 

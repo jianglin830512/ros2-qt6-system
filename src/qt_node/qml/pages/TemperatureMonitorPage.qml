@@ -9,8 +9,6 @@ TemperatureMonitorPageForm {
     mainRegulator.regulatorId: 1
     mainRegulator.title: "主调压器"
     mainRegulator.statusData: rosProxy.regulatorStatus1
-
-    // 【修复报错点】明确检查 undefined，避免初始时传给 int 类型报错
     mainRegulator.controlMode: (rosProxy.circuitStatus1 && rosProxy.circuitStatus1.control_mode !== undefined)
                                ? rosProxy.circuitStatus1.control_mode
                                : 0
@@ -19,8 +17,6 @@ TemperatureMonitorPageForm {
     auxRegulator.regulatorId: 2
     auxRegulator.title: "辅调压器"
     auxRegulator.statusData: rosProxy.regulatorStatus2
-
-    // 【修复报错点】明确检查 undefined
     auxRegulator.controlMode: (rosProxy.circuitStatus2 && rosProxy.circuitStatus2.control_mode !== undefined)
                               ? rosProxy.circuitStatus2.control_mode
                               : 0
@@ -155,7 +151,23 @@ TemperatureMonitorPageForm {
     }
 
     function processIncomingData(cId, statusData) {
-        if (!statusData) return;
+        if (!statusData || statusData.circuit_id === 0) return;
+
+        // 【修改核心】智能识别并抛弃启动时未就绪的数据 (若硬件传感器报的所有温度全为 0.0，判定为无数据)
+        var isValidData = false;
+        var testTemps = (statusData.test_loop && statusData.test_loop.temperature_array) ? statusData.test_loop.temperature_array : [];
+        for (var k = 0; k < testTemps.length; k++) {
+            if (testTemps[k] !== 0) { isValidData = true; break; }
+        }
+        if (!isValidData) {
+            var refTemps = (statusData.ref_loop && statusData.ref_loop.temperature_array) ? statusData.ref_loop.temperature_array : [];
+            for (var m = 0; m < refTemps.length; m++) {
+                if (refTemps[m] !== 0) { isValidData = true; break; }
+            }
+        }
+
+        // 如果数据完全无效（所有温度严格等于0），说明设备并未连接/或者还没传数据，跳过绘制
+        if (!isValidData) return;
 
         var nowMs = new Date().getTime();
 
@@ -197,7 +209,6 @@ TemperatureMonitorPageForm {
         if (statusData.test_loop) {
             var prefixTest = "c" + cId + "_test";
             saveAndThinData(prefixTest + "_cur", statusData.test_loop.current || 0);
-            var testTemps = statusData.test_loop.temperature_array || [];
             for (var i = 0; i < testTemps.length; i++) {
                 saveAndThinData(prefixTest + "_t" + i, testTemps[i]);
             }
@@ -206,9 +217,9 @@ TemperatureMonitorPageForm {
         if (statusData.ref_loop) {
             var prefixRef = "c" + cId + "_ref";
             saveAndThinData(prefixRef + "_cur", statusData.ref_loop.current || 0);
-            var refTemps = statusData.ref_loop.temperature_array || [];
-            for (var j = 0; j < refTemps.length; j++) {
-                saveAndThinData(prefixRef + "_t" + j, refTemps[j]);
+            var refTempsFinal = statusData.ref_loop.temperature_array || [];
+            for (var j = 0; j < refTempsFinal.length; j++) {
+                saveAndThinData(prefixRef + "_t" + j, refTempsFinal[j]);
             }
         }
 

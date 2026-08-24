@@ -63,6 +63,14 @@ public:
     Q_INVOKABLE void queryHistory(const QString& dateStr, const QString& timeStr, int spanHours, const QStringList& cols);
     Q_INVOKABLE void queryTable(const QString& dateStr, const QString& timeStr, int spanHours, int circuitId);
 
+    // 数据导出
+    Q_INVOKABLE void exportData(const QString& start_date, const QString& end_date, int circuit_id, const QString& file_path);
+
+    // 电缆管理
+    Q_INVOKABLE void listCables(const QString& keyword, int page, int pageSize, int sortColumn, bool isAscending);
+    Q_INVOKABLE void saveCable(const QVariantMap& cableMap);
+    Q_INVOKABLE void deleteCable(int id);
+
 public slots:
     // QML 将调用这个槽来启动关闭流程
     void initiateShutdown();
@@ -86,6 +94,15 @@ public slots:
     // --- Slot to receive service call results from ROS node ---
     void onSettingsUpdateResult(const QString &service_name, bool success, const QString &message);
     void onCommandResult(const QString &service_name, bool success, const QString &message);
+
+    // 数据导出
+    void onExportProgress(int percentage);
+    void onExportFinished(bool success, const QString& message);
+
+    // 电缆管理
+    void onCablesListed(const QVariantMap& result);
+    void onCableSaveResult(bool success, const QString& msg);
+    void onCableDeleteResult(bool success, const QString& msg);
 
 signals:
     // 这个信号将通知 QtRosNode 开始关闭
@@ -130,6 +147,21 @@ signals:
     void tableQueryRequested(const QString& start_time_str, int duration, int circuit_id);
     void tableDataReady(const QVariantMap& data);
     void tableQueryError(const QString& msg);
+
+    // 数据导出
+    void exportDataRequested(const QString& start_date, const QString& end_date, int circuit_id, const QString& file_path);
+    void exportProgressChanged(int percentage);
+    void exportResult(bool success, const QString& message);
+
+    // 电缆管理，请求给 QtROSNode
+    void listCablesRequested(const QString& keyword, int page, int pageSize, int sortColumn, bool isAscending);
+    void saveCableRequested(const QVariantMap& cableMap);
+    void deleteCableRequested(int id);
+
+    // 电缆管理，QtROSNode 返回结果给 QML
+    void cablesListed(const QVariantMap& result);
+    void cableSaveResult(bool success, const QString& msg);
+    void cableDeleteResult(bool success, const QString& msg);
 
 private:
     // 存储数据的成员变量

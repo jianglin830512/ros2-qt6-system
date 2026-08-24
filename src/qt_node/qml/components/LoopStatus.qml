@@ -13,7 +13,7 @@ LoopStatusForm {
     property int controlMode: 0  // 接收控制模式
     property bool regulatorClosed: false // 接收对应调压器是否合闸的标志位
 
-    // 【修改点 1】判断“加热中”的核心条件：回路合闸 且 对应的调压器合闸
+    // 判断“加热中”的核心条件：回路合闸 且 对应的调压器合闸
     property bool isHeatingNow: (loopStatusData && loopStatusData.breaker_closed_switch_ack && control.regulatorClosed)
 
     Component.onCompleted: {
@@ -29,11 +29,9 @@ LoopStatusForm {
     }
 
     // ==========================================================
-    // 【新增】 绑定 加热时长 和 循环次数 到设定值显示
+    // 绑定 加热时长 和 循环次数 到设定值显示
     // ==========================================================
 
-    // 绑定加热设定值 (ROS类型: builtin_interfaces/Duration -> C++: int heating_duration_sec)
-    // UI单位为分钟，所以需要除以 60
     heatSetValue: {
         if (loopSettingsData && loopSettingsData.heating_duration_sec !== undefined) {
             return (loopSettingsData.heating_duration_sec / 60).toFixed(0);
@@ -41,7 +39,6 @@ LoopStatusForm {
         return "0";
     }
 
-    // 绑定循环次数设定值 (ROS类型: int32 cycle_count -> C++: int cycle_count)
     cycleSetValue: {
         if (loopSettingsData && loopSettingsData.cycle_count !== undefined) {
             return String(loopSettingsData.cycle_count);
@@ -51,7 +48,7 @@ LoopStatusForm {
     // ==========================================================
 
 
-    // --- 监听状态数据 (保持不变) ---
+    // --- 监听状态数据 ---
     onLoopStatusDataChanged: {
         if (!loopStatusData) {
             control.measureCurrentLabel.text = "0";
@@ -70,16 +67,19 @@ LoopStatusForm {
 
         var temps = []
         for (var i = 0; i < temperatureTitles.length; ++i) {
-            var title = temperatureTitles[i];
-            var value = (loopStatusData.temperature_array && loopStatusData.temperature_array[i] !== undefined)
+            var t_title = temperatureTitles[i];
+            var val = (loopStatusData.temperature_array && loopStatusData.temperature_array[i] !== undefined)
                     ? loopStatusData.temperature_array[i].toFixed(1)
                     : "N/A";
-            temps.push({ titleName: title, value: value });
+            temps.push({ titleName: t_title, value: val });
         }
-        control.tempRepeater.model = temps;
+
+        // 拆分为左右两列注入模型 (如果没有后8个数据，slice会自动返回空数组)
+        control.leftTempRepeater.model = temps.slice(0, 8);
+        control.rightTempRepeater.model = temps.slice(8, 16);
     }
 
-    // --- 监听设置数据 (启用状态/颜色/文本逻辑保持不变) ---
+    // --- 监听设置数据 ---
     enableLabel.text: {
         if (loopSettingsData && loopSettingsData.enabled) {
             return "启用";

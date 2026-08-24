@@ -7,10 +7,9 @@ import "../components"
 Item {
     id: root
 
-    // 【新增】传入回路ID (1 或 2)
     property int circuitId: 1
 
-    // --- Aliases (保持不变) ---
+    // --- 左侧及中间 Aliases ---
     property alias testStartStop: testStartStop
     property alias testStrategyCombo: testStrategyCombo
     property alias testStartCurrent: testStartCurrent
@@ -37,10 +36,15 @@ Item {
     property alias refHeatInputMin: refHeatInputMin
     property alias refHeatingDuration: refHeatingDuration
 
-    property alias sampleType: sampleType
-    property alias sampleSpec: sampleSpec
-    property alias sampleInsMaterial: sampleInsMaterial
-    property alias sampleInsThick: sampleInsThick
+    // --- 右侧被试品(Cable) Aliases ---
+    property alias cableComboBox: cableComboBox
+    property alias lblCoreDia: lblCoreDia
+    property alias lblCoreMat: lblCoreMat
+    property alias lblInsThick: lblInsThick
+    property alias lblInsMat: lblInsMat
+    property alias lblVoltage: lblVoltage
+    property alias lblFormat: lblFormat
+    property alias lblNotes: lblNotes
 
     property alias applyLeftBtn: groupLeft.applyButton
     property alias applyMidBtn: groupMid.applyButton
@@ -56,13 +60,14 @@ Item {
         spacing: 20
 
         // =================================================
-        // 左侧：试验回路
+        // 左侧：试验回路 (占比: 3)
         // =================================================
         SettingsGroup {
             id: groupLeft
             title: "试验回路" + root.circuitId
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredWidth: 300
 
             StartStopPanel {
                 id: testStartStop
@@ -135,7 +140,7 @@ Item {
                             Layout.fillWidth: true; implicitHeight: 40
                             color: "transparent"; border.color: Theme.highlightColor; border.width: 2; radius: 10
                             TextInput {
-                                id: testHeatInputHour; anchors.fill: parent; anchors.margins: 2
+                                id: testHeatInputHour; anchors.fill: parent
                                 verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter
                                 color: Theme.textColor; font: Theme.defaultFont; text: "00"
                                 validator: IntValidator{bottom:0; top:23}
@@ -147,7 +152,7 @@ Item {
                             Layout.fillWidth: true; implicitHeight: 40
                             color: "transparent"; border.color: Theme.highlightColor; border.width: 2; radius: 10
                             TextInput {
-                                id: testHeatInputMin; anchors.fill: parent; anchors.margins: 2
+                                id: testHeatInputMin; anchors.fill: parent
                                 verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter
                                 color: Theme.textColor; font: Theme.defaultFont; text: "00"
                                 validator: IntValidator{bottom:0; top:59}
@@ -164,13 +169,14 @@ Item {
         }
 
         // =================================================
-        // 中间：模拟回路
+        // 中间：模拟回路 (占比: 3)
         // =================================================
         SettingsGroup {
             id: groupMid
             title: "模拟回路" + root.circuitId
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredWidth: 300
 
             StartStopPanel {
                 id: refStartStop
@@ -237,7 +243,7 @@ Item {
                             Layout.fillWidth: true; implicitHeight: 40
                             color: "transparent"; border.color: Theme.highlightColor; border.width: 2; radius: 10
                             TextInput {
-                                id: refHeatInputHour; anchors.fill: parent; anchors.margins: 2
+                                id: refHeatInputHour; anchors.fill: parent
                                 verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter
                                 color: Theme.textColor; font: Theme.defaultFont; text: "00"
                                 validator: IntValidator{bottom:0; top:23}
@@ -249,7 +255,7 @@ Item {
                             Layout.fillWidth: true; implicitHeight: 40
                             color: "transparent"; border.color: Theme.highlightColor; border.width: 2; radius: 10
                             TextInput {
-                                id: refHeatInputMin; anchors.fill: parent; anchors.margins: 2
+                                id: refHeatInputMin; anchors.fill: parent
                                 verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter
                                 color: Theme.textColor; font: Theme.defaultFont; text: "00"
                                 validator: IntValidator{bottom:0; top:59}
@@ -266,11 +272,12 @@ Item {
         }
 
         // =================================================
-        // 右侧 (已移除原顶部的恒流参考值区域)
+        // 右侧 (基于 Cable 对象的被试品区域, 占比: 2)
         // =================================================
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredWidth: 200
 
             SettingsGroup {
                 id: groupRight
@@ -278,20 +285,110 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                ColumnLayout {
+                // 1. 顶部：电缆名称 (绑定高度，与左侧的 StartStopPanel 绝对平行)
+                Item {
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    spacing: 15
-                    SettingTextArea { id: sampleType; title: "电缆类型"; Layout.fillWidth: true; inputHeight: 80 }
-                    SettingTextArea { id: sampleSpec; title: "电缆规格"; Layout.fillWidth: true; inputHeight: 80 }
-                    SettingTextArea { id: sampleInsMaterial; title: "绝缘类型"; Layout.fillWidth: true; inputHeight: 80 }
-                    SettingInput { id: sampleInsThick; labelText: "绝缘厚度: "; unitText: "mm"; Layout.fillWidth: true
-                        inputValidator: RegularExpressionValidator {
-                            regularExpression: /^\d*(\.\d{0,2})?$/
+                    Layout.preferredHeight: testStartStop.height > 0 ? testStartStop.height : 60
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        width: parent.width - 20
+                        Label { text: "电缆名称:"; color: Theme.textColor; font: Theme.defaultFont; Layout.preferredWidth: 80; horizontalAlignment: Text.AlignRight }
+                        ComboBox {
+                            id: cableComboBox
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+                            font: Theme.defaultFont
+                            textRole: "name"
                         }
                     }
-                    // 添加一个弹性空间，将元素顶在上方，防止均匀拉伸
-                    Item { Layout.fillHeight: true }
+                }
+
+                // 2. 占位符：与左侧“自动策略”同高度(隐式高度40)，推动底部文本同步下降
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+                }
+
+                // 3. 中间：小标题 (天然与左侧的“电流设置”水平对齐)
+                Label { text: "电缆属性"; color: Theme.orange; font: Theme.defaultFont; Layout.alignment: Qt.AlignHCenter }
+
+                // 4. 底部：只读属性面板 (强制绑定一致的行高度，行间距直接与 SettingInput 平齐)
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    ScrollView {
+                        anchors.fill: parent
+                        clip: true
+                        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                        ColumnLayout {
+                            width: parent.width
+                            spacing: 10 // 完全一致的 10 空隙
+
+                            // 自动跟随左侧电流设置的高度，如果没有初始化则保底40
+                            property real rowH: testStartCurrent.height > 0 ? testStartCurrent.height : 40
+
+                            // 每行左右皆用 Item{ Layout.fillWidth } 撑开，迫使中间的两列 Label 紧凑并居中
+                            RowLayout {
+                                Layout.fillWidth: true; Layout.preferredHeight: parent.rowH
+                                Item { Layout.fillWidth: true }
+                                Label { text: "电芯直径:"; color: Theme.textColor; font: Theme.defaultFont; Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight; verticalAlignment: Text.AlignVCenter }
+                                Label { id: lblCoreDia; text: "-"; color: Theme.valueColor; font: Theme.defaultFont; Layout.preferredWidth: 110; horizontalAlignment: Text.AlignLeft; verticalAlignment: Text.AlignVCenter }
+                                Item { Layout.fillWidth: true }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true; Layout.preferredHeight: parent.rowH
+                                Item { Layout.fillWidth: true }
+                                Label { text: "电芯材料:"; color: Theme.textColor; font: Theme.defaultFont; Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight; verticalAlignment: Text.AlignVCenter }
+                                Label { id: lblCoreMat; text: "-"; color: Theme.valueColor; font: Theme.defaultFont; Layout.preferredWidth: 110; horizontalAlignment: Text.AlignLeft; verticalAlignment: Text.AlignVCenter }
+                                Item { Layout.fillWidth: true }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true; Layout.preferredHeight: parent.rowH
+                                Item { Layout.fillWidth: true }
+                                Label { text: "绝缘厚度:"; color: Theme.textColor; font: Theme.defaultFont; Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight; verticalAlignment: Text.AlignVCenter }
+                                Label { id: lblInsThick; text: "-"; color: Theme.valueColor; font: Theme.defaultFont; Layout.preferredWidth: 110; horizontalAlignment: Text.AlignLeft; verticalAlignment: Text.AlignVCenter }
+                                Item { Layout.fillWidth: true }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true; Layout.preferredHeight: parent.rowH
+                                Item { Layout.fillWidth: true }
+                                Label { text: "绝缘材料:"; color: Theme.textColor; font: Theme.defaultFont; Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight; verticalAlignment: Text.AlignVCenter }
+                                Label { id: lblInsMat; text: "-"; color: Theme.valueColor; font: Theme.defaultFont; Layout.preferredWidth: 110; horizontalAlignment: Text.AlignLeft; verticalAlignment: Text.AlignVCenter }
+                                Item { Layout.fillWidth: true }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true; Layout.preferredHeight: parent.rowH
+                                Item { Layout.fillWidth: true }
+                                Label { text: "电压等级:"; color: Theme.textColor; font: Theme.defaultFont; Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight; verticalAlignment: Text.AlignVCenter }
+                                Label { id: lblVoltage; text: "-"; color: Theme.valueColor; font: Theme.defaultFont; Layout.preferredWidth: 110; horizontalAlignment: Text.AlignLeft; verticalAlignment: Text.AlignVCenter }
+                                Item { Layout.fillWidth: true }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true; Layout.preferredHeight: parent.rowH
+                                Item { Layout.fillWidth: true }
+                                Label { text: "系统制式:"; color: Theme.textColor; font: Theme.defaultFont; Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight; verticalAlignment: Text.AlignVCenter }
+                                Label { id: lblFormat; text: "-"; color: Theme.valueColor; font: Theme.defaultFont; Layout.preferredWidth: 110; horizontalAlignment: Text.AlignLeft; verticalAlignment: Text.AlignVCenter }
+                                Item { Layout.fillWidth: true }
+                            }
+
+                            // 备注采用 minimumHeight, 允许文本由于太长自动换行扩充高度
+                            RowLayout {
+                                Layout.fillWidth: true; Layout.minimumHeight: parent.rowH
+                                Item { Layout.fillWidth: true }
+                                Label { text: "备注:"; color: Theme.textColor; font: Theme.defaultFont; Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight; verticalAlignment: Text.AlignVCenter }
+                                Label { id: lblNotes; text: "-"; color: Theme.valueColor; font: Theme.defaultFont; Layout.preferredWidth: 110; horizontalAlignment: Text.AlignLeft; verticalAlignment: Text.AlignVCenter; wrapMode: Text.Wrap }
+                                Item { Layout.fillWidth: true }
+                            }
+                        }
+                    }
                 }
             }
         }

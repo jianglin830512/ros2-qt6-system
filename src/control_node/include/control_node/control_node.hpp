@@ -15,6 +15,7 @@
 #include "ros2_interfaces/srv/set_system_settings.hpp"
 #include "ros2_interfaces/srv/set_regulator_settings.hpp"
 #include "ros2_interfaces/srv/set_circuit_settings.hpp"
+#include "ros2_interfaces/srv/get_cable_info_batch.hpp" // [NEW] 引入全局电缆信息服务
 
 class StateManager;
 class IHardwareCoordinator;
@@ -49,6 +50,9 @@ private:
     void broadcast_status_callback();
     void broadcast_settings_callback();
 
+    // [NEW] 电缆信息定时同步回调
+    void cable_sync_timer_callback();
+
     rclcpp::Publisher<ros2_interfaces::msg::CircuitStatus>::SharedPtr circuit_status_pub_;
     rclcpp::Publisher<ros2_interfaces::msg::RegulatorStatus>::SharedPtr regulator_status_pub_;
     rclcpp::Publisher<ros2_interfaces::msg::SystemStatus>::SharedPtr system_status_pub_;
@@ -65,10 +69,14 @@ private:
     rclcpp::Service<ros2_interfaces::srv::RegulatorBreakerCommand>::SharedPtr regulator_breaker_command_service_;
     rclcpp::Service<ros2_interfaces::srv::CircuitBreakerCommand>::SharedPtr circuit_breaker_command_service_;
 
+    // [NEW] Global Node 获取电缆信息Client
+    rclcpp::Client<ros2_interfaces::srv::GetCableInfoBatch>::SharedPtr get_cable_info_batch_client_;
+
     rclcpp::TimerBase::SharedPtr control_logic_timer_;
     rclcpp::TimerBase::SharedPtr status_broadcast_timer_;
     rclcpp::TimerBase::SharedPtr settings_broadcast_timer_;
     rclcpp::TimerBase::SharedPtr lifecycle_check_timer_;
+    rclcpp::TimerBase::SharedPtr cable_sync_timer_; // [NEW] 定时同步计时器
 
     std::shared_ptr<StateManager> state_manager_;
     std::shared_ptr<IHardwareCoordinator> hardware_coordinator_;

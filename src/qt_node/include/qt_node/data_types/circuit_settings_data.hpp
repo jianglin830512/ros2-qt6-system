@@ -3,15 +3,14 @@
 
 #include <QObject>
 #include "loop_settings_data.hpp"
-#include "sample_settings_data.hpp"
+#include "cable_data.hpp"
 
 class CircuitSettingsData : public QObject
 {
     Q_OBJECT
-    // 嵌套的QObject对象指针，作为只读属性暴露
     Q_PROPERTY(LoopSettingsData* test_loop READ test_loop CONSTANT)
     Q_PROPERTY(LoopSettingsData* ref_loop READ ref_loop CONSTANT)
-    Q_PROPERTY(SampleSettingsData* sample_params READ sample_params CONSTANT)
+    Q_PROPERTY(CableData* sample_cable READ sample_cable CONSTANT)
 
 public:
     explicit CircuitSettingsData(QObject *parent = nullptr);
@@ -19,22 +18,19 @@ public:
     CircuitSettingsData(const CircuitSettingsData& other) = delete;
     CircuitSettingsData& operator=(const CircuitSettingsData& other) = delete;
 
-    // Getters
     LoopSettingsData* test_loop() const;
     LoopSettingsData* ref_loop() const;
-    SampleSettingsData* sample_params() const;
+    CableData* sample_cable() const; // 替换
 
     bool operator==(const CircuitSettingsData& other) const;
 
 signals:
-    // 仅为可写属性添加 NOTIFY 信号
     void curr_mode_use_refChanged();
 
 private:
-    // 成员变量必须是指针，并在构造函数中初始化
     LoopSettingsData* m_test_loop;
     LoopSettingsData* m_ref_loop;
-    SampleSettingsData* m_sample_params;
+    CableData* m_sample_cable;       // 替换
 };
 
 #endif // CIRCUIT_SETTINGS_DATA_HPP

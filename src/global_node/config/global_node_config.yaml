@@ -1,0 +1,10 @@
+global_node:
+  ros__parameters:
+    # 这里可以使用绝对路径，或者相对于工作空间的路径
+    db_path: "global.db"
+
+    # --- 服务名称配置 (建议使用以 '/' 开头的绝对路径，实现跨 namespace 调用) ---
+    save_cable_service: "/global/cable_manager/save"
+    delete_cable_service: "/global/cable_manager/delete"
+    list_cables_service: "/global/cable_manager/list"
+    get_cable_info_batch_service: "/global/cable_manager/get_batch"

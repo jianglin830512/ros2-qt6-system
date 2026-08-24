@@ -152,6 +152,12 @@ hardware_node:
     polling_rate_ms: 200
     use_mock_driver: false
 
+    # --- 光纤网络延迟适配参数 (从 hardware_node_config.yaml 补充) ---
+    tcp_connect_timeout_ms: 200      # 建立 TCP 连接的最长等待时间
+    tcp_recv_timeout_ms: 200         # 发送指令后等待回复的最长时间 
+    regulator_cmd_timeout_ms: 100    # 高频调压指令安全保护停止时间 
+    service_call_timeout_ms: 400     # 供上层 Control/UI 调用的超时阈值
+
     # --- 发布 (发送硬件状态) ---
     hardware_circuit_status_topic: "hardware_circuit_status"
     hardware_regulator_status_topic: "hardware_regulator_status"

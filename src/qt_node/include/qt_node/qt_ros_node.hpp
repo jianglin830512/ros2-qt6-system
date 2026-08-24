@@ -5,6 +5,8 @@
 #include <QTimer>
 #include <QVariantMap>
 #include <QDateTime>
+#include <QFile>
+#include <QTextStream>
 
 #include "rclcpp/rclcpp.hpp"  // IWYU pragma: keep
 #include "std_msgs/msg/empty.hpp"
@@ -38,6 +40,10 @@
 #include "ros2_interfaces/srv/set_circuit_settings.hpp"
 // 历史
 #include "ros2_interfaces/srv/query_data_records.hpp"
+// 电缆管理
+#include "ros2_interfaces/srv/save_cable.hpp"
+#include "ros2_interfaces/srv/delete_cable.hpp"
+#include "ros2_interfaces/srv/list_cables.hpp"
 
 using SystemSettingsMsgPtr = ros2_interfaces::msg::SystemSettings::SharedPtr;
 using RegulatorSettingsMsgPtr = ros2_interfaces::msg::RegulatorSettings::SharedPtr;
@@ -74,6 +80,14 @@ public slots:
     // 发起表格数据查询 (试验数据页)
     void queryTableData(const QString& start_time_str, int duration_hours, int circuit_id);
 
+    // 数据导出
+    void exportDataRecords(const QString& start_date, const QString& end_date, int circuit_id, const QString& file_path);
+
+    // 电缆管理
+    void onListCablesRequested(const QString& keyword, int page, int page_size, int sort_column, bool is_ascending);
+    void onSaveCableRequested(const QVariantMap& cableMap);
+    void onDeleteCableRequested(int id);
+
 private slots:
     void spin_some();
 
@@ -106,7 +120,30 @@ signals:
     void tableDataFetched(const QVariantMap& result_map);
     void tableQueryFailed(const QString& message);
 
+    // 数据导出
+    void exportProgress(int percentage);
+    void exportFinished(bool success, const QString& message);
+
+    // 电缆管理
+    void cablesListed(const QVariantMap& result);
+    void cableSaveResult(bool success, const QString& msg);
+    void cableDeleteResult(bool success, const QString& msg);
+
 private:
+    // 数据导出
+    struct ExportTask {
+        bool active = false;
+        QDateTime final_start;
+        QDateTime current_start;
+        QDateTime final_end;
+        int circuit_id = 0;
+        QString file_path;
+        QFile* file = nullptr;
+        std::vector<std::string> db_columns;
+    };
+    ExportTask current_export_task_;
+    void executeNextExportChunk();
+
     // --- 回调函数 ---
     void circuit_status_callback(const ros2_interfaces::msg::CircuitStatus::SharedPtr msg);
     void regulator_status_callback(const ros2_interfaces::msg::RegulatorStatus::SharedPtr msg);
@@ -152,6 +189,13 @@ private:
     // 查询历史数据
     rclcpp::Client<ros2_interfaces::srv::QueryDataRecords>::SharedPtr query_data_records_client_;
     std::string query_data_records_service_name_;
+    // 电缆管理
+    rclcpp::Client<ros2_interfaces::srv::ListCables>::SharedPtr list_cables_client_;
+    std::string list_cables_service_name_;
+    rclcpp::Client<ros2_interfaces::srv::SaveCable>::SharedPtr save_cable_client_;
+    std::string save_cable_service_name_;
+    rclcpp::Client<ros2_interfaces::srv::DeleteCable>::SharedPtr delete_cable_client_;
+    std::string delete_cable_service_name_;
 
     QTimer* m_ros_timer;
 };

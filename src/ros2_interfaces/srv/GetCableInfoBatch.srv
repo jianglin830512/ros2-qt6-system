@@ -1,0 +1,8 @@
+# --- Request (请求部分) ---
+int32[] ids            # 需要查询的电缆ID数组 (例如传入 [12, 15, 18, 22])
+
+---
+# --- Response (响应部分) ---
+bool success           # 查询是否成功 (如果其中任何一个ID不存在，你可以决定是返回false，还是忽略)
+string message         # 提示或报错信息
+Cable[] cables         # 返回的电缆数据数组 (顺序可以与请求的 ids 一致)

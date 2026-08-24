@@ -1,0 +1,22 @@
+# Request
+string search_keyword
+int32 page
+int32 page_size
+
+# 排序字段常量
+uint8 SORT_BY_LAST_MODIFIED = 0
+uint8 SORT_BY_NAME = 1
+uint8 SORT_BY_CORE_DIAMETER = 2
+uint8 SORT_BY_INSULATION_THICKNESS = 3
+uint8 SORT_BY_VOLTAGE_GRADE = 4
+uint8 SORT_BY_SYSTEM_FORMAT = 5
+
+uint8 sort_column      # 选择上面的常量作为排序字段
+bool is_ascending      # true: 正序 (ASC), false: 倒序 (DESC)
+---
+# Response
+bool success
+string message
+int32 total_pages
+int32 current_page
+Cable[] cables         # 返回当前页的电缆数组

@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     qRegisterMetaType<CircuitSettingsData>("CircuitSettingsData");
     // 注册自定义的类型 - class (嵌套)
     qRegisterMetaType<LoopSettingsData>("LoopSettingsData");
-    qRegisterMetaType<SampleSettingsData>("SampleSettingsData");
+    qRegisterMetaType<CableData>("CableData");
     // 注册 ROS 消息指针类型，以便跨线程传递
     qRegisterMetaType<SystemSettingsMsgPtr>("SystemSettingsMsgPtr");
     qRegisterMetaType<RegulatorSettingsMsgPtr>("RegulatorSettingsMsgPtr");
@@ -157,6 +157,35 @@ int main(int argc, char *argv[])
     QObject::connect(ros_node.get(), &QtROSNode::tableQueryFailed,
                      ros_proxy.get(), &ROSProxy::onTableQueryFailed,
                      Qt::QueuedConnection);
+
+    // --- Data Export 连接 ---
+    QObject::connect(ros_proxy.get(), &ROSProxy::exportDataRequested,
+                     ros_node.get(), &QtROSNode::exportDataRecords,
+                     Qt::QueuedConnection);
+
+    QObject::connect(ros_node.get(), &QtROSNode::exportProgress,
+                     ros_proxy.get(), &ROSProxy::onExportProgress,
+                     Qt::QueuedConnection);
+
+    QObject::connect(ros_node.get(), &QtROSNode::exportFinished,
+                     ros_proxy.get(), &ROSProxy::onExportFinished,
+                     Qt::QueuedConnection);
+
+    // --- Cables Management 连接 ---
+    QObject::connect(ros_proxy.get(), &ROSProxy::listCablesRequested,
+                     ros_node.get(), &QtROSNode::onListCablesRequested, Qt::QueuedConnection);
+    QObject::connect(ros_node.get(), &QtROSNode::cablesListed,
+                     ros_proxy.get(), &ROSProxy::onCablesListed, Qt::QueuedConnection);
+
+    QObject::connect(ros_proxy.get(), &ROSProxy::saveCableRequested,
+                     ros_node.get(), &QtROSNode::onSaveCableRequested, Qt::QueuedConnection);
+    QObject::connect(ros_node.get(), &QtROSNode::cableSaveResult,
+                     ros_proxy.get(), &ROSProxy::onCableSaveResult, Qt::QueuedConnection);
+
+    QObject::connect(ros_proxy.get(), &ROSProxy::deleteCableRequested,
+                     ros_node.get(), &QtROSNode::onDeleteCableRequested, Qt::QueuedConnection);
+    QObject::connect(ros_node.get(), &QtROSNode::cableDeleteResult,
+                     ros_proxy.get(), &ROSProxy::onCableDeleteResult, Qt::QueuedConnection);
 
     // --- 关闭程序的连接：GUI -> ROS ---
     QObject::connect(ros_proxy.get(), &ROSProxy::shutdownRequested,

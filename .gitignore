@@ -20,3 +20,4 @@ ros_auto_launch.ps1
 
 # database
 records_and_settings.db
+global.db

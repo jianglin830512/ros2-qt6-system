@@ -1,91 +1,63 @@
 ﻿control_node:
   ros__parameters:
-    
+
     # =================================================
     #               与 QT_NODE 通信
     # =================================================
 
     # --- 发布器 (Publishers) ---
-
-    # 发布状态给 qt_node
     circuit_status_topic: "circuit_status"
     regulator_status_topic: "voltage_regulator_status"
     system_status_topic: "system_status"
 
-    # 发布当前设置给 qt_node，用于同步UI状态
     system_settings_topic: "system_settings"
     regulator_settings_topic: "regulator_settings"
     circuit_settings_topic: "circuit_settings"
 
     # --- 订阅器 (Subscribers) ---
-
-    # 订阅调压器的持续性操作命令 (升/降/停)
     regulator_operation_command_topic: "regulator_operation_command"
-
-    # 订阅清除报警命令
     clear_alarm_topic: "clear_alarm"
 
     # --- 服务提供方 (Servers) ---
-
-    # 为 qt_node 提供一次性命令服务
     regulator_breaker_command_service: "regulator_breaker_command"
     circuit_breaker_command_service: "circuit_breaker_command"
 
-    # 为 qt_node 提供参数设置服务
     set_system_settings_service: "set_system_settings"
     set_regulator_settings_service: "set_regulator_settings"
     set_circuit_settings_service: "set_circuit_settings"
 
-
     # =================================================
     #               与 RECORD_NODE 通信
     # =================================================
-
-    # --- 订阅器 (Subscribers) ---
-    # 新增：订阅 RECORD NODE 的数据库在线状态
     database_status_topic: "database_status"
-
-    # --- 服务调用方 (Clients) ---
-
     get_system_settings_service: "get_system_settings"
     get_regulator_settings_service: "get_regulator_settings"
     get_circuit_settings_service: "get_circuit_settings"
 
-
     # =================================================
     #               与 HARDWARE_NODE 通信
     # =================================================
-
-    # --- 发布器 (Publishers) ---
-
-    # 发布调压器操作命令 (升/降/停)
     hardware_regulator_operation_command_topic: "hardware_regulator_operation_command"
-
-    # 发布清除硬件报警命令
     hardware_clear_alarm_topic: "hardware_clear_alarm"
 
-    # --- 订阅器 (Subscribers) ---
-
-    # 订阅硬件状态
     hardware_circuit_status_topic: "hardware_circuit_status"
     hardware_regulator_status_topic: "hardware_regulator_status"
     hardware_system_status_topic: "hardware_system_status"
 
-    # 订阅硬件当前设置
     hardware_circuit_settings_topic: "hardware_circuit_settings"
     hardware_regulator_settings_topic: "hardware_regulator_settings"
 
-    # --- 服务调用方 (Clients) ---
-
-    # 调用 hardware_node 的设置服务
     set_hardware_regulator_settings_service: "set_hardware_regulator_settings"
     set_hardware_circuit_settings_service: "set_hardware_circuit_settings"
 
-    # 调用 hardware_node 的命令服务
     hardware_regulator_breaker_command_service: "hardware_regulator_breaker_command"
     hardware_circuit_breaker_command_service: "hardware_circuit_breaker_command"
-
-    # 调用 hardware_node 的 PLC 状态控制服务
     hardware_set_control_mode_service: "hardware_set_control_mode"
 
     plc_command_timeout: 2.0
+
+    # =================================================
+    #               与 GLOBAL_NODE 通信 (新增)
+    # =================================================
+    get_cable_info_batch_service: "/global/cable_manager/get_batch"
+    cable_sync_interval_sec: 10

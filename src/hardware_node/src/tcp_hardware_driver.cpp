@@ -343,7 +343,8 @@ void TcpHardwareDriver::read_plc_data()
 void TcpHardwareDriver::read_temp_monitor_data()
 {
     std::vector<uint8_t> data;
-    if (modbus_read_holding_registers(client_temp_.get(), 1, 0, 80, data)) {
+    // 【修改】读取48个通道，每个通道占2个Modbus寄存器(单精度浮点数)，共需读取 48 * 2 = 96 个寄存器
+    if (modbus_read_holding_registers(client_temp_.get(), 1, 0, 96, data)) {
         std::lock_guard<std::mutex> lock(data_mutex_);
         cache_system_status_.temp_monitor_connected = true;
         parse_temp_buffer(data);
@@ -496,15 +497,38 @@ void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
 
 void TcpHardwareDriver::parse_temp_buffer(const std::vector<uint8_t>& buffer)
 {
-    if (buffer.size() < 160) return;
+    // 【修改】48个通道 * 4字节(单精度浮点数) = 192字节。数据长度不满足则丢弃。
+    if (buffer.size() < 192) return;
+
+    // 【修改】获取温度的 Lambda 表达式，增加“超过1000显示为0”的过滤逻辑
     auto get_temp = [&](int channel_idx) -> float {
-        return parse_float_abcd(buffer.data() + (channel_idx * 4));
+        float temp = parse_float_abcd(buffer.data() + (channel_idx * 4));
+        // TP1100 断线时通常显示 1999.9，这里如果超过1000直接视为无效数据并归零
+        if (temp > 1000.0f || temp < -200.0f) {
+            return 0.0f;
+        }
+        return temp;
     };
 
-    for(int i=0; i<8; ++i) cache_circ_status_[1].test_loop.temperature_array[i] = get_temp(i);
-    for(int i=0; i<8; ++i) cache_circ_status_[1].ref_loop.temperature_array[i] = get_temp(8 + i);
-    for(int i=0; i<8; ++i) cache_circ_status_[2].test_loop.temperature_array[i] = get_temp(16 + i);
-    for(int i=0; i<8; ++i) cache_circ_status_[2].ref_loop.temperature_array[i] = get_temp(24 + i);
+    // 1. 前 16 个通道 (索引 0 ~ 15) 赋值给 回路1 的 试验支路
+    for(int i = 0; i < 16; ++i) {
+        cache_circ_status_[1].test_loop.temperature_array[i] = get_temp(i);
+    }
+
+    // 2. 接下来 8 个通道 (索引 16 ~ 23) 赋值给 回路1 的 参考支路
+    for(int i = 0; i < 8; ++i) {
+        cache_circ_status_[1].ref_loop.temperature_array[i] = get_temp(16 + i);
+    }
+
+    // 3. 接下来 16 个通道 (索引 24 ~ 39) 赋值给 回路2 的 试验支路
+    for(int i = 0; i < 16; ++i) {
+        cache_circ_status_[2].test_loop.temperature_array[i] = get_temp(24 + i);
+    }
+
+    // 4. 接下来 8 个通道 (索引 40 ~ 47) 赋值给 回路2 的 参考支路
+    for(int i = 0; i < 8; ++i) {
+        cache_circ_status_[2].ref_loop.temperature_array[i] = get_temp(40 + i);
+    }
 }
 
 bool TcpHardwareDriver::modbus_read_holding_registers(SimpleTcpClient* client, uint8_t unit_id, uint16_t start_addr, uint16_t count, std::vector<uint8_t>& out_data)

@@ -9,6 +9,10 @@ CircuitSettingsPageForm {
     property var settingsData: null
     property var statusData: null
 
+    // 存储从后端拉取到的所有电缆数据
+    property var availableCables: []
+    property bool isFetchingCables: false
+
     // ========================================================
     // 1. 辅助函数 (包含日期优化)
     // ========================================================
@@ -29,7 +33,6 @@ CircuitSettingsPageForm {
         else return Qt.formatDateTime(new Date(), "yyyy-MM-dd");
     }
 
-    // 【智能日期清洗函数】
     function normalizeDateStr(str) {
         if (!str) return "";
         var cleanStr = str.replace(/[\/\.]/g, "-");
@@ -48,7 +51,6 @@ CircuitSettingsPageForm {
         return Date.fromLocaleString(Qt.locale(), normalized, "yyyy-MM-dd");
     }
 
-    // 用启停控制逻辑
     function setLoopEnableState(loopType, enableState) {
         if (!settingsData) return;
 
@@ -63,10 +65,59 @@ CircuitSettingsPageForm {
     }
 
     // ========================================================
-    // 2. 数据同步
+    // 2. 数据获取与下拉菜单联动
     // ========================================================
 
-    // 同步左侧 (试验回路)
+    // 获取所有电缆用于填充下拉菜单 (查询空字符串, 页码1, 1000条, 按名称正序排列)
+    function fetchAllCables() {
+        isFetchingCables = true;
+        rosProxy.listCables("", 1, 1000, 1, true);
+    }
+
+    Connections {
+        target: rosProxy
+        function onCablesListed(result) {
+            // 只捕获此页面触发的全局查询请求
+            if (result.success && page.isFetchingCables) {
+                page.availableCables = result.cables;
+                cableComboBox.model = page.availableCables;
+                syncGeneralInputs(); // 下拉菜单加载完毕后，尝试选中系统中正在使用的电缆
+                page.isFetchingCables = false;
+            }
+        }
+    }
+
+    // 当用户在下拉菜单中切换选中项时，实时更新下方的只读面板 (拼接单位)
+    Connections {
+        target: cableComboBox
+        function onCurrentIndexChanged() {
+            var idx = cableComboBox.currentIndex;
+            if (idx >= 0 && idx < availableCables.length) {
+                var c = availableCables[idx];
+                lblCoreDia.text = c.core_diameter.toFixed(2) + " mm";
+                lblCoreMat.text = c.core_material;
+                lblInsThick.text = c.insulation_thickness.toFixed(2) + " mm";
+                lblInsMat.text = c.insulation_material;
+                lblVoltage.text = Math.round(c.voltage_grade / 1000) + " kV";
+                lblFormat.text = c.system_format === 1 ? "交流" : "直流";
+                lblNotes.text = c.notes;
+            } else {
+                lblCoreDia.text = "-";
+                lblCoreMat.text = "-";
+                lblInsThick.text = "-";
+                lblInsMat.text = "-";
+                lblVoltage.text = "-";
+                lblFormat.text = "-";
+                lblNotes.text = "-";
+            }
+        }
+    }
+
+
+    // ========================================================
+    // 3. 数据同步逻辑
+    // ========================================================
+
     function syncTestInputs() {
         if (!settingsData) return;
         var data = settingsData;
@@ -86,7 +137,6 @@ CircuitSettingsPageForm {
         testHeatingDuration.settingValue = secToMin(test.heating_duration_sec);
     }
 
-    // 同步中间 (模拟回路)
     function syncRefInputs() {
         if (!settingsData) return;
         var data = settingsData;
@@ -106,20 +156,32 @@ CircuitSettingsPageForm {
         refHeatingDuration.settingValue = secToMin(ref.heating_duration_sec);
     }
 
-    // 同步右侧 (被试品)
+    // 【核心】根据当前系统里生效的电缆名称，去列表中寻找并选中它 (这就是“还原”逻辑)
     function syncGeneralInputs() {
-        if (!settingsData) return;
-        var data = settingsData;
+        if (!settingsData || availableCables.length === 0) return;
 
-        var sample = data.sample_params;
-        sampleType.settingValue = sample.cable_type;
-        sampleSpec.settingValue = sample.cable_spec;
-        sampleInsMaterial.settingValue = sample.insulation_material;
+        // 🚨 修改点 1：将匹配依据由 name 改为 id，这是启动时唯一绝对可靠的标识符
+        var appliedCableId = settingsData.sample_cable.id;
 
-        sampleInsThick.settingValue = sample.insulation_thickness ? sample.insulation_thickness.toFixed(2) : "0.00";
+        var foundIdx = -1;
+        for (var i = 0; i < availableCables.length; i++) {
+            // 🚨 修改点 2：根据 id 匹配
+            if (availableCables[i].id === appliedCableId) {
+                foundIdx = i;
+                break;
+            }
+        }
+
+        if (foundIdx >= 0) {
+            cableComboBox.currentIndex = foundIdx;
+        } else {
+            // 如果没找到对应的 ID（可能是该电缆在全局库中被永久删除了），默认选中第一条
+            if (cableComboBox.currentIndex === -1 && availableCables.length > 0) {
+                cableComboBox.currentIndex = 0;
+            }
+        }
     }
 
-    // 总同步入口
     function syncInputs() {
         if (!settingsData) return;
         syncTestInputs();
@@ -127,41 +189,36 @@ CircuitSettingsPageForm {
         syncGeneralInputs();
     }
 
-    // 刷新反馈显示
+    // 更新左侧反馈
     function refreshFeedback() {
         if (!settingsData) return;
         var data = settingsData;
 
-        // --- Test Loop Feedback ---
         testStartStop.isRunning = data.test_loop.enabled;
         testStartCurrent.currentValue = data.test_loop.start_current_a;
         testMaxCurrent.currentValue = data.test_loop.max_current_a;
         testChangePercent.currentValue = data.test_loop.current_change_range_percent;
         testCtRatio.currentValue = data.test_loop.ct_ratio;
-
         testStartDate.currentValue = dateToString(data.test_loop.start_date);
         testCycleCount.currentValue = data.test_loop.cycle_count;
         testHeatFeedback.text = secToTimeStr(data.test_loop.heating_start_time_sec);
         testHeatingDuration.currentValue = secToMin(data.test_loop.heating_duration_sec);
 
-        // --- Ref Loop Feedback ---
         refStartStop.isRunning = data.ref_loop.enabled;
         refStartCurrent.currentValue = data.ref_loop.start_current_a;
         refMaxCurrent.currentValue = data.ref_loop.max_current_a;
         refChangePercent.currentValue = data.ref_loop.current_change_range_percent;
         refCtRatio.currentValue = data.ref_loop.ct_ratio;
-
         refStartDate.currentValue = dateToString(data.ref_loop.start_date);
         refCycleCount.currentValue = data.ref_loop.cycle_count;
         refHeatFeedback.text = secToTimeStr(data.ref_loop.heating_start_time_sec);
         refHeatingDuration.currentValue = secToMin(data.ref_loop.heating_duration_sec);
-
-        // --- Sample Feedback ---
-        sampleType.currentValue = data.sample_params.cable_type;
-        sampleInsThick.currentValue = data.sample_params.insulation_thickness ? data.sample_params.insulation_thickness.toFixed(2) : "0.00";
     }
 
-    // --- 信号监听 ---
+    // ========================================================
+    // 4. 事件绑定
+    // ========================================================
+
     Connections {
         target: rosProxy
         function onQmlCircuitSettings1Changed() {
@@ -174,6 +231,7 @@ CircuitSettingsPageForm {
 
     onVisibleChanged: {
         if (visible) {
+            fetchAllCables(); // 每次切入页面，刷新线缆库
             syncInputs();
             refreshFeedback();
         }
@@ -185,10 +243,6 @@ CircuitSettingsPageForm {
 
         syncInputs();
     }
-
-    // ========================================================
-    // 3. 按钮逻辑 & 下拉逻辑
-    // ========================================================
 
     testStartStop.onStartClicked: setLoopEnableState("test", true)
     testStartStop.onStopClicked: setLoopEnableState("test", false)
@@ -236,24 +290,38 @@ CircuitSettingsPageForm {
     applyLeftBtn.onClicked: applySettings("test")
     applyMidBtn.onClicked: applySettings("ref")
 
+    // 【应用电缆设定】
     applyRightBtn.onClicked: {
         if (!settingsData) return;
+        var idx = cableComboBox.currentIndex;
+        if (idx < 0 || idx >= availableCables.length) {
+            messagePopup.isError = true;
+            messagePopup.message = "请先在下拉菜单中选择一个有效的电缆！";
+            messagePopup.open();
+            return;
+        }
+
+        var c = availableCables[idx];
         var data = settingsData;
-        var sample = data.sample_params;
+        var cable = data.sample_cable;
 
-        sample.cable_type = sampleType.settingValue;
-        sample.cable_spec = sampleSpec.settingValue;
-        sample.insulation_material = sampleInsMaterial.settingValue;
-
-        var thickVal = parseFloat(sampleInsThick.settingValue);
-        sample.insulation_thickness = isNaN(thickVal) ? 0.0 : thickVal;
+        // 从后端拉下来的字典对象直接覆盖进去
+        cable.id = c.id;
+        cable.name = c.name;
+        cable.core_diameter = c.core_diameter;
+        cable.core_material = c.core_material;
+        cable.insulation_thickness = c.insulation_thickness;
+        cable.insulation_material = c.insulation_material;
+        cable.voltage_grade = c.voltage_grade; // 已经在后端查出来是 V 单位
+        cable.system_format = c.system_format;
+        cable.notes = c.notes;
 
         rosProxy.setCircuitSettings(circuitId, data);
     }
 
     restoreLeftBtn.onClicked: syncTestInputs()
     restoreMidBtn.onClicked: syncRefInputs()
-    restoreRightBtn.onClicked: syncGeneralInputs()
+    restoreRightBtn.onClicked: syncGeneralInputs() // 【还原电缆设定】
 
     Connections {
         target: rosProxy

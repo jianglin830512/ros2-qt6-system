@@ -81,6 +81,15 @@ constexpr const char* DEFAULT_SET_CIRCUIT_SETTINGS_SERVICE = "default_set_circui
 constexpr const char* QUERY_DATA_RECORDS_SERVICE_PARAM = "query_data_records_service";
 constexpr const char* DEFAULT_QUERY_DATA_RECORDS_SERVICE = "default_query_data_records";
 
+// 电缆管理服务
+constexpr const char* SAVE_CABLE_SERVICE_PARAM = "save_cable_service";
+constexpr const char* DELETE_CABLE_SERVICE_PARAM = "delete_cable_service";
+constexpr const char* LIST_CABLES_SERVICE_PARAM = "list_cables_service";
+
+constexpr const char* DEFAULT_SAVE_CABLE_SERVICE = "/global/cable_manager/save";
+constexpr const char* DEFAULT_DELETE_CABLE_SERVICE = "/global/cable_manager/delete";
+constexpr const char* DEFAULT_LIST_CABLES_SERVICE = "/global/cable_manager/list";
+
 } // namespace qt_node_constants
 
 #endif // QT_NODE_CONSTANTS_HPP

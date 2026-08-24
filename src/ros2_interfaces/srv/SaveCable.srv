@@ -1,0 +1,6 @@
+# Request
+Cable cable_data       # 如果 id < 0，代表新增；否则代表更新
+---
+# Response
+bool success
+string message         # 比如返回 "名称已存在"

@@ -22,7 +22,7 @@ Rectangle {
     property alias voltageUpButton: voltageUpButton
     property alias voltageDownButton: voltageDownButton
 
-    // 【修改核心】：变更为标准的 bool 类型
+    // 【保留之前的修改】：变更为标准的 bool 类型
     property bool isBlocked: false
 
     // --- Chart Aliases ---
@@ -89,20 +89,18 @@ Rectangle {
                     id: closeBreakerButton
                     labelText: "合闸"
                     colorWhenOn: "red"
-                    // 【修改核心】：当阻塞时，按钮变为灰色不可交互
                     enabled: !root.isBlocked
                 }
                 ToggleActionButton {
                     id: openBreakerButton
                     labelText: "分闸"
                     colorWhenOn: "lime"
-                    // 【修改核心】：当阻塞时，按钮变为灰色不可交互
                     enabled: !root.isBlocked
                 }
             }
         }
 
-        // --- 图表及数值显示面板 (未作任何禁用/遮罩处理) ---
+        // --- 图表及数值显示面板 ---
         Rectangle {
             Layout.fillWidth: true
             Layout.minimumHeight: 200
@@ -164,6 +162,7 @@ Rectangle {
                 }
             }
 
+            // 【修改核心】：电流、电压数值显示框
             Rectangle {
                 id: valueDisplay
                 color: Theme.controlBgColor
@@ -174,37 +173,46 @@ Rectangle {
                 height: 30
                 RowLayout {
                     anchors.fill: parent
+
+                    // --- 电压显示框 ---
                     Rectangle {
                         Layout.fillWidth: true; Layout.fillHeight: true
-                        color: "transparent"
+                        Layout.preferredWidth: (parent.width - 30) / 2
+                        color: "#FFFFFF"  // 强制白底
                         border.color: Theme.highlightColor
                         border.width: 2
-                        Layout.preferredWidth: (parent.width - 30) / 2
                         radius: 12
                         Label {
                             id: voltageLabel
                             anchors.centerIn: parent
                             text: "0.0 V"
-                            color: Theme.valueColor
+                            // 动态颜色：合闸时(indicatorOn为true)显示红色，否则显示主题蓝
+                            color: closeBreakerButton.indicatorOn ? "red" : Theme.titleColor
                             font: Theme.defaultFont
                         }
                     }
+
                     Item {
                         width: voltageIndicatorWidth
                         Layout.fillHeight: true
                         Label { id: upArrow; anchors.centerIn: parent; text: "▲"; color: Theme.arrowUpColor; visible: false; font.pointSize: 20 }
                         Label { id: downArrow; anchors.centerIn: parent; text: "▼"; color: Theme.arrowDownColor; visible: false; font.pointSize: 20 }
                     }
+
+                    // --- 电流显示框 ---
                     Rectangle{
-                        color: Theme.titleColor
                         Layout.fillWidth: true; Layout.fillHeight: true
                         Layout.preferredWidth: (parent.width - 30) / 2
+                        color: "#FFFFFF"  // 强制白底 (移除了之前的实心蓝底)
+                        border.color: Theme.highlightColor
+                        border.width: 2
                         radius: 12
                         Label {
                             id: currentLabel
                             anchors.centerIn: parent
                             text: "0.0 A"
-                            color: Theme.buttonSelectedTextColor
+                            // 动态颜色：合闸时(indicatorOn为true)显示红色，否则显示主题蓝
+                            color: closeBreakerButton.indicatorOn ? "red" : Theme.titleColor
                             font: Theme.defaultFont
                         }
                     }
@@ -221,7 +229,6 @@ Rectangle {
             RowLayout {
                 anchors.fill: parent
                 spacing: Theme.subSpacing
-                // 这两个按钮的 enabled 状态因为还需判断“限位保护开关”，已在 qml 逻辑文件中统一绑定设置
                 ContinuousActionButton { id: voltageUpButton; labelText: "升压" }
                 ContinuousActionButton { id: voltageDownButton; labelText: "降压"; colorWhenOn: "lime" }
             }

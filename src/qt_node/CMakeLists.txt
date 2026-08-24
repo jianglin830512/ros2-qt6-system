@@ -21,14 +21,38 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     Charts
     QuickControls2
     Widgets
-    CoreTools  # 不是开发用的，而是工具包。
+    CoreTools
 )
 
 qt_policy(SET QTP0001 NEW)
 qt_policy(SET QTP0004 NEW)
 
-# 诊断信息，确认找到正确的Qt版本
 message(STATUS "CMake found Qt version: ${Qt6_VERSION} at ${Qt6_DIR}")
+
+# =======================================================================
+# 核心修复区：手动去重 ROS 2 的巨长依赖链，避开 MSVC 的 128KB 字符限制
+# 这样既能缩短命令，又不需要调用 ament_target_dependencies 导致 Qt 报错
+# =======================================================================
+
+# 1. 收集并去重 Include 目录
+set(ROS2_INCLUDE_DIRS
+    ${std_msgs_INCLUDE_DIRS}
+    ${ros2_interfaces_INCLUDE_DIRS}
+)
+if(ROS2_INCLUDE_DIRS)
+    list(REMOVE_DUPLICATES ROS2_INCLUDE_DIRS)
+endif()
+
+# 2. 收集并去重 Libraries
+set(ROS2_LIBRARIES
+    ${std_msgs_LIBRARIES}
+    ${ros2_interfaces_LIBRARIES}
+)
+if(ROS2_LIBRARIES)
+    list(REMOVE_DUPLICATES ROS2_LIBRARIES)
+endif()
+
+# =======================================================================
 
 # --- 定义可执行文件 ---
 add_executable(qt_node_executable
@@ -37,17 +61,10 @@ add_executable(qt_node_executable
 
 target_include_directories(qt_node_executable
     PUBLIC
-        # 1. 你自己包的头文件
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
-
-        # ${rclcpp_INCLUDE_DIRS} # rclcpp只需要targit_link_libraries就够了
-
-        # 2. std_msgs 的头文件
-        ${std_msgs_INCLUDE_DIRS}
-
-        # 3. ros2_interfaces 的头文件
-        ${ros2_interfaces_INCLUDE_DIRS} # ros2_interfaces 仅包含头文件，所以不需要链接库
+        # 使用去重后的 Include 目录
+        ${ROS2_INCLUDE_DIRS}
 )
 
 # --- 添加QML模块 ---
@@ -57,17 +74,17 @@ qt_add_qml_module(qt_node_executable
     RESOURCE_PREFIX /
     QML_FILES
         qml/Main.qml
-        qml/MainForm.ui.qml              # 主窗口的纯UI布局
+        qml/MainForm.ui.qml
         qml/Theme.qml
-        qml/components/StyledButton.qml            # 带有逻辑的自定义按钮
+        qml/components/StyledButton.qml
         qml/components/StyledButtonForm.ui.qml
         qml/components/ModeControl.qml
         qml/components/ModeControlForm.ui.qml
         qml/components/LoopStatus.qml
         qml/components/LoopStatusForm.ui.qml
-        qml/components/CircuitStatus.qml           # 回路状态
+        qml/components/CircuitStatus.qml
         qml/components/CircuitStatusForm.ui.qml
-        qml/components/RegulatorControl.qml        # 调压器控制
+        qml/components/RegulatorControl.qml
         qml/components/RegulatorControlForm.ui.qml
         qml/components/ActionButtonForm.ui.qml
         qml/components/ToggleActionButton.qml
@@ -80,36 +97,43 @@ qt_add_qml_module(qt_node_executable
         qml/components/StartStopPanel.qml
         qml/components/SettingTextArea.qml
         qml/components/InputBlocker.qml
+        qml/components/QueryPanel.qml
+        qml/components/CableEditDialog.qml
+        qml/pages/TemperatureMonitorPageForm.ui.qml
+        qml/pages/TemperatureMonitorPage.qml
+        qml/pages/SystemSettingsPageForm.ui.qml
+        qml/pages/SystemSettingsPage.qml
         qml/pages/CircuitSettingsPageForm.ui.qml
         qml/pages/CircuitSettingsPage.qml
+        qml/pages/TestDataPageForm.ui.qml
+        qml/pages/TestDataPage.qml
         qml/pages/HistoryPageForm.ui.qml
         qml/pages/HistoryPage.qml
-        qml/pages/SystemSettingsPage.qml
-        qml/pages/SystemSettingsPageForm.ui.qml
-        qml/pages/TemperatureMonitorPage.qml
-        qml/pages/TemperatureMonitorPageForm.ui.qml
-        qml/pages/TestDataPage.qml
-        qml/pages/TestDataPageForm.ui.qml
+        qml/pages/DataExportPageForm.ui.qml
+        qml/pages/DataExportPage.qml
+        qml/pages/CableManagementPageForm.ui.qml
+        qml/pages/CableManagementPage.qml
     SOURCES
-        include/qt_node/qt_node_constants.hpp # hpp only
+        include/qt_node/qt_node_constants.hpp
         include/qt_node/qt_ros_node.hpp
         include/qt_node/ros_proxy.hpp
-        include/qt_node/data_types/data_types.hpp # hpp only
-        include/qt_node/data_types/sample_settings_data.hpp
+        include/qt_node/data_types/data_types.hpp
         include/qt_node/data_types/loop_settings_data.hpp
         include/qt_node/data_types/circuit_settings_data.hpp
         include/qt_node/data_types/regulator_settings_data.hpp
         include/qt_node/data_types/system_settings_data.hpp
+        include/qt_node/data_types/cable_data.hpp
         src/qt_ros_node.cpp
         src/ros_proxy.cpp
-        src/data_types/sample_settings_data.cpp
         src/data_types/loop_settings_data.cpp
         src/data_types/circuit_settings_data.cpp
         src/data_types/regulator_settings_data.cpp
         src/data_types/system_settings_data.cpp
+        src/data_types/cable_data.cpp
 )
 
 # --- 链接库 ---
+# 使用严格的 PRIVATE 关键字，完美迎合 Qt6 的胃口
 target_link_libraries(qt_node_executable PRIVATE
     Qt6::Core
     Qt6::Gui
@@ -118,66 +142,48 @@ target_link_libraries(qt_node_executable PRIVATE
     Qt6::Charts
     Qt6::QuickControls2
     Qt6::Widgets
-    # ROS 2 依赖项 (使用导入的目标)
-    # rclcpp 提供了现代的导入目标
     rclcpp::rclcpp
-
-    # std_msgs 依赖的底层库通过变量提供
-    ${std_msgs_LIBRARIES}
-
-    # ros2_interfaces 依赖的底层库通过变量提供
-    ${ros2_interfaces_LIBRARIES}
+    # 使用去重后的库变量
+    ${ROS2_LIBRARIES}
 )
 
 if(MSVC)
-  # 为你的目标（target）添加 /bigobj 编译选项
-  # 将 your_target_name 替换为你的 CMake target 名称，很可能就是 qt_ros_node
   target_compile_options(qt_node_executable PRIVATE /bigobj)
 endif()
 
 # =======================================================================
-#               手动触发QML分析（这是解决问题的关键新增步骤）
+#               手动触发QML分析
 # =======================================================================
-# 强制CMake立即处理所有由 qt_add_qml_module 等函数排入计划的任务。
-# 这会生成部署脚本所依赖的QML导入信息文件。
 qt_finalize_target(qt_node_executable)
 
 # =======================================================================
-#               自动化部署和安装（修正版）
+#               自动化部署和安装
 # =======================================================================
-
-# 1. 安装可执行文件
 install(TARGETS qt_node_executable
     RUNTIME DESTINATION bin
 )
 
-# 2. 使用专为QML应用设计的部署脚本生成函数
 qt_generate_deploy_qml_app_script(
     TARGET qt_node_executable
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
 
-# 3. 在安装时执行上面生成的部署脚本
 install(SCRIPT ${deploy_script})
 
-# 4. Colcon/ament 需要的安装指令
 install(
     FILES package.xml
     DESTINATION share/${PROJECT_NAME}
 )
 
-# 安装 launch 文件
 install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}/
 )
 
-# 安装 config 文件
 install(DIRECTORY
   config
   DESTINATION share/${PROJECT_NAME}/
 )
 
-# 使用了 ament_cmake
 ament_package()

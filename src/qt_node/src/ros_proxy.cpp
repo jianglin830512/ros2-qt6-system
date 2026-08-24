@@ -41,12 +41,17 @@ void convertAndApplyLoop(const ros2_interfaces::msg::LoopSettings& ros_loop, Loo
 }
 
 // Helper for the helper
-void convertAndApplySample(const ros2_interfaces::msg::SampleSettings& ros_sample, SampleSettingsData* qt_sample) {
-
-    qt_sample->setCable_type(QString::fromStdString(ros_sample.cable_type));
-    qt_sample->setCable_spec(QString::fromStdString(ros_sample.cable_spec));
-    qt_sample->setInsulation_material(QString::fromStdString(ros_sample.insulation_material));
-    qt_sample->setInsulation_thickness(ros_sample.insulation_thickness);
+void convertAndApplyCable(const ros2_interfaces::msg::Cable& ros_cable, CableData* qt_cable) {
+    qt_cable->setId(ros_cable.id);
+    qt_cable->setName(QString::fromStdString(ros_cable.name));
+    qt_cable->setCore_diameter(ros_cable.core_diameter);
+    qt_cable->setCore_material(QString::fromStdString(ros_cable.core_material));
+    qt_cable->setInsulation_thickness(ros_cable.insulation_thickness);
+    qt_cable->setInsulation_material(QString::fromStdString(ros_cable.insulation_material));
+    qt_cable->setVoltage_grade(ros_cable.voltage_grade);
+    qt_cable->setSystem_format(ros_cable.system_format);
+    qt_cable->setNotes(QString::fromStdString(ros_cable.notes));
+    qt_cable->setLast_modified(QString::fromStdString(ros_cable.last_modified));
 }
 
 void convertAndApply(const ros2_interfaces::msg::CircuitSettings::SharedPtr& msg, CircuitSettingsData* target) {
@@ -55,7 +60,7 @@ void convertAndApply(const ros2_interfaces::msg::CircuitSettings::SharedPtr& msg
     // Convert nested objects first
     convertAndApplyLoop(msg->test_loop, target->test_loop());
     convertAndApplyLoop(msg->ref_loop, target->ref_loop());
-    convertAndApplySample(msg->sample_params, target->sample_params());
+    convertAndApplyCable(msg->sample_cable, target->sample_cable()); // 换用 Cable
 }
 
 } // End anonymous namespace
@@ -283,4 +288,48 @@ void ROSProxy::onTableDataFetched(const QVariantMap& data)
 void ROSProxy::onTableQueryFailed(const QString& msg)
 {
     emit tableQueryError(msg);
+}
+
+void ROSProxy::exportData(const QString& start_date, const QString& end_date, int circuit_id, const QString& file_path) {
+    emit exportDataRequested(start_date, end_date, circuit_id, file_path);
+}
+
+void ROSProxy::onExportProgress(int percentage) {
+    emit exportProgressChanged(percentage);
+}
+
+// --- Data Export ---
+void ROSProxy::onExportFinished(bool success, const QString& message) {
+    emit exportResult(success, message);
+}
+
+// --- Cable Management ---
+void ROSProxy::listCables(const QString& keyword, int page, int pageSize, int sortColumn, bool isAscending)
+{
+    emit listCablesRequested(keyword, page, pageSize, sortColumn, isAscending);
+}
+
+void ROSProxy::saveCable(const QVariantMap& cableMap)
+{
+    emit saveCableRequested(cableMap);
+}
+
+void ROSProxy::deleteCable(int id)
+{
+    emit deleteCableRequested(id);
+}
+
+void ROSProxy::onCablesListed(const QVariantMap& result)
+{
+    emit cablesListed(result);
+}
+
+void ROSProxy::onCableSaveResult(bool success, const QString& msg)
+{
+    emit cableSaveResult(success, msg);
+}
+
+void ROSProxy::onCableDeleteResult(bool success, const QString& msg)
+{
+    emit cableDeleteResult(success, msg);
 }
