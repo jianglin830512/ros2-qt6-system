@@ -29,10 +29,12 @@ void HardwareNode::initialize_components()
 
     service_call_timeout_ = std::chrono::milliseconds(service_timeout_ms);
 
+    int temp_monitor_type = this->declare_parameter<int>(hardware_node_constants::TEMP_MONITOR_TYPE_PARAM, 1);
     bool use_mock = this->declare_parameter<bool>(hardware_node_constants::USE_MOCK_DRIVER, false);
+
     if (use_mock)
     {
-        hardware_driver_ = std::make_unique<MockHardwareDriver>(this->get_logger());
+        hardware_driver_ = std::make_unique<MockHardwareDriver>(this->get_logger(), temp_monitor_type);
         RCLCPP_INFO(this->get_logger(), "Using MockHardwareDriver.");
     }
     else
@@ -47,13 +49,12 @@ void HardwareNode::initialize_components()
         int temp_port = this->declare_parameter<int>(
             hardware_node_constants::TEMP_MONITOR_PORT_PARAM, 3000);
 
-        // 【修改】将超时参数下发给 TCP Driver
         hardware_driver_ = std::make_unique<TcpHardwareDriver>(
             this->get_logger(), plc_ip, plc_port, temp_ip, temp_port,
-            tcp_connect_timeout_ms, tcp_recv_timeout_ms, regulator_cmd_timeout_ms);
+            tcp_connect_timeout_ms, tcp_recv_timeout_ms, regulator_cmd_timeout_ms, temp_monitor_type);
 
-        RCLCPP_WARN(this->get_logger(), "Using TcpHardwareDriver. PLC[%s:%d], TempMon[%s:%d]",
-                    plc_ip.c_str(), plc_port, temp_ip.c_str(), temp_port);
+        RCLCPP_WARN(this->get_logger(), "Using TcpHardwareDriver. PLC[%s:%d], TempMon[%s:%d] Type:%d",
+                    plc_ip.c_str(), plc_port, temp_ip.c_str(), temp_port, temp_monitor_type);
     }
 
     timer_update_cb_group_       = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -137,7 +138,6 @@ void HardwareNode::hardware_clear_alarm_callback(const std_msgs::msg::Empty::Sha
     hardware_driver_->handle_clear_alarm();
 }
 
-// 【修改】：使用 service_call_timeout_ 代替硬编码的 2s
 void HardwareNode::set_hardware_regulator_settings_callback(const std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Request> request, std::shared_ptr<ros2_interfaces::srv::SetRegulatorSettings::Response> response) {
     std::string key = "set_regulator_settings_" + std::to_string(request->settings.regulator_id);
     if (is_request_throttled(key, response)) { return; }

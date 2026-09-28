@@ -40,6 +40,10 @@
 #include "ros2_interfaces/srv/set_circuit_settings.hpp"
 // 历史
 #include "ros2_interfaces/srv/query_data_records.hpp"
+// 试验管理
+#include "ros2_interfaces/srv/save_test_record.hpp"
+#include "ros2_interfaces/srv/delete_test_record.hpp"
+#include "ros2_interfaces/srv/list_test_records.hpp"
 // 电缆管理
 #include "ros2_interfaces/srv/save_cable.hpp"
 #include "ros2_interfaces/srv/delete_cable.hpp"
@@ -83,6 +87,12 @@ public slots:
     // 数据导出
     void exportDataRecords(const QString& start_date, const QString& end_date, int circuit_id, const QString& file_path);
 
+    // 试验管理
+    void onListTestRecordsRequested(const QString& keyword, int page, int page_size, int circuit_id);
+    void onSaveTestRecordRequested(const QVariantMap& recordMap);
+    void onDeleteTestRecordRequested(int id);
+    void onExportTestRecordsRequested(const QString& file_path);
+
     // 电缆管理
     void onListCablesRequested(const QString& keyword, int page, int page_size, int sort_column, bool is_ascending);
     void onSaveCableRequested(const QVariantMap& cableMap);
@@ -123,6 +133,12 @@ signals:
     // 数据导出
     void exportProgress(int percentage);
     void exportFinished(bool success, const QString& message);
+
+    // 试验管理
+    void testRecordsListed(int circuit_id, const QVariantMap& result);
+    void testRecordSaveResult(bool success, const QString& msg);
+    void testRecordDeleteResult(bool success, const QString& msg);
+    void exportTestRecordResult(bool success, const QString& msg);
 
     // 电缆管理
     void cablesListed(const QVariantMap& result);
@@ -189,6 +205,10 @@ private:
     // 查询历史数据
     rclcpp::Client<ros2_interfaces::srv::QueryDataRecords>::SharedPtr query_data_records_client_;
     std::string query_data_records_service_name_;
+    // 试验管理
+    rclcpp::Client<ros2_interfaces::srv::ListTestRecords>::SharedPtr list_test_records_client_;
+    rclcpp::Client<ros2_interfaces::srv::SaveTestRecord>::SharedPtr save_test_record_client_;
+    rclcpp::Client<ros2_interfaces::srv::DeleteTestRecord>::SharedPtr delete_test_record_client_;
     // 电缆管理
     rclcpp::Client<ros2_interfaces::srv::ListCables>::SharedPtr list_cables_client_;
     std::string list_cables_service_name_;
@@ -197,6 +217,10 @@ private:
     rclcpp::Client<ros2_interfaces::srv::DeleteCable>::SharedPtr delete_cable_client_;
     std::string delete_cable_service_name_;
 
+    // 温度监控设备类型，用于【数据查询和导出】时快速访问该属性
+    uint8_t current_temp_monitor_type_ = 0;
+
+    //
     QTimer* m_ros_timer;
 };
 

@@ -3,6 +3,8 @@
 
 #include <string>
 #include <sqlite3.h>
+#include <vector>
+#include <atomic>
 #include "rclcpp/rclcpp.hpp"  // IWYU pragma: keep
 #include "ros2_interfaces/msg/system_settings.hpp"
 #include "ros2_interfaces/msg/regulator_settings.hpp"
@@ -10,7 +12,7 @@
 #include "ros2_interfaces/msg/circuit_status.hpp"
 #include "ros2_interfaces/msg/regulator_status.hpp"
 #include "ros2_interfaces/msg/data_record.hpp"
-#include <vector>
+#include "ros2_interfaces/msg/test_record.hpp"
 
 class DatabaseManager
 {
@@ -25,7 +27,7 @@ public:
     bool save_circuit_settings(uint8_t circuit_id, const ros2_interfaces::msg::CircuitSettings& settings);
 
     /**
-     * @brief 插入一条运行数据记录 (更新为新的数据结构)
+     * @brief 插入一条运行数据记录
      */
     bool insert_data_record(
         const std::string& record_time_str,
@@ -51,6 +53,14 @@ public:
         std::vector<std::string>& result_header,
         std::vector<std::string>& result_rows
         );
+
+    // 试验记录（人工记录）
+    bool save_test_record(const ros2_interfaces::msg::TestRecord& record);
+    bool delete_test_record(int32_t id);
+    // [修改] 增加 circuit_id 用于查询筛选
+    bool list_test_records(int circuit_id, const std::string& keyword, int page, int page_size,
+                           std::vector<ros2_interfaces::msg::TestRecord>& records,
+                           int& total_pages);
 
 private:
     void initialize_database();

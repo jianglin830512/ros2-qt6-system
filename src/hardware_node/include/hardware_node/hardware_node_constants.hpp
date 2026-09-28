@@ -41,18 +41,19 @@ namespace hardware_node_constants
 [[maybe_unused]] constexpr const char* POLLING_RATE_MS_PARAM = "polling_rate_ms";
 [[maybe_unused]] constexpr const char* USE_MOCK_DRIVER = "use_mock_driver";
 
-// --- 网络/超时相关参数 (【新增】) ---
+// --- 网络/超时相关参数 ---
 [[maybe_unused]] constexpr const char* TCP_CONNECT_TIMEOUT_MS_PARAM = "tcp_connect_timeout_ms";
 [[maybe_unused]] constexpr const char* TCP_RECV_TIMEOUT_MS_PARAM = "tcp_recv_timeout_ms";
 [[maybe_unused]] constexpr const char* REGULATOR_CMD_TIMEOUT_MS_PARAM = "regulator_cmd_timeout_ms";
 [[maybe_unused]] constexpr const char* SERVICE_CALL_TIMEOUT_MS_PARAM = "service_call_timeout_ms";
 
-// --- TCP 连接参数 ---
+// --- TCP 连接与设备参数 ---
 [[maybe_unused]] constexpr const char* PLC_IP_ADDRESS_PARAM = "plc_ip_address";
 [[maybe_unused]] constexpr const char* PLC_PORT_PARAM = "plc_port";
 
 [[maybe_unused]] constexpr const char* TEMP_MONITOR_IP_ADDRESS_PARAM = "temp_monitor_ip_address";
 [[maybe_unused]] constexpr const char* TEMP_MONITOR_PORT_PARAM = "temp_monitor_port";
+[[maybe_unused]] constexpr const char* TEMP_MONITOR_TYPE_PARAM = "temp_monitor_type";
 
 } // namespace hardware_node_constants
 

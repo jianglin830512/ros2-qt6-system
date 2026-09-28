@@ -147,10 +147,12 @@ hardware_node:
     plc_port: 502
     temp_monitor_ip_address: "192.168.2.95"
     temp_monitor_port: 3000
+    # 测温设备类型配置 (1 = TP1100 64路, 2 = 改进型 80路)
+    temp_monitor_type: 1
     
     # --- 运行参数 ---
     polling_rate_ms: 200
-    use_mock_driver: false
+    use_mock_driver: true
 
     # --- 光纤网络延迟适配参数 (从 hardware_node_config.yaml 补充) ---
     tcp_connect_timeout_ms: 200      # 建立 TCP 连接的最长等待时间

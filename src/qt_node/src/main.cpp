@@ -171,6 +171,27 @@ int main(int argc, char *argv[])
                      ros_proxy.get(), &ROSProxy::onExportFinished,
                      Qt::QueuedConnection);
 
+    // --- Test Records Management 连接 ---
+    QObject::connect(ros_proxy.get(), &ROSProxy::listTestRecordsRequested,
+                     ros_node.get(), &QtROSNode::onListTestRecordsRequested, Qt::QueuedConnection);
+    QObject::connect(ros_node.get(), &QtROSNode::testRecordsListed,
+                     ros_proxy.get(), &ROSProxy::onTestRecordsListed, Qt::QueuedConnection);
+
+    QObject::connect(ros_proxy.get(), &ROSProxy::saveTestRecordRequested,
+                     ros_node.get(), &QtROSNode::onSaveTestRecordRequested, Qt::QueuedConnection);
+    QObject::connect(ros_node.get(), &QtROSNode::testRecordSaveResult,
+                     ros_proxy.get(), &ROSProxy::onTestRecordSaveResult, Qt::QueuedConnection);
+
+    QObject::connect(ros_proxy.get(), &ROSProxy::deleteTestRecordRequested,
+                     ros_node.get(), &QtROSNode::onDeleteTestRecordRequested, Qt::QueuedConnection);
+    QObject::connect(ros_node.get(), &QtROSNode::testRecordDeleteResult,
+                     ros_proxy.get(), &ROSProxy::onTestRecordDeleteResult, Qt::QueuedConnection);
+
+    QObject::connect(ros_proxy.get(), &ROSProxy::exportTestRecordsRequested,
+                     ros_node.get(), &QtROSNode::onExportTestRecordsRequested, Qt::QueuedConnection);
+    QObject::connect(ros_node.get(), &QtROSNode::exportTestRecordResult,
+                     ros_proxy.get(), &ROSProxy::onExportTestRecordResult, Qt::QueuedConnection);
+
     // --- Cables Management 连接 ---
     QObject::connect(ros_proxy.get(), &ROSProxy::listCablesRequested,
                      ros_node.get(), &QtROSNode::onListCablesRequested, Qt::QueuedConnection);

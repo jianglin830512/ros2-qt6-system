@@ -1,0 +1,4 @@
+TestRecord record
+---
+bool success
+string message

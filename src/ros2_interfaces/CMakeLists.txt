@@ -30,6 +30,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/HardwareSystemStatus.msg"
   "msg/DatabaseStatus.msg"
   "msg/Cable.msg"
+  "msg/TestRecord.msg"
   "srv/CircuitBreakerCommand.srv"
   "srv/LoopModeCommand.srv"
   "srv/RegulatorBreakerCommand.srv"
@@ -47,6 +48,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SaveCable.srv"
   "srv/DeleteCable.srv"
   "srv/GetCableInfoBatch.srv"
+  "srv/SaveTestRecord.srv"
+  "srv/DeleteTestRecord.srv"
+  "srv/ListTestRecords.srv"
   # 声明这些 msg 文件内部所依赖的其他消息包
   DEPENDENCIES std_msgs builtin_interfaces
 )

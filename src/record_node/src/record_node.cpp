@@ -12,22 +12,18 @@ RecordNode::RecordNode() : Node("record_node")
 {
     RCLCPP_INFO(this->get_logger(), "Initializing RecordNode...");
 
-    // 1. 初始化 DatabaseManager
     auto db_path = this->declare_parameter<std::string>(
         record_node_constants::DB_PATH_PARAM,
         record_node_constants::DEFAULT_DB_PATH);
     db_manager_ = std::make_unique<DatabaseManager>(db_path, this->get_logger());
 
-    // 2. 初始化记录参数
     record_interval_min_ = this->declare_parameter<int64_t>(
         record_node_constants::RECORD_INTERVAL_MIN_PARAM,
         record_node_constants::DEFAULT_RECORD_INTERVAL_MIN);
     if (record_interval_min_ < 1) record_interval_min_ = 1;
 
-    // 3. 从数据库加载初始设置到内存 (必须在创建订阅前完成)
     load_initial_settings();
 
-    // 4. 创建设置类订阅者 (监听变更并保存)
     auto sys_set_topic = this->declare_parameter<std::string>(
         record_node_constants::SYSTEM_SETTINGS_TOPIC_PARAM,
         record_node_constants::DEFAULT_SYSTEM_SETTINGS_TOPIC);
@@ -46,7 +42,6 @@ RecordNode::RecordNode() : Node("record_node")
     circuit_settings_sub_ = this->create_subscription<ros2_interfaces::msg::CircuitSettings>(
         cir_set_topic, 10, std::bind(&RecordNode::circuit_settings_topic_callback, this, _1));
 
-    // 5. 创建状态类订阅者
     auto circuit_topic = this->declare_parameter<std::string>(
         record_node_constants::CIRCUIT_STATUS_TOPIC_PARAM,
         record_node_constants::DEFAULT_CIRCUIT_STATUS_TOPIC);
@@ -59,7 +54,6 @@ RecordNode::RecordNode() : Node("record_node")
     regulator_status_sub_ = this->create_subscription<ros2_interfaces::msg::RegulatorStatus>(
         regulator_topic, 10, std::bind(&RecordNode::regulator_status_callback, this, _1));
 
-    // 6. 创建查询类服务 (Get)
     auto get_sys_name = this->declare_parameter<std::string>(
         record_node_constants::GET_SYSTEM_SETTINGS_SERVICE_PARAM,
         record_node_constants::DEFAULT_GET_SYSTEM_SETTINGS_SERVICE);
@@ -84,7 +78,6 @@ RecordNode::RecordNode() : Node("record_node")
     get_data_records_service_ = this->create_service<ros2_interfaces::srv::GetDataRecords>(
         get_data_name, std::bind(&RecordNode::get_data_records_callback, this, _1, _2));
 
-    // 7. 创建高级查询服务 (动态列)
     auto query_service_name = this->declare_parameter<std::string>(
         record_node_constants::QUERY_DATA_RECORDS_SERVICE_PARAM,
         record_node_constants::DEFAULT_QUERY_DATA_RECORDS_SERVICE);
@@ -92,7 +85,24 @@ RecordNode::RecordNode() : Node("record_node")
         query_service_name, std::bind(&RecordNode::query_data_records_callback, this, _1, _2));
     RCLCPP_INFO(this->get_logger(), "Service %s created.", query_service_name.c_str());
 
-    // 8. 新增：初始化 Database Status Publisher 与 1Hz 定时器
+    auto list_test_service_name = this->declare_parameter<std::string>(
+        record_node_constants::LIST_TEST_RECORDS_SERVICE_PARAM,
+        record_node_constants::DEFAULT_LIST_TEST_RECORDS_SERVICE);
+    list_test_records_service_ = this->create_service<ros2_interfaces::srv::ListTestRecords>(
+        list_test_service_name, std::bind(&RecordNode::list_test_records_callback, this, _1, _2));
+
+    auto save_test_service_name = this->declare_parameter<std::string>(
+        record_node_constants::SAVE_TEST_RECORD_SERVICE_PARAM,
+        record_node_constants::DEFAULT_SAVE_TEST_RECORD_SERVICE);
+    save_test_record_service_ = this->create_service<ros2_interfaces::srv::SaveTestRecord>(
+        save_test_service_name, std::bind(&RecordNode::save_test_record_callback, this, _1, _2));
+
+    auto delete_test_service_name = this->declare_parameter<std::string>(
+        record_node_constants::DELETE_TEST_RECORD_SERVICE_PARAM,
+        record_node_constants::DEFAULT_DELETE_TEST_RECORD_SERVICE);
+    delete_test_record_service_ = this->create_service<ros2_interfaces::srv::DeleteTestRecord>(
+        delete_test_service_name, std::bind(&RecordNode::delete_test_record_callback, this, _1, _2));
+
     auto db_status_topic = this->declare_parameter<std::string>(
         record_node_constants::DATABASE_STATUS_TOPIC_PARAM,
         record_node_constants::DEFAULT_DATABASE_STATUS_TOPIC);
@@ -102,28 +112,21 @@ RecordNode::RecordNode() : Node("record_node")
         std::chrono::seconds(1),
         std::bind(&RecordNode::database_status_timer_callback, this));
 
-    // 9. 启动时间对齐逻辑
     reschedule_timers();
-
     RCLCPP_INFO(this->get_logger(), "RecordNode initialization complete.");
 }
 
 void RecordNode::load_initial_settings()
 {
-    // 加载系统设置 (ID=1)
     if (db_manager_->get_system_settings(current_system_settings_)) {
-        // 同步内存中的控制变量
         keep_record_on_shutdown_ = current_system_settings_.keep_record_on_shutdown;
-        // 注意：这里不需要手动设置 record_interval_min_，因为 reschedule_timers 会从 current_system_settings_ 读取
         RCLCPP_INFO(this->get_logger(), "Loaded initial system settings. Interval: %d min", current_system_settings_.record_interval_min);
     } else {
-        // 如果没读到，确保 current_system_settings_ 有默认值
         current_system_settings_.record_interval_min = 1;
         current_system_settings_.keep_record_on_shutdown = true;
         RCLCPP_WARN(this->get_logger(), "Failed to load initial system settings (using defaults).");
     }
 
-    // 加载调压器设置 (ID 1 & 2)
     for (uint8_t id = 1; id <= 2; ++id) {
         ros2_interfaces::msg::RegulatorSettings settings;
         if (db_manager_->get_regulator_settings(id, settings)) {
@@ -133,7 +136,6 @@ void RecordNode::load_initial_settings()
         }
     }
 
-    // 加载回路设置 (ID 1 & 2)
     for (uint8_t id = 1; id <= 2; ++id) {
         ros2_interfaces::msg::CircuitSettings settings;
         if (db_manager_->get_circuit_settings(id, settings)) {
@@ -144,11 +146,8 @@ void RecordNode::load_initial_settings()
     }
 }
 
-// --- Settings Topic Callbacks ---
-
 void RecordNode::system_settings_topic_callback(const ros2_interfaces::msg::SystemSettings::SharedPtr msg)
 {
-    // 检查是否有任何变化
     if (*msg != current_system_settings_) {
         RCLCPP_INFO(this->get_logger(), "Detected System Settings change. Updating DB.");
 
@@ -159,7 +158,6 @@ void RecordNode::system_settings_topic_callback(const ros2_interfaces::msg::Syst
             current_system_settings_ = *msg;
             keep_record_on_shutdown_ = msg->keep_record_on_shutdown;
 
-            // 如果时间间隔变了，必须重置定时器
             if (interval_changed) {
                 RCLCPP_INFO(this->get_logger(),
                             "Record interval changed to %d min. Rescheduling timers...",
@@ -175,8 +173,6 @@ void RecordNode::system_settings_topic_callback(const ros2_interfaces::msg::Syst
 void RecordNode::regulator_settings_topic_callback(const ros2_interfaces::msg::RegulatorSettings::SharedPtr msg)
 {
     uint8_t id = msg->regulator_id;
-
-    // 如果内存中没有这个ID，或者内容不一致，则更新
     if (current_regulator_settings_.find(id) == current_regulator_settings_.end() ||
         current_regulator_settings_[id] != *msg)
     {
@@ -194,8 +190,6 @@ void RecordNode::regulator_settings_topic_callback(const ros2_interfaces::msg::R
 void RecordNode::circuit_settings_topic_callback(const ros2_interfaces::msg::CircuitSettings::SharedPtr msg)
 {
     uint8_t id = msg->circuit_id;
-
-    // 如果内存中没有这个ID，或者内容不一致，则更新
     if (current_circuit_settings_.find(id) == current_circuit_settings_.end() ||
         current_circuit_settings_[id] != *msg)
     {
@@ -210,7 +204,6 @@ void RecordNode::circuit_settings_topic_callback(const ros2_interfaces::msg::Cir
     }
 }
 
-// --- Status Topic Callbacks ---
 void RecordNode::circuit_status_callback(const ros2_interfaces::msg::CircuitStatus::SharedPtr msg)
 {
     latest_circuit_status_[msg->circuit_id] = *msg;
@@ -221,16 +214,12 @@ void RecordNode::regulator_status_callback(const ros2_interfaces::msg::Regulator
     latest_regulator_status_[msg->regulator_id] = *msg;
 }
 
-// --- Get/Query Service Callbacks ---
 void RecordNode::get_system_settings_callback(
     const std::shared_ptr<ros2_interfaces::srv::GetSystemSettings::Request> /*request*/,
     std::shared_ptr<ros2_interfaces::srv::GetSystemSettings::Response> response)
 {
-    // 优先从内存返回，效率更高，且保证一致性
-    // 如果需要强制读盘，可以改回调用 db_manager_
     response->settings = current_system_settings_;
     response->success = true;
-    // 备用：response->success = db_manager_->get_system_settings(response->settings);
 }
 
 void RecordNode::get_regulator_settings_callback(
@@ -242,7 +231,6 @@ void RecordNode::get_regulator_settings_callback(
         response->settings = current_regulator_settings_[id];
         response->success = true;
     } else {
-        // 尝试从DB读取（以防万一内存中没有）
         response->success = db_manager_->get_regulator_settings(id, response->settings);
     }
 }
@@ -256,7 +244,6 @@ void RecordNode::get_circuit_settings_callback(
         response->settings = current_circuit_settings_[id];
         response->success = true;
     } else {
-        // 尝试从DB读取
         response->success = db_manager_->get_circuit_settings(id, response->settings);
     }
 }
@@ -297,9 +284,6 @@ void RecordNode::query_data_records_callback(
         response->data_rows = rows;
         response->message = "Query successful. Retrieved " + std::to_string(rows.size()) + " rows.";
 
-        // ==========================================
-        // [新增 LOG 3] 打印返回给客户端的数据详情
-        // ==========================================
         std::string header_str;
         for (const auto& h : headers) { header_str += h + ", "; }
 
@@ -320,10 +304,71 @@ void RecordNode::query_data_records_callback(
     }
 }
 
-// --- Recording Logic ---
+// [修改] 传递 circuit_id 到数据层
+void RecordNode::list_test_records_callback(
+    const std::shared_ptr<ros2_interfaces::srv::ListTestRecords::Request> request,
+    std::shared_ptr<ros2_interfaces::srv::ListTestRecords::Response> response)
+{
+    std::vector<ros2_interfaces::msg::TestRecord> records;
+    int total_pages = 0;
+
+    bool result = db_manager_->list_test_records(
+        request->circuit_id,    // 新增传递
+        request->search_keyword,
+        request->page,
+        request->page_size,
+        records,
+        total_pages);
+
+    if (result) {
+        response->success = true;
+        response->records = records;
+        response->current_page = request->page;
+        response->total_pages = total_pages;
+        response->message = "Query test records successful.";
+        RCLCPP_INFO(this->get_logger(), "Listed %zu test records (filter circuit: %d).", records.size(), request->circuit_id);
+    } else {
+        response->success = false;
+        response->message = "Failed to query test records from database.";
+        RCLCPP_ERROR(this->get_logger(), "Failed to query test records.");
+    }
+}
+
+void RecordNode::save_test_record_callback(
+    const std::shared_ptr<ros2_interfaces::srv::SaveTestRecord::Request> request,
+    std::shared_ptr<ros2_interfaces::srv::SaveTestRecord::Response> response)
+{
+    bool result = db_manager_->save_test_record(request->record);
+    if (result) {
+        response->success = true;
+        response->message = "Test record saved successfully.";
+        RCLCPP_INFO(this->get_logger(), "Test record saved successfully (Circuit ID: %d, Cable: %s).",
+                    request->record.circuit_id, request->record.cable_name.c_str());
+    } else {
+        response->success = false;
+        response->message = "Failed to save test record to database.";
+        RCLCPP_ERROR(this->get_logger(), "Failed to save test record.");
+    }
+}
+
+void RecordNode::delete_test_record_callback(
+    const std::shared_ptr<ros2_interfaces::srv::DeleteTestRecord::Request> request,
+    std::shared_ptr<ros2_interfaces::srv::DeleteTestRecord::Response> response)
+{
+    bool result = db_manager_->delete_test_record(request->id);
+    if (result) {
+        response->success = true;
+        response->message = "Test record deleted successfully.";
+        RCLCPP_INFO(this->get_logger(), "Test record (ID: %d) deleted successfully.", request->id);
+    } else {
+        response->success = false;
+        response->message = "Failed to delete test record from database.";
+        RCLCPP_ERROR(this->get_logger(), "Failed to delete test record (ID: %d).", request->id);
+    }
+}
+
 void RecordNode::reschedule_timers()
 {
-    // 1. 停止现有的定时器，防止冲突
     if (alignment_timer_ && !alignment_timer_->is_canceled()) {
         alignment_timer_->cancel();
     }
@@ -331,16 +376,10 @@ void RecordNode::reschedule_timers()
         record_timer_->cancel();
     }
 
-    // 2. 获取当前的间隔设置 (确保至少为1分钟)
     int interval_min = current_system_settings_.record_interval_min;
     if (interval_min < 1) interval_min = 1;
 
-    // 更新成员变量以备他用
     this->record_interval_min_ = interval_min;
-
-    // 3. 计算距离下一个“整 interval_min 分钟”的延时
-    // 例如：当前 10:03:30，间隔 5分钟。下一个时刻应为 10:05:00。
-    // 计算方法：当前总秒数 % (5*60) = 余数。 延时 = (5*60) - 余数。
 
     auto now = std::chrono::system_clock::now();
     time_t t = std::chrono::system_clock::to_time_t(now);
@@ -351,36 +390,20 @@ void RecordNode::reschedule_timers()
     localtime_r(&t, &tm_struct);
 #endif
 
-    // 当前小时内的分钟数 * 60 + 当前秒数 = 当前小时已过的秒数
-    // 注意：我们其实只需要基于分钟对齐，不需要基于小时对齐（比如每90分钟），
-    // 但通常“整X分钟”是指相对于小时的 0, 5, 10...
-    // 所以我们计算相对于小时起点的秒数。
     long current_seconds_in_hour = tm_struct.tm_min * 60 + tm_struct.tm_sec;
     long interval_seconds = interval_min * 60;
-
-    // 计算还需要多少秒到达下一个整点
     long seconds_to_wait = interval_seconds - (current_seconds_in_hour % interval_seconds);
-
-    // 如果计算结果恰好是0（极小概率刚好卡在整点毫秒级），为了避免立即触发导致逻辑混乱，可以延后一个周期，
-    // 或者直接让它立即触发。为了逻辑简单，这里添加 100ms 缓冲确保它在整点之后一点点执行。
     auto delay = std::chrono::seconds(seconds_to_wait) + std::chrono::milliseconds(100);
 
     RCLCPP_INFO(this->get_logger(),
                 "Scheduling next record in %ld seconds (Aligning to %d min interval)",
                 seconds_to_wait, interval_min);
 
-    // 4. 创建对齐定时器 (One-shot)
     alignment_timer_ = this->create_wall_timer(
         delay,
         [this]() {
-            // 对齐定时器触发：
-            // 1. 立即停止自己 (One-shot)
             this->alignment_timer_->cancel();
-
-            // 2. 执行一次记录任务
             this->record_timer_callback();
-
-            // 3. 创建周期性定时器，按照设定的间隔循环执行
             this->record_timer_ = this->create_wall_timer(
                 std::chrono::minutes(this->record_interval_min_),
                 std::bind(&RecordNode::record_timer_callback, this));
@@ -398,16 +421,14 @@ void RecordNode::record_timer_callback()
     localtime_r(&t, &tm_struct);
 #endif
 
-    tm_struct.tm_sec = 0; // 秒数归零，保证是对齐到整分钟
+    tm_struct.tm_sec = 0;
 
     std::stringstream ss;
     ss << std::put_time(&tm_struct, "%Y-%m-%d %H:%M:%S");
     std::string time_str = ss.str();
 
-    // 提前拿到当前的全局状态
     bool auto_on = current_system_settings_.auto_on;
 
-    // 提取 Reg 1 和 Reg 2 的状态 (如果没有则使用默认空状态0)
     ros2_interfaces::msg::RegulatorStatus reg1_status;
     ros2_interfaces::msg::RegulatorStatus reg2_status;
     if (latest_regulator_status_.count(1)) {
@@ -422,7 +443,6 @@ void RecordNode::record_timer_callback()
             const auto& circuit_status = latest_circuit_status_[id];
             const auto& circuit_settings = current_circuit_settings_[id];
 
-            // 判断是否记录（条件不变：关机保留 或 任一支路使能）
             bool should_record = keep_record_on_shutdown_
                                  || circuit_settings.test_loop.enabled
                                  || circuit_settings.ref_loop.enabled;
@@ -442,11 +462,9 @@ void RecordNode::record_timer_callback()
     }
 }
 
-// 1Hz 数据库状态发布实现
 void RecordNode::database_status_timer_callback()
 {
     ros2_interfaces::msg::DatabaseStatus status_msg;
-    // 获取最新的缓存状态，不发起任何额外的查询，开销极小
     status_msg.database_connected = db_manager_->is_connected();
     database_status_pub_->publish(status_msg);
 }

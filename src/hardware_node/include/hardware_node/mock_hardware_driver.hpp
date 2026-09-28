@@ -1,14 +1,14 @@
 ﻿#ifndef MOCK_HARDWARE_DRIVER_HPP_
 #define MOCK_HARDWARE_DRIVER_HPP_
 #include "hardware_node/i_hardware_driver.hpp"
-#include "rclcpp/rclcpp.hpp" // IWYU pragma: keep , for logger
+#include "rclcpp/rclcpp.hpp"
 #include <memory>
-// 前向声明模拟设备类
+
 class MockDevice;
 class MockHardwareDriver : public IHardwareDriver
 {
 public:
-    explicit MockHardwareDriver(rclcpp::Logger logger);
+    explicit MockHardwareDriver(rclcpp::Logger logger, int temp_monitor_type);
     ~MockHardwareDriver() override;
     void update() override;
 
@@ -17,8 +17,6 @@ public:
     void handle_set_hardware_circuit_settings_request(const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitSettings::Request> request, AsyncCallback callback) override;
     void handle_regulator_breaker_command(const std::shared_ptr<ros2_interfaces::srv::RegulatorBreakerCommand::Request> request, AsyncCallback callback) override;
     void handle_circuit_breaker_command(const std::shared_ptr<ros2_interfaces::srv::CircuitBreakerCommand::Request> request, AsyncCallback callback) override;
-
-    // [新增]
     void handle_set_control_mode(const std::shared_ptr<ros2_interfaces::srv::SetHardwareCircuitControlMode::Request> request, AsyncCallback callback) override;
 
     // --- 话题处理器 ---
@@ -33,6 +31,7 @@ public:
     bool get_system_status(ros2_interfaces::msg::HardwareSystemStatus& status) override;
 private:
     rclcpp::Logger logger_;
-    std::unique_ptr<MockDevice> device_; // 核心模拟逻辑
+    int temp_monitor_type_;
+    std::unique_ptr<MockDevice> device_;
 };
 #endif

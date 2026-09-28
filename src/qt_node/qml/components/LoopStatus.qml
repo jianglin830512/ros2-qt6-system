@@ -9,28 +9,21 @@ LoopStatusForm {
     property string title: "回路"
     property var loopStatusData: null
     property var loopSettingsData: null
-    property var temperatureTitles: []
-    property int controlMode: 0  // 接收控制模式
-    property bool regulatorClosed: false // 接收对应调压器是否合闸的标志位
+    property int controlMode: 0
+    property bool regulatorClosed: false
 
-    // 判断“加热中”的核心条件：回路合闸 且 对应的调压器合闸
     property bool isHeatingNow: (loopStatusData && loopStatusData.breaker_closed_switch_ack && control.regulatorClosed)
 
     Component.onCompleted: {
         control.titleLabel.text = title
     }
 
-    // --- [绑定] 设定电流 ---
     setCurrentLabel.text: {
         if (loopSettingsData && loopSettingsData.start_current_a !== undefined) {
             return String(loopSettingsData.start_current_a);
         }
         return "0";
     }
-
-    // ==========================================================
-    // 绑定 加热时长 和 循环次数 到设定值显示
-    // ==========================================================
 
     heatSetValue: {
         if (loopSettingsData && loopSettingsData.heating_duration_sec !== undefined) {
@@ -45,62 +38,34 @@ LoopStatusForm {
         }
         return "0";
     }
-    // ==========================================================
 
-
-    // --- 监听状态数据 ---
     onLoopStatusDataChanged: {
         if (!loopStatusData) {
             control.measureCurrentLabel.text = "0";
             return;
         }
-        // 测量电流
         control.measureCurrentLabel.text = loopStatusData.current ? loopStatusData.current.toFixed(0) : "0"
 
-        // 剩余时间 (秒 -> 分)
         control.heatRemainValue = loopStatusData.remaining_heating_time_sec ? (loopStatusData.remaining_heating_time_sec / 60).toFixed(0) : "0"
-        // 剩余循环次数
         control.cycleRemainValue = loopStatusData.remaining_cycle_count ? loopStatusData.remaining_cycle_count : "0"
 
         control.closeBreakerButton.indicatorOn = loopStatusData.breaker_closed_switch_ack
         control.openBreakerButton.indicatorOn = loopStatusData.breaker_opened_switch_ack
-
-        var temps = []
-        for (var i = 0; i < temperatureTitles.length; ++i) {
-            var t_title = temperatureTitles[i];
-            var val = (loopStatusData.temperature_array && loopStatusData.temperature_array[i] !== undefined)
-                    ? loopStatusData.temperature_array[i].toFixed(1)
-                    : "N/A";
-            temps.push({ titleName: t_title, value: val });
-        }
-
-        // 拆分为左右两列注入模型 (如果没有后8个数据，slice会自动返回空数组)
-        control.leftTempRepeater.model = temps.slice(0, 8);
-        control.rightTempRepeater.model = temps.slice(8, 16);
     }
 
-    // --- 监听设置数据 ---
     enableLabel.text: {
-        if (loopSettingsData && loopSettingsData.enabled) {
-            return "启用";
-        }
+        if (loopSettingsData && loopSettingsData.enabled) return "启用";
         return "停用";
     }
 
     enableLabel.color: {
-        if (loopSettingsData && loopSettingsData.enabled) {
-            return Theme.statusOkColor;
-        }
+        if (loopSettingsData && loopSettingsData.enabled) return Theme.statusOkColor;
         return Theme.statusDisabledColor;
     }
 
     statusLabel.text: isHeatingNow ? "加热中" : "冷却中"
-
     statusLabel.color: isHeatingNow ? Theme.statusHeatColor : Theme.statusCoolColor
-
-    statusLabel.visible: {
-        return (loopSettingsData && loopSettingsData.enabled);
-    }
+    statusLabel.visible: (loopSettingsData && loopSettingsData.enabled)
 
     closeBreakerButton.onSendCommand: {
         var cmd = isSimulated ? QtNodeConstants.CMD_CIRCUIT_SIM_BREAKER_CLOSE : QtNodeConstants.CMD_CIRCUIT_TEST_BREAKER_CLOSE;
@@ -111,7 +76,5 @@ LoopStatusForm {
         rosProxy.sendCircuitBreakerCommand(circuitId, cmd);
     }
 
-    // 绑定按钮遮罩状态
     isButtonsBlocked: (rosProxy.qmlSystemSettings && rosProxy.qmlSystemSettings.auto_on)
-
 }

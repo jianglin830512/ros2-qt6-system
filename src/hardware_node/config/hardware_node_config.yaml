@@ -46,3 +46,5 @@
     plc_port: 502
     temp_monitor_ip_address: "192.168.2.95"
     temp_monitor_port: 3000
+    # 测温设备类型配置 (1 = TP1100 64路, 2 = 改进型 80路)
+    temp_monitor_type: 1

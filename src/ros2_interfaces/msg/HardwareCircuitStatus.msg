@@ -8,3 +8,5 @@ uint8 circuit_id  # 编号
 HardwareLoopStatus test_loop   # 试验回路的状态
 HardwareLoopStatus ref_loop    # 参考回路的状态
 
+# --- 回路测温点 (最多40个通道) ---
+float64[40] temperature_array  # 回路级温度数据

@@ -130,6 +130,9 @@ qt_add_qml_module(qt_node_executable
         src/data_types/regulator_settings_data.cpp
         src/data_types/system_settings_data.cpp
         src/data_types/cable_data.cpp
+        QML_FILES qml/pages/TestManagementPageForm.ui.qml
+        QML_FILES qml/pages/TestManagementPage.qml
+        QML_FILES qml/components/TestRecordEditDialog.qml
 )
 
 # --- 链接库 ---

@@ -81,6 +81,15 @@ constexpr const char* DEFAULT_SET_CIRCUIT_SETTINGS_SERVICE = "default_set_circui
 constexpr const char* QUERY_DATA_RECORDS_SERVICE_PARAM = "query_data_records_service";
 constexpr const char* DEFAULT_QUERY_DATA_RECORDS_SERVICE = "default_query_data_records";
 
+// 试验管理服务常量
+constexpr const char* LIST_TEST_RECORDS_SERVICE_PARAM = "list_test_records_service";
+constexpr const char* SAVE_TEST_RECORD_SERVICE_PARAM = "save_test_record_service";
+constexpr const char* DELETE_TEST_RECORD_SERVICE_PARAM = "delete_test_record_service";
+
+constexpr const char* DEFAULT_LIST_TEST_RECORDS_SERVICE = "default_list_test_records";
+constexpr const char* DEFAULT_SAVE_TEST_RECORD_SERVICE = "default_save_test_record";
+constexpr const char* DEFAULT_DELETE_TEST_RECORD_SERVICE = "default_delete_test_record";
+
 // 电缆管理服务
 constexpr const char* SAVE_CABLE_SERVICE_PARAM = "save_cable_service";
 constexpr const char* DELETE_CABLE_SERVICE_PARAM = "delete_cable_service";

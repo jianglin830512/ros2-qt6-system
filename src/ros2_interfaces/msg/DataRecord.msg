@@ -14,7 +14,6 @@ bool test_loop_is_heat
 bool test_loop_breaker_closed
 uint8 test_loop_strategy
 float64 test_loop_current
-float64[16] test_loop_temp
 
 # 调压器2管参考支路
 bool regulator_2_breaker_closed
@@ -25,4 +24,6 @@ bool ref_loop_is_heat
 bool ref_loop_breaker_closed
 uint8 ref_loop_strategy
 float64 ref_loop_current
-float64[16] ref_loop_temp
+
+# 回路统一测温点 (最多40路)
+float64[40] circuit_temp

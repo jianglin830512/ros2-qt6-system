@@ -72,7 +72,7 @@ Rectangle{
             right: parent.right
             leftMargin: Theme.subSpacing
         }
-        height: 720
+        height: 700
         spacing: Theme.subSpacing
 
         CircuitStatus {
@@ -105,6 +105,7 @@ Rectangle{
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredWidth: 1
             color: "transparent"
             border.color: Theme.highlightColor
             border.width: 2
@@ -112,15 +113,15 @@ Rectangle{
 
             RowLayout {
                 anchors.fill: parent
-                anchors.margins: 10
+                anchors.margins: 5
                 spacing: 30
 
                 Item { Layout.fillWidth: true } // 左侧弹簧占位
 
                 ToggleActionButton {
                     id: btnManualMode
-                    Layout.preferredWidth: 140
-                    Layout.preferredHeight: 45
+                    Layout.preferredWidth: 120
+                    Layout.preferredHeight: 40
                     labelText: "手 动"
                     colorWhenOn: Theme.statusHeatColor
                     indicatorOn: rosProxy.qmlSystemSettings && !rosProxy.qmlSystemSettings.auto_on
@@ -128,8 +129,8 @@ Rectangle{
 
                 ToggleActionButton {
                     id: btnAutoMode
-                    Layout.preferredWidth: 140
-                    Layout.preferredHeight: 45
+                    Layout.preferredWidth: 120
+                    Layout.preferredHeight: 40
                     labelText: "自 动"
                     colorWhenOn: Theme.statusHeatColor
                     indicatorOn: rosProxy.qmlSystemSettings && rosProxy.qmlSystemSettings.auto_on
@@ -143,6 +144,7 @@ Rectangle{
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredWidth: 2
             color: "transparent"
             border.color: Theme.highlightColor
             border.width: 2
@@ -197,6 +199,7 @@ Rectangle{
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredWidth: 1
             color: "transparent"
             border.color: Theme.highlightColor
             border.width: 2

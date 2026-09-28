@@ -16,6 +16,11 @@
 #include "ros2_interfaces/srv/get_data_records.hpp"
 #include "ros2_interfaces/srv/query_data_records.hpp"
 
+// 试验管理服务头文件
+#include "ros2_interfaces/srv/save_test_record.hpp"
+#include "ros2_interfaces/srv/delete_test_record.hpp"
+#include "ros2_interfaces/srv/list_test_records.hpp"
+
 #include "record_node/database_manager.hpp"
 #include <memory>
 #include <map>
@@ -64,10 +69,23 @@ private:
     void reschedule_timers();
     void record_timer_callback();
 
-    // 新增：查询动态数据的服务回调
+    // 查询动态数据的服务回调
     void query_data_records_callback(
         const std::shared_ptr<ros2_interfaces::srv::QueryDataRecords::Request> request,
         std::shared_ptr<ros2_interfaces::srv::QueryDataRecords::Response> response);
+
+    // 试验管理服务回调函数
+    void list_test_records_callback(
+        const std::shared_ptr<ros2_interfaces::srv::ListTestRecords::Request> request,
+        std::shared_ptr<ros2_interfaces::srv::ListTestRecords::Response> response);
+
+    void save_test_record_callback(
+        const std::shared_ptr<ros2_interfaces::srv::SaveTestRecord::Request> request,
+        std::shared_ptr<ros2_interfaces::srv::SaveTestRecord::Response> response);
+
+    void delete_test_record_callback(
+        const std::shared_ptr<ros2_interfaces::srv::DeleteTestRecord::Request> request,
+        std::shared_ptr<ros2_interfaces::srv::DeleteTestRecord::Response> response);
 
     // --- 核心组件 ---
     std::unique_ptr<DatabaseManager> db_manager_;
@@ -89,8 +107,13 @@ private:
     rclcpp::Service<ros2_interfaces::srv::GetCircuitSettings>::SharedPtr get_circuit_settings_service_;
     rclcpp::Service<ros2_interfaces::srv::GetDataRecords>::SharedPtr get_data_records_service_;
 
-    // 新增：服务对象
+    // 查询动态数据的服务对象
     rclcpp::Service<ros2_interfaces::srv::QueryDataRecords>::SharedPtr query_data_records_service_;
+
+    // 试验管理服务对象
+    rclcpp::Service<ros2_interfaces::srv::ListTestRecords>::SharedPtr list_test_records_service_;
+    rclcpp::Service<ros2_interfaces::srv::SaveTestRecord>::SharedPtr save_test_record_service_;
+    rclcpp::Service<ros2_interfaces::srv::DeleteTestRecord>::SharedPtr delete_test_record_service_;
 
     // --- 内存数据存储 (状态) ---
     std::map<uint8_t, ros2_interfaces::msg::CircuitStatus> latest_circuit_status_;

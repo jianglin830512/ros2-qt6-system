@@ -41,6 +41,11 @@ qt_ros_node:
     # 历史数据查询服务 -- FROM qt_node
     query_data_records_service: "query_data_records"
 
+    # 试验管理服务
+    list_test_records_service: "list_test_records"
+    save_test_record_service: "save_test_record"
+    delete_test_record_service: "delete_test_record"
+
     # 电缆管理，绝对路径，“/global”是全局namespace
     save_cable_service: "/global/cable_manager/save"
     delete_cable_service: "/global/cable_manager/delete"

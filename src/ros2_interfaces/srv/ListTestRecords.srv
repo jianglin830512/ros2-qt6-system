@@ -1,0 +1,10 @@
+string search_keyword
+int32 page
+int32 page_size
+uint8 circuit_id
+---
+bool success
+string message
+int32 total_pages
+int32 current_page
+TestRecord[] records

@@ -78,6 +78,9 @@ void StateManager::update_circuit_status_from_hardware(uint8_t id, const ros2_in
         status.test_loop.hardware_loop_status = hw_status.test_loop;
         status.ref_loop.hardware_loop_status = hw_status.ref_loop;
 
+        // [MODIFIED] 将硬件层的 40 路回路温度透传给逻辑层的 CircuitStatus
+        status.temperature_array = hw_status.temperature_array;
+
     } catch (const std::out_of_range& e) {}
 }
 

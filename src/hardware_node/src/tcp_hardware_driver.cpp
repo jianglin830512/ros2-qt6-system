@@ -27,7 +27,6 @@
 // ============================================================================
 class SimpleTcpClient {
 public:
-    // 【修改】接受自定义超时参数
     SimpleTcpClient(rclcpp::Logger logger, std::string ip, int port, int conn_timeout, int recv_timeout)
         : logger_(logger), ip_(ip), port_(port), sock_(INVALID_SOCKET),
         connect_timeout_ms_(conn_timeout), recv_timeout_ms_(recv_timeout) {
@@ -71,7 +70,6 @@ public:
 
         fd_set write_fds; FD_ZERO(&write_fds); FD_SET(sock_, &write_fds);
 
-        // 【修改】使用 yaml 配置的 Connect Timeout (代替 500ms 写死)
         struct timeval tv = {connect_timeout_ms_ / 1000, (connect_timeout_ms_ % 1000) * 1000};
         int sel_res = select((int)sock_ + 1, NULL, &write_fds, NULL, &tv);
 
@@ -86,12 +84,10 @@ public:
             if (so_error == 0) {
 #ifdef _WIN32
                 mode = 0; ioctlsocket(sock_, FIONBIO, &mode);
-                // 【修改】使用 yaml 配置的 Recv Timeout (代替 200ms)
                 DWORD timeout = recv_timeout_ms_;
-                setsockopt(sock_, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+                setsockopt(sock_, SOL_SOCKET, SO_ERROR, (const char*)&timeout, sizeof(timeout));
 #else
                 flags = fcntl(sock_, F_GETFL, 0); fcntl(sock_, F_SETFL, flags & ~O_NONBLOCK);
-                // 【修改】使用 yaml 配置的 Recv Timeout
                 struct timeval r_tv = {recv_timeout_ms_ / 1000, (recv_timeout_ms_ % 1000) * 1000};
                 setsockopt(sock_, SOL_SOCKET, SO_RCVTIMEO, &r_tv, sizeof(r_tv));
 #endif
@@ -152,8 +148,8 @@ private:
     std::string ip_;
     int port_;
     SOCKET sock_;
-    int connect_timeout_ms_; // [新增]
-    int recv_timeout_ms_;    // [新增]
+    int connect_timeout_ms_;
+    int recv_timeout_ms_;
     std::chrono::steady_clock::time_point last_connect_attempt_;
     std::mutex tx_mutex_;
 };
@@ -210,8 +206,9 @@ TcpHardwareDriver::TcpHardwareDriver(rclcpp::Logger logger,
                                      std::string temp_ip, int temp_port,
                                      int tcp_connect_timeout_ms,
                                      int tcp_recv_timeout_ms,
-                                     int regulator_cmd_timeout_ms)
-    : logger_(logger), regulator_cmd_timeout_ms_(regulator_cmd_timeout_ms)
+                                     int regulator_cmd_timeout_ms,
+                                     int temp_monitor_type)
+    : logger_(logger), regulator_cmd_timeout_ms_(regulator_cmd_timeout_ms), temp_monitor_type_(temp_monitor_type)
 {
 #ifdef _WIN32
     WSADATA wsaData; WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -230,7 +227,7 @@ TcpHardwareDriver::TcpHardwareDriver(rclcpp::Logger logger,
     keep_alive_running_ = true;
     keep_alive_thread_ = std::thread(&TcpHardwareDriver::voltage_keep_alive_loop, this);
 
-    RCLCPP_INFO(logger_, "TcpHardwareDriver Started. PLC: %s:%d (15ms loop max)", plc_ip.c_str(), plc_port);
+    RCLCPP_INFO(logger_, "TcpHardwareDriver Started. PLC: %s:%d, Type: %d", plc_ip.c_str(), plc_port, temp_monitor_type_);
 }
 
 TcpHardwareDriver::~TcpHardwareDriver()
@@ -249,8 +246,9 @@ void TcpHardwareDriver::initialize_default_states()
     for (uint8_t id = 1; id <= 2; ++id) {
         cache_reg_status_[id].regulator_id = id;
         cache_circ_status_[id].circuit_id = id;
-        cache_circ_status_[id].test_loop.temperature_array.fill(0.0);
-        cache_circ_status_[id].ref_loop.temperature_array.fill(0.0);
+        // 初始化回路级温度数组
+        cache_circ_status_[id].temperature_array.fill(0.0);
+
         cache_reg_settings_[id].regulator_id = id;
         cache_circ_settings_[id].circuit_id = id;
     }
@@ -258,15 +256,14 @@ void TcpHardwareDriver::initialize_default_states()
     cache_system_status_.emergency_stop_on = false;
     cache_system_status_.plc_connected = false;
     cache_system_status_.temp_monitor_connected = false;
+    cache_system_status_.temp_monitor_type = temp_monitor_type_;
 }
 
 void TcpHardwareDriver::voltage_keep_alive_loop()
 {
     while (keep_alive_running_) {
-        // 【核心修复】：在每次循环起始处获取基准时间，确保周期绝对锁定为 50ms
         auto next_wake = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
 
-        // 如果有高优先级的指令排队（如合闸、下发参数），仅挂起 10ms 快速让渡
         if (pending_writes_.load() > 0) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
@@ -277,12 +274,10 @@ void TcpHardwareDriver::voltage_keep_alive_loop()
             std::lock_guard<std::mutex> cmd_lock(cmd_mutex_);
             auto now = std::chrono::steady_clock::now();
 
-            // 超时停止安全校验
             for (auto& kv : active_voltage_cmd_) {
                 uint8_t id = kv.first;
                 if (kv.second != 0) {
                     auto last_time = last_voltage_cmd_time_[id];
-                    // 使用 yaml 配置里的保护断开超时时间 (当前为 150ms)
                     if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count() > regulator_cmd_timeout_ms_) {
                         RCLCPP_WARN(logger_, "Regulator %u op cmd timeout (>%dms). Auto-stopping.", id, regulator_cmd_timeout_ms_);
                         kv.second = 0;
@@ -299,18 +294,14 @@ void TcpHardwareDriver::voltage_keep_alive_loop()
             else if (cmd == 2) addr = (id == 1) ? ADDR_CMD_REG1_DOWN : ADDR_CMD_REG2_DOWN;
 
             if (addr != 0xFFFF) {
-                // 执行单次升/降压 Modbus 写入
                 modbus_write_single_register(client_plc_.get(), 1, addr, 256);
                 sent_command = true;
             }
         }
 
         if (sent_command) {
-            // 【核心修复】：废弃松散的 sleep_for，使用绝对时间 sleep_until。
-            // 不管上面的 Modbus 写入耗费了 2ms 还是 5ms，都能严格贴紧 50ms 周期执行下一次发包。
             std::this_thread::sleep_until(next_wake);
         } else {
-            // 如果当前没有按键按下，20ms 快速轮询等待 Control Node 随时到来的指令
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
     }
@@ -342,12 +333,37 @@ void TcpHardwareDriver::read_plc_data()
 
 void TcpHardwareDriver::read_temp_monitor_data()
 {
-    std::vector<uint8_t> data;
-    // 【修改】读取48个通道，每个通道占2个Modbus寄存器(单精度浮点数)，共需读取 48 * 2 = 96 个寄存器
-    if (modbus_read_holding_registers(client_temp_.get(), 1, 0, 96, data)) {
+    // 获取需要读取的总寄存器数量
+    int total_registers = (temp_monitor_type_ == ros2_interfaces::msg::HardwareSystemStatus::TEMP_DEV_NEXTGEN_80CH) ? 160 : 128;
+    std::vector<uint8_t> full_data;
+
+    // Modbus 协议单次最多读 125 个寄存器。这里我们将每次读取上限设为 100 进行分块读取。
+    int current_addr = 0;
+    bool success = true;
+
+    while (current_addr < total_registers) {
+        // 避开 Windows 的 min 宏污染
+        int remain = total_registers - current_addr;
+        int read_count = (100 < remain) ? 100 : remain;
+
+        std::vector<uint8_t> chunk_data;
+
+        // 读取当前数据块
+        if (!modbus_read_holding_registers(client_temp_.get(), 1, current_addr, read_count, chunk_data)) {
+            success = false;
+            break;
+        }
+
+        // 将成功读到的数据拼接到完整的缓冲区中
+        full_data.insert(full_data.end(), chunk_data.begin(), chunk_data.end());
+        current_addr += read_count;
+    }
+
+    if (success) {
         std::lock_guard<std::mutex> lock(data_mutex_);
         cache_system_status_.temp_monitor_connected = true;
-        parse_temp_buffer(data);
+        // 把拼接好的完整数据交给解析函数
+        parse_temp_buffer(full_data);
     } else {
         std::lock_guard<std::mutex> lock(data_mutex_);
         cache_system_status_.temp_monitor_connected = false;
@@ -497,37 +513,41 @@ void TcpHardwareDriver::parse_plc_buffer(const std::vector<uint8_t>& buffer)
 
 void TcpHardwareDriver::parse_temp_buffer(const std::vector<uint8_t>& buffer)
 {
-    // 【修改】48个通道 * 4字节(单精度浮点数) = 192字节。数据长度不满足则丢弃。
-    if (buffer.size() < 192) return;
+    // 检查缓冲区大小
+    int required_size = (temp_monitor_type_ == ros2_interfaces::msg::HardwareSystemStatus::TEMP_DEV_NEXTGEN_80CH) ? 320 : 256;
+    if (buffer.size() < required_size) return;
 
-    // 【修改】获取温度的 Lambda 表达式，增加“超过1000显示为0”的过滤逻辑
     auto get_temp = [&](int channel_idx) -> float {
         float temp = parse_float_abcd(buffer.data() + (channel_idx * 4));
-        // TP1100 断线时通常显示 1999.9，这里如果超过1000直接视为无效数据并归零
+        // TP1100 断线时通常显示 1999.9，超过1000直接视为无效数据并归零
         if (temp > 1000.0f || temp < -200.0f) {
             return 0.0f;
         }
         return temp;
     };
 
-    // 1. 前 16 个通道 (索引 0 ~ 15) 赋值给 回路1 的 试验支路
-    for(int i = 0; i < 16; ++i) {
-        cache_circ_status_[1].test_loop.temperature_array[i] = get_temp(i);
+    if (temp_monitor_type_ == ros2_interfaces::msg::HardwareSystemStatus::TEMP_DEV_NEXTGEN_80CH)
+    {
+        // 80通道: 前40分给回路1，后40分给回路2
+        for(int i = 0; i < 40; ++i) {
+            cache_circ_status_[1].temperature_array[i] = get_temp(i);
+        }
+        for(int i = 0; i < 40; ++i) {
+            cache_circ_status_[2].temperature_array[i] = get_temp(40 + i);
+        }
     }
-
-    // 2. 接下来 8 个通道 (索引 16 ~ 23) 赋值给 回路1 的 参考支路
-    for(int i = 0; i < 8; ++i) {
-        cache_circ_status_[1].ref_loop.temperature_array[i] = get_temp(16 + i);
-    }
-
-    // 3. 接下来 16 个通道 (索引 24 ~ 39) 赋值给 回路2 的 试验支路
-    for(int i = 0; i < 16; ++i) {
-        cache_circ_status_[2].test_loop.temperature_array[i] = get_temp(24 + i);
-    }
-
-    // 4. 接下来 8 个通道 (索引 40 ~ 47) 赋值给 回路2 的 参考支路
-    for(int i = 0; i < 8; ++i) {
-        cache_circ_status_[2].ref_loop.temperature_array[i] = get_temp(40 + i);
+    else
+    {
+        // 默认64通道: 前40给回路1，剩余24给回路2，其余补0
+        for(int i = 0; i < 40; ++i) {
+            cache_circ_status_[1].temperature_array[i] = get_temp(i);
+        }
+        for(int i = 0; i < 24; ++i) {
+            cache_circ_status_[2].temperature_array[i] = get_temp(40 + i);
+        }
+        for(int i = 24; i < 40; ++i) {
+            cache_circ_status_[2].temperature_array[i] = 0.0f;
+        }
     }
 }
 

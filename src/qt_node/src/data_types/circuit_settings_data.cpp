@@ -5,16 +5,25 @@ CircuitSettingsData::CircuitSettingsData(QObject *parent)
 {
     m_test_loop = new LoopSettingsData(this);
     m_ref_loop = new LoopSettingsData(this);
-    m_sample_cable = new CableData(this); // 替换
+    m_sample_cable = new CableData(this);
 }
 
 LoopSettingsData* CircuitSettingsData::test_loop() const { return m_test_loop; }
 LoopSettingsData* CircuitSettingsData::ref_loop() const { return m_ref_loop; }
-CableData* CircuitSettingsData::sample_cable() const { return m_sample_cable; } // 替换
+CableData* CircuitSettingsData::sample_cable() const { return m_sample_cable; }
+
+int CircuitSettingsData::test_id() const { return m_test_id; }
+void CircuitSettingsData::setTest_id(int test_id) {
+    if (m_test_id != test_id) {
+        m_test_id = test_id;
+        emit test_idChanged();
+    }
+}
 
 bool CircuitSettingsData::operator==(const CircuitSettingsData& other) const
 {
     return (*m_test_loop == *other.m_test_loop) &&
            (*m_ref_loop == *other.m_ref_loop) &&
-           (*m_sample_cable == *other.m_sample_cable); // 替换
+           (*m_sample_cable == *other.m_sample_cable) &&
+           (m_test_id == other.m_test_id);
 }

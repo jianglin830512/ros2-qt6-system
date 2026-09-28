@@ -1,6 +1,7 @@
 ﻿#include "record_node/database_manager.hpp"
 #include <iomanip>
 #include <sstream>
+#include <chrono>
 #include <ctime>
 #include <cstdio>
 #include <set>
@@ -101,7 +102,6 @@ bool DatabaseManager::execute_sql(const char* sql, const char* context_msg)
 
 void DatabaseManager::initialize_database()
 {
-    // 1. 创建 system_settings 表
     const char* create_system_settings_sql =
         "CREATE TABLE IF NOT EXISTS system_settings ("
         "id INTEGER PRIMARY KEY,"
@@ -112,7 +112,6 @@ void DatabaseManager::initialize_database()
         "update_time DATETIME DEFAULT CURRENT_TIMESTAMP);";
     if (!execute_sql(create_system_settings_sql, "create system_settings table")) return;
 
-    // 2. 创建 regulator_settings 表
     const char* create_regulator_settings_sql =
         "CREATE TABLE IF NOT EXISTS regulator_settings ("
         "regulator_id INTEGER PRIMARY KEY,"
@@ -124,7 +123,7 @@ void DatabaseManager::initialize_database()
         "update_time DATETIME DEFAULT CURRENT_TIMESTAMP);";
     if (!execute_sql(create_regulator_settings_sql, "create regulator_settings table")) return;
 
-    // 3. 创建 circuit_settings 表 (移除 cable 相关的4个废弃字段，替换为只记录 cable_id)
+    // [修改] 增加 test_id 字段
     const char* create_circuit_settings_sql =
         "CREATE TABLE IF NOT EXISTS circuit_settings ("
         "circuit_id INTEGER PRIMARY KEY,"
@@ -133,13 +132,12 @@ void DatabaseManager::initialize_database()
         "ref_start_current_a INTEGER, ref_max_current_a INTEGER, ref_current_change_range_percent INTEGER, ref_ct_ratio INTEGER, "
         "ref_start_date TEXT, ref_heating_time REAL, ref_cycle_count INTEGER, ref_heating_duration REAL, ref_loop_enabled BOOLEAN, ref_auto_strategy INTEGER, "
         "cable_id INTEGER, "
+        "test_id INTEGER, "
         "update_time DATETIME DEFAULT CURRENT_TIMESTAMP);";
     if (!execute_sql(create_circuit_settings_sql, "create circuit_settings table")) return;
 
-    // 4. 初始化默认值
     ensure_default_settings();
 
-    // 5. 创建 data_records 表
     std::stringstream ss_create;
     ss_create << "CREATE TABLE IF NOT EXISTS data_records ("
               << "record_id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -152,13 +150,8 @@ void DatabaseManager::initialize_database()
               << "test_loop_is_heat BOOLEAN, "
               << "test_loop_breaker_closed BOOLEAN, "
               << "test_loop_strategy INTEGER, "
-              << "test_loop_current REAL, ";
-
-    for (int i = 1; i <= 16; ++i) {
-        ss_create << "test_loop_temp" << std::setfill('0') << std::setw(2) << i << " REAL, ";
-    }
-
-    ss_create << "regulator_2_breaker_closed BOOLEAN, "
+              << "test_loop_current REAL, "
+              << "regulator_2_breaker_closed BOOLEAN, "
               << "regulator_2_voltage REAL, "
               << "regulator_2_current REAL, "
               << "ref_loop_is_heat BOOLEAN, "
@@ -166,28 +159,43 @@ void DatabaseManager::initialize_database()
               << "ref_loop_strategy INTEGER, "
               << "ref_loop_current REAL";
 
-    for (int i = 1; i <= 16; ++i) {
-        ss_create << ", ref_loop_temp" << std::setfill('0') << std::setw(2) << i << " REAL";
+    for (int i = 1; i <= 40; ++i) {
+        ss_create << ", circuit_temp" << std::setfill('0') << std::setw(2) << i << " REAL";
     }
     ss_create << ");";
 
     if (!execute_sql(ss_create.str().c_str(), "create data_records table")) return;
+
+    std::stringstream ss_test;
+    ss_test << "CREATE TABLE IF NOT EXISTS test_records ("
+            << "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            << "circuit_id INTEGER, "
+            << "start_date TEXT, "
+            << "end_date TEXT, "
+            << "cable_id INTEGER, "
+            << "cable_name TEXT, "
+            << "remarks TEXT";
+    for(int i=1; i<=40; ++i) ss_test << ", temp_point_" << i << " TEXT";
+    ss_test << ");";
+    if (!execute_sql(ss_test.str().c_str(), "create test_records table")) return;
 
     RCLCPP_INFO(logger_, "Database tables initialized successfully.");
 }
 
 void DatabaseManager::ensure_default_settings()
 {
+    // 系统设置默认参数: 记录间隔 1min，关机保持 1
     const char* sys_sql =
         "INSERT OR IGNORE INTO system_settings "
         "(id, sample_interval_sec, record_interval_min, keep_record_on_shutdown, auto_on) "
         "VALUES (1, 1, 1, 1, 0);";
     execute_sql(sys_sql, "ensure default system_settings");
 
+    // 调压器设置默认参数: 过流 100，过压 250，升压 50%，降压 50%，过压保护 1
     const char* reg_sql =
         "INSERT OR IGNORE INTO regulator_settings "
         "(regulator_id, over_current_a, over_voltage_v, voltage_up_speed_percent, voltage_down_speed_percent, over_voltage_protection_mode) "
-        "VALUES (?, 100, 250, 10, 10, 1);";
+        "VALUES (?, 100, 250, 50, 50, 1);";
     sqlite3_stmt* reg_stmt;
     if (sqlite3_prepare_v2(db_, reg_sql, -1, &reg_stmt, nullptr) == SQLITE_OK) {
         for (int id = 1; id <= 2; ++id) {
@@ -198,6 +206,20 @@ void DatabaseManager::ensure_default_settings()
         sqlite3_finalize(reg_stmt);
     }
 
+    // 动态获取当天日期 YYYY-MM-DDT00:00:00Z 作为起始日期
+    auto now = std::chrono::system_clock::now();
+    time_t t = std::chrono::system_clock::to_time_t(now);
+    struct tm tm_struct;
+#ifdef _MSC_VER
+    gmtime_s(&tm_struct, &t);
+#else
+    gmtime_r(&t, &tm_struct);
+#endif
+    std::stringstream ss_date;
+    ss_date << std::put_time(&tm_struct, "%Y-%m-%dT00:00:00Z");
+    std::string today_str = ss_date.str();
+
+    // 回路设置建表带上新增的 test_id
     const char* cir_sql =
         "INSERT OR IGNORE INTO circuit_settings ("
         "circuit_id, "
@@ -205,16 +227,47 @@ void DatabaseManager::ensure_default_settings()
         "test_start_date, test_heating_time, test_cycle_count, test_heating_duration, test_loop_enabled, test_auto_strategy, "
         "ref_start_current_a, ref_max_current_a, ref_current_change_range_percent, ref_ct_ratio, "
         "ref_start_date, ref_heating_time, ref_cycle_count, ref_heating_duration, ref_loop_enabled, ref_auto_strategy, "
-        "cable_id) "
-        "VALUES (?, "
-        "0, 0, 0, 1, '1970-01-01T00:00:00Z', 0.0, 0, 0.0, 0, 1, "
-        "0, 0, 0, 1, '1970-01-01T00:00:00Z', 0.0, 0, 0.0, 0, 1, "
-        "0);"; // 默认 cable_id 置空为 0
+        "cable_id, test_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
     sqlite3_stmt* cir_stmt;
     if (sqlite3_prepare_v2(db_, cir_sql, -1, &cir_stmt, nullptr) == SQLITE_OK) {
         for (int id = 1; id <= 2; ++id) {
-            sqlite3_bind_int(cir_stmt, 1, id);
+            int idx = 1;
+            sqlite3_bind_int(cir_stmt, idx++, id);
+
+            // 算加热时刻：回路1=8:00 (28800秒)，回路2=16:05 (57900秒)
+            double heating_time_sec = (id == 1) ? (8.0 * 3600.0) : (16.0 * 3600.0 + 5.0 * 60.0);
+            // 算加热时长480(分钟)：转为秒(480*60=28800秒)
+            double duration_sec = 480.0 * 60.0;
+
+            // 绑定 Test Loop 默认值
+            sqlite3_bind_int(cir_stmt, idx++, 2000);   // start_current_a
+            sqlite3_bind_int(cir_stmt, idx++, 2200);   // max_current_a
+            sqlite3_bind_int(cir_stmt, idx++, 10);     // change_range_percent (误差10)
+            sqlite3_bind_int(cir_stmt, idx++, 5000);   // ct_ratio
+            sqlite3_bind_text(cir_stmt, idx++, today_str.c_str(), -1, SQLITE_TRANSIENT); // start_date
+            sqlite3_bind_double(cir_stmt, idx++, heating_time_sec); // heating_time
+            sqlite3_bind_int(cir_stmt, idx++, 300);    // cycle_count
+            sqlite3_bind_double(cir_stmt, idx++, duration_sec);     // heating_duration
+            sqlite3_bind_int(cir_stmt, idx++, 0);      // enabled
+            sqlite3_bind_int(cir_stmt, idx++, 1);      // auto_strategy
+
+            // 绑定 Ref Loop 默认值 (与 Test 一致)
+            sqlite3_bind_int(cir_stmt, idx++, 2000);
+            sqlite3_bind_int(cir_stmt, idx++, 2200);
+            sqlite3_bind_int(cir_stmt, idx++, 10);
+            sqlite3_bind_int(cir_stmt, idx++, 5000);
+            sqlite3_bind_text(cir_stmt, idx++, today_str.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_double(cir_stmt, idx++, heating_time_sec);
+            sqlite3_bind_int(cir_stmt, idx++, 300);
+            sqlite3_bind_double(cir_stmt, idx++, duration_sec);
+            sqlite3_bind_int(cir_stmt, idx++, 0);
+            sqlite3_bind_int(cir_stmt, idx++, 1);
+
+            sqlite3_bind_int(cir_stmt, idx++, 0); // cable_id 默认0
+            sqlite3_bind_int(cir_stmt, idx++, 0); // test_id 默认0
+
             sqlite3_step(cir_stmt);
             sqlite3_reset(cir_stmt);
         }
@@ -241,6 +294,7 @@ bool DatabaseManager::save_system_settings(const ros2_interfaces::msg::SystemSet
     return success;
 }
 
+// [修改] 增加对 test_id 的保存
 bool DatabaseManager::save_circuit_settings(uint8_t circuit_id, const ros2_interfaces::msg::CircuitSettings& settings)
 {
     if (!db_) return false;
@@ -250,12 +304,12 @@ bool DatabaseManager::save_circuit_settings(uint8_t circuit_id, const ros2_inter
                       "test_start_date, test_heating_time, test_cycle_count, test_heating_duration, test_loop_enabled, test_auto_strategy, "
                       "ref_start_current_a, ref_max_current_a, ref_current_change_range_percent, ref_ct_ratio, "
                       "ref_start_date, ref_heating_time, ref_cycle_count, ref_heating_duration, ref_loop_enabled, ref_auto_strategy, "
-                      "cable_id, "
+                      "cable_id, test_id, "
                       "update_time) "
                       "VALUES (?, "
-                      "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "  // Test params (10变量)
-                      "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "  // Ref params (10变量)
-                      "?, "                             // Sample params (1个 cable_id 变量)
+                      "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+                      "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+                      "?, ?, "
                       "CURRENT_TIMESTAMP);";
 
     sqlite3_stmt* stmt;
@@ -296,8 +350,9 @@ bool DatabaseManager::save_circuit_settings(uint8_t circuit_id, const ros2_inter
     sqlite3_bind_int(stmt, idx++, settings.ref_loop.enabled ? 1 : 0);
     sqlite3_bind_int(stmt, idx++, settings.ref_loop.auto_strategy);
 
-    // Cable ID 占位
     sqlite3_bind_int(stmt, idx++, settings.sample_cable.id);
+    // [修改] 绑定新增的 test_id
+    sqlite3_bind_int(stmt, idx++, settings.test_id);
 
     bool success = (sqlite3_step(stmt) == SQLITE_DONE);
     sqlite3_finalize(stmt);
@@ -321,14 +376,14 @@ bool DatabaseManager::get_system_settings(ros2_interfaces::msg::SystemSettings& 
     return found;
 }
 
+// [修改] 增加对 test_id 的读取
 bool DatabaseManager::get_circuit_settings(uint8_t circuit_id, ros2_interfaces::msg::CircuitSettings& settings) {
-    // 显式指定查询的字段名，从而保证 sqlite3_column_*(stmt, index) 的索引永远绝对安全
     const char* sql = "SELECT "
                       "test_start_current_a, test_max_current_a, test_current_change_range_percent, test_ct_ratio, "
                       "test_start_date, test_heating_time, test_cycle_count, test_heating_duration, test_loop_enabled, test_auto_strategy, "
                       "ref_start_current_a, ref_max_current_a, ref_current_change_range_percent, ref_ct_ratio, "
                       "ref_start_date, ref_heating_time, ref_cycle_count, ref_heating_duration, ref_loop_enabled, ref_auto_strategy, "
-                      "cable_id "
+                      "cable_id, test_id "
                       "FROM circuit_settings WHERE circuit_id = ?;";
 
     sqlite3_stmt* stmt;
@@ -343,7 +398,6 @@ bool DatabaseManager::get_circuit_settings(uint8_t circuit_id, ros2_interfaces::
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         settings.circuit_id = circuit_id;
 
-        // Test Loop (索引 0 ~ 9)
         settings.test_loop.hardware_loop_settings.start_current_a = sqlite3_column_int(stmt, 0);
         settings.test_loop.hardware_loop_settings.max_current_a = sqlite3_column_int(stmt, 1);
         settings.test_loop.hardware_loop_settings.current_change_range_percent = sqlite3_column_int(stmt, 2);
@@ -355,7 +409,6 @@ bool DatabaseManager::get_circuit_settings(uint8_t circuit_id, ros2_interfaces::
         settings.test_loop.enabled = (sqlite3_column_int(stmt, 8) != 0);
         settings.test_loop.auto_strategy = sqlite3_column_int(stmt, 9);
 
-        // Ref Loop (索引 10 ~ 19)
         settings.ref_loop.hardware_loop_settings.start_current_a = sqlite3_column_int(stmt, 10);
         settings.ref_loop.hardware_loop_settings.max_current_a = sqlite3_column_int(stmt, 11);
         settings.ref_loop.hardware_loop_settings.current_change_range_percent = sqlite3_column_int(stmt, 12);
@@ -367,8 +420,10 @@ bool DatabaseManager::get_circuit_settings(uint8_t circuit_id, ros2_interfaces::
         settings.ref_loop.enabled = (sqlite3_column_int(stmt, 18) != 0);
         settings.ref_loop.auto_strategy = sqlite3_column_int(stmt, 19);
 
-        // Cable ID (索引 20)
         settings.sample_cable.id = sqlite3_column_int(stmt, 20);
+
+        // [修改] 读取 test_id
+        settings.test_id = sqlite3_column_int(stmt, 21);
 
         found = true;
     }
@@ -426,15 +481,14 @@ bool DatabaseManager::insert_data_record(
     ss_sql << "INSERT INTO data_records ("
            << "record_time, circuit_id, auto_on, "
            << "regulator_1_breaker_closed, regulator_1_voltage, regulator_1_current, "
-           << "test_loop_is_heat, test_loop_breaker_closed, test_loop_strategy, test_loop_current, ";
-    for (int i = 1; i <= 16; ++i) ss_sql << "test_loop_temp" << std::setfill('0') << std::setw(2) << i << ", ";
-
-    ss_sql << "regulator_2_breaker_closed, regulator_2_voltage, regulator_2_current, "
+           << "test_loop_is_heat, test_loop_breaker_closed, test_loop_strategy, test_loop_current, "
+           << "regulator_2_breaker_closed, regulator_2_voltage, regulator_2_current, "
            << "ref_loop_is_heat, ref_loop_breaker_closed, ref_loop_strategy, ref_loop_current";
-    for (int i = 1; i <= 16; ++i) ss_sql << ", ref_loop_temp" << std::setfill('0') << std::setw(2) << i;
+
+    for (int i = 1; i <= 40; ++i) ss_sql << ", circuit_temp" << std::setfill('0') << std::setw(2) << i;
 
     ss_sql << ") VALUES (";
-    for (int i = 0; i < 49; ++i) {
+    for (int i = 0; i < 57; ++i) {
         ss_sql << (i == 0 ? "?" : ", ?");
     }
     ss_sql << ");";
@@ -459,10 +513,6 @@ bool DatabaseManager::insert_data_record(
     sqlite3_bind_int(stmt, idx++, circuit_settings.test_loop.auto_strategy);
     sqlite3_bind_double(stmt, idx++, circuit_status.test_loop.hardware_loop_status.current);
 
-    for (int i = 0; i < 16; ++i) {
-        sqlite3_bind_double(stmt, idx++, circuit_status.test_loop.hardware_loop_status.temperature_array[i]);
-    }
-
     sqlite3_bind_int(stmt, idx++, reg2.breaker_closed_switch_ack ? 1 : 0);
     sqlite3_bind_double(stmt, idx++, reg2.voltage_reading);
     sqlite3_bind_double(stmt, idx++, reg2.current_reading);
@@ -472,8 +522,8 @@ bool DatabaseManager::insert_data_record(
     sqlite3_bind_int(stmt, idx++, circuit_settings.ref_loop.auto_strategy);
     sqlite3_bind_double(stmt, idx++, circuit_status.ref_loop.hardware_loop_status.current);
 
-    for (int i = 0; i < 16; ++i) {
-        sqlite3_bind_double(stmt, idx++, circuit_status.ref_loop.hardware_loop_status.temperature_array[i]);
+    for (int i = 0; i < 40; ++i) {
+        sqlite3_bind_double(stmt, idx++, circuit_status.temperature_array[i]);
     }
 
     bool success = (sqlite3_step(stmt) == SQLITE_DONE);
@@ -510,7 +560,6 @@ std::vector<ros2_interfaces::msg::DataRecord> DatabaseManager::get_data_records(
         rec.test_loop_breaker_closed = sqlite3_column_int(stmt, idx++) != 0;
         rec.test_loop_strategy = sqlite3_column_int(stmt, idx++);
         rec.test_loop_current = sqlite3_column_double(stmt, idx++);
-        for(int i=0; i<16; ++i) rec.test_loop_temp[i] = sqlite3_column_double(stmt, idx++);
 
         rec.regulator_2_breaker_closed = sqlite3_column_int(stmt, idx++) != 0;
         rec.regulator_2_voltage = sqlite3_column_double(stmt, idx++);
@@ -520,7 +569,8 @@ std::vector<ros2_interfaces::msg::DataRecord> DatabaseManager::get_data_records(
         rec.ref_loop_breaker_closed = sqlite3_column_int(stmt, idx++) != 0;
         rec.ref_loop_strategy = sqlite3_column_int(stmt, idx++);
         rec.ref_loop_current = sqlite3_column_double(stmt, idx++);
-        for(int i=0; i<16; ++i) rec.ref_loop_temp[i] = sqlite3_column_double(stmt, idx++);
+
+        for(int i=0; i<40; ++i) rec.circuit_temp[i] = sqlite3_column_double(stmt, idx++);
 
         results.push_back(rec);
     }
@@ -540,10 +590,7 @@ bool DatabaseManager::is_valid_column(const std::string& col_name)
 
     if (valid_columns.count(col_name)) return true;
 
-    if (col_name.find("test_loop_temp") == 0 && col_name.length() == 16) {
-        return true;
-    }
-    if (col_name.find("ref_loop_temp") == 0 && col_name.length() == 15) {
+    if (col_name.find("circuit_temp") == 0 && col_name.length() == 14) {
         return true;
     }
 
@@ -632,5 +679,103 @@ bool DatabaseManager::query_data_records(
     }
 
     sqlite3_finalize(stmt);
+    return true;
+}
+
+bool DatabaseManager::save_test_record(const ros2_interfaces::msg::TestRecord& record) {
+    if (!db_) return false;
+    std::stringstream ss;
+    if (record.id < 0) { // 新增
+        ss << "INSERT INTO test_records (circuit_id, start_date, end_date, cable_id, cable_name, remarks";
+        for(int i=1; i<=40; ++i) ss << ", temp_point_" << i;
+        ss << ") VALUES (?, ?, ?, ?, ?, ?";
+        for(int i=1; i<=40; ++i) ss << ", ?";
+        ss << ");";
+    } else { // 更新
+        ss << "UPDATE test_records SET circuit_id=?, start_date=?, end_date=?, cable_id=?, cable_name=?, remarks=?";
+        for(int i=1; i<=40; ++i) ss << ", temp_point_" << i << "=?";
+        ss << " WHERE id=" << record.id << ";";
+    }
+
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, ss.str().c_str(), -1, &stmt, nullptr) != SQLITE_OK) return false;
+
+    int idx = 1;
+    sqlite3_bind_int(stmt, idx++, record.circuit_id);
+    sqlite3_bind_text(stmt, idx++, record.start_date.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, idx++, record.end_date.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, idx++, record.cable_id);
+    sqlite3_bind_text(stmt, idx++, record.cable_name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, idx++, record.remarks.c_str(), -1, SQLITE_TRANSIENT);
+    for(int i=0; i<40; ++i) {
+        sqlite3_bind_text(stmt, idx++, record.temp_points[i].c_str(), -1, SQLITE_TRANSIENT);
+    }
+
+    bool success = (sqlite3_step(stmt) == SQLITE_DONE);
+    sqlite3_finalize(stmt);
+    return success;
+}
+
+bool DatabaseManager::delete_test_record(int32_t id) {
+    if (!db_) return false;
+    const char* sql = "DELETE FROM test_records WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_int(stmt, 1, id);
+    bool success = (sqlite3_step(stmt) == SQLITE_DONE);
+    sqlite3_finalize(stmt);
+    return success;
+}
+
+// [修改] 增加 circuit_id 筛选逻辑
+bool DatabaseManager::list_test_records(int circuit_id, const std::string& keyword, int page, int page_size,
+                                        std::vector<ros2_interfaces::msg::TestRecord>& records,
+                                        int& total_pages) {
+    if (!db_) return false;
+    std::string count_sql = "SELECT COUNT(*) FROM test_records WHERE 1=1";
+    std::string data_sql = "SELECT * FROM test_records WHERE 1=1";
+
+    std::string cond = "";
+    if (circuit_id > 0) {
+        cond += " AND circuit_id = " + std::to_string(circuit_id);
+    }
+    if (!keyword.empty()) {
+        cond += " AND (cable_name LIKE '%" + keyword + "%' OR remarks LIKE '%" + keyword + "%')";
+    }
+
+    count_sql += cond;
+    data_sql += cond;
+    data_sql += " ORDER BY id DESC LIMIT ? OFFSET ?;";
+
+    // 获取总页数
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, count_sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            int total_records = sqlite3_column_int(stmt, 0);
+            total_pages = (total_records + page_size - 1) / page_size;
+            if (total_pages == 0) total_pages = 1;
+        }
+        sqlite3_finalize(stmt);
+    } else { return false; }
+
+    // 获取数据
+    if (sqlite3_prepare_v2(db_, data_sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int(stmt, 1, page_size);
+        sqlite3_bind_int(stmt, 2, (page - 1) * page_size);
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            ros2_interfaces::msg::TestRecord r;
+            int col = 0;
+            r.id = sqlite3_column_int(stmt, col++);
+            r.circuit_id = sqlite3_column_int(stmt, col++);
+            r.start_date = safe_column_text(stmt, col++);
+            r.end_date = safe_column_text(stmt, col++);
+            r.cable_id = sqlite3_column_int(stmt, col++);
+            r.cable_name = safe_column_text(stmt, col++);
+            r.remarks = safe_column_text(stmt, col++);
+            for(int i=0; i<40; ++i) r.temp_points[i] = safe_column_text(stmt, col++);
+            records.push_back(r);
+        }
+        sqlite3_finalize(stmt);
+    } else { return false; }
     return true;
 }

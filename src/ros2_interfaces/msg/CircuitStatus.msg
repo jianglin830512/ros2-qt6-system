@@ -8,3 +8,5 @@ uint8 circuit_id  # 编号
 LoopStatus test_loop   # 试验回路的状态
 LoopStatus ref_loop    # 参考回路的状态
 
+# --- 回路统一测温点 (最多40路) ---
+float64[40] temperature_array

@@ -9,8 +9,8 @@ import qt.theme 1.0
 ApplicationWindow {
     id: window
     visible: true
-    minimumWidth: 1920
-    minimumHeight: 1080
+    minimumWidth: 2400
+    minimumHeight: 1300
     title: "电缆热循环试验测控系统"
 
     // 1. 设置启动时默认最大化
@@ -42,7 +42,7 @@ ApplicationWindow {
         anchors.fill: parent
 
         // 1. 设置侧边栏导航模型
-        navModel: ["温度监控", "系统设置", "回路1设置", "回路2设置", "试验数据", "历史曲线", "数据导出", "电缆管理"]
+        navModel: ["温度监控", "系统设置", "回路1设置", "回路2设置", "试验数据", "历史曲线", "数据导出", "试验管理", "电缆管理"]
 
         // 2. 指示灯状态绑定
         remoteIndicator.color: isRemote ? Theme.remoteGreen : Theme.localRed
@@ -77,6 +77,7 @@ ApplicationWindow {
             TestDataPage {},
             HistoryPage {},
             DataExportPage {},
+            TestManagementPage {},
             CableManagementPage {}
         ]
     }

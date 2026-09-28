@@ -24,6 +24,14 @@ namespace record_node_constants
 [[maybe_unused]] constexpr const char* QUERY_DATA_RECORDS_SERVICE_PARAM = "query_data_records_service";
 [[maybe_unused]] constexpr const char* DEFAULT_QUERY_DATA_RECORDS_SERVICE = "default_query_data_records";
 
+[[maybe_unused]] constexpr const char* LIST_TEST_RECORDS_SERVICE_PARAM = "list_test_records_service";
+[[maybe_unused]] constexpr const char* SAVE_TEST_RECORD_SERVICE_PARAM = "save_test_record_service";
+[[maybe_unused]] constexpr const char* DELETE_TEST_RECORD_SERVICE_PARAM = "delete_test_record_service";
+
+[[maybe_unused]] constexpr const char* DEFAULT_LIST_TEST_RECORDS_SERVICE = "default_list_test_records";
+[[maybe_unused]] constexpr const char* DEFAULT_SAVE_TEST_RECORD_SERVICE = "default_save_test_record";
+[[maybe_unused]] constexpr const char* DEFAULT_DELETE_TEST_RECORD_SERVICE = "default_delete_test_record";
+
 // Topic 订阅 (必须与 Control Node 保持一致)
 // status
 [[maybe_unused]] constexpr const char* CIRCUIT_STATUS_TOPIC_PARAM = "circuit_status_topic";

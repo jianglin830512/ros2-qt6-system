@@ -8,20 +8,20 @@
 #include <string>
 #include <thread>
 #include <atomic>
-#include "rclcpp/rclcpp.hpp" // IWYU pragma: keep
+#include "rclcpp/rclcpp.hpp"
 
 class SimpleTcpClient;
 
 class TcpHardwareDriver : public IHardwareDriver
 {
 public:
-    // 【修改】构造函数传入自定义超时参数
     explicit TcpHardwareDriver(rclcpp::Logger logger,
                                std::string plc_ip, int plc_port,
                                std::string temp_ip, int temp_port,
                                int tcp_connect_timeout_ms,
                                int tcp_recv_timeout_ms,
-                               int regulator_cmd_timeout_ms);
+                               int regulator_cmd_timeout_ms,
+                               int temp_monitor_type);
     ~TcpHardwareDriver() override;
 
     void update() override;
@@ -64,10 +64,8 @@ private:
     std::unique_ptr<SimpleTcpClient> client_temp_;
 
     uint64_t update_tick_count_ = 0;
-    uint64_t log_throttle_count_ = 0;
-
-    // 【新增】保存调压超时时间
     int regulator_cmd_timeout_ms_;
+    int temp_monitor_type_; // 存储温控仪类型
 
     // Data Cache
     std::map<uint8_t, ros2_interfaces::msg::RegulatorStatus> cache_reg_status_;

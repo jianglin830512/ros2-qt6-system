@@ -2,6 +2,7 @@
 #define ROS_PROXY_HPP
 
 #include <QObject>
+#include <QVariantMap>
 #include "qt_node/data_types/data_types.hpp" // 引入简单的数据类型
 #include "qt_node/data_types/circuit_settings_data.hpp"
 #include "qt_node/data_types/regulator_settings_data.hpp"
@@ -59,17 +60,23 @@ public:
     Q_INVOKABLE void setRegulatorSettings(quint8 regulator_id, RegulatorSettingsData* data);
     Q_INVOKABLE void setCircuitSettings(quint8 circuit_id, CircuitSettingsData* data);
 
-    // QML 调用的接口
+    // QML 调用的接口 (历史与表格查询)
     Q_INVOKABLE void queryHistory(const QString& dateStr, const QString& timeStr, int spanHours, const QStringList& cols);
     Q_INVOKABLE void queryTable(const QString& dateStr, const QString& timeStr, int spanHours, int circuitId);
 
-    // 数据导出
+    // 运行历史数据导出
     Q_INVOKABLE void exportData(const QString& start_date, const QString& end_date, int circuit_id, const QString& file_path);
 
     // 电缆管理
     Q_INVOKABLE void listCables(const QString& keyword, int page, int pageSize, int sortColumn, bool isAscending);
     Q_INVOKABLE void saveCable(const QVariantMap& cableMap);
     Q_INVOKABLE void deleteCable(int id);
+
+    // 试验管理
+    Q_INVOKABLE void listTestRecords(const QString& keyword, int page, int pageSize, int circuitId);
+    Q_INVOKABLE void saveTestRecord(const QVariantMap& recordMap);
+    Q_INVOKABLE void deleteTestRecord(int id);
+    Q_INVOKABLE void exportTestRecords(const QString& file_path);
 
 public slots:
     // QML 将调用这个槽来启动关闭流程
@@ -80,29 +87,35 @@ public slots:
     void updateRegulatorStatus(const RegulatorStatusData &data);
     void updateSystemStatus(const SystemStatusData &data);
 
-    // --- [CHANGE] Slots now accept ROS message SharedPtrs ---
+    // Slots accept ROS message SharedPtrs
     void updateSystemSettings(SystemSettingsMsgPtr msg);
     void updateRegulatorSettings(RegulatorSettingsMsgPtr msg);
     void updateCircuitSettings(CircuitSettingsMsgPtr msg);
 
-    // 历史数据：内部槽，用于接收 Node 的信号
+    // 历史数据与表格数据
     void onHistoryDataFetched(const QVariantMap& data);
     void onHistoryQueryFailed(const QString& msg);
     void onTableDataFetched(const QVariantMap& data);
     void onTableQueryFailed(const QString& msg);
 
-    // --- Slot to receive service call results from ROS node ---
+    // 接收服务端写入结果
     void onSettingsUpdateResult(const QString &service_name, bool success, const QString &message);
     void onCommandResult(const QString &service_name, bool success, const QString &message);
 
-    // 数据导出
+    // 运行历史数据导出结果
     void onExportProgress(int percentage);
     void onExportFinished(bool success, const QString& message);
 
-    // 电缆管理
+    // 电缆管理结果
     void onCablesListed(const QVariantMap& result);
     void onCableSaveResult(bool success, const QString& msg);
     void onCableDeleteResult(bool success, const QString& msg);
+
+    // 试验管理结果
+    void onTestRecordsListed(int circuitId, const QVariantMap& result);
+    void onTestRecordSaveResult(bool success, const QString& msg);
+    void onTestRecordDeleteResult(bool success, const QString& msg);
+    void onExportTestRecordResult(bool success, const QString& msg);
 
 signals:
     // 这个信号将通知 QtRosNode 开始关闭
@@ -120,48 +133,53 @@ signals:
     void qmlCircuitSettings1Changed();
     void qmlCircuitSettings2Changed();
 
-
-    // 用于与ROS节点线程通信的信号
+    // 用于与ROS节点线程通信的信号 (命令下发)
     void regulatorOperationCommandRequested(quint8 regulator_id, quint8 command);
     void regulatorBreakerCommandRequested(quint8 regulator_id, quint8 command);
     void circuitBreakerCommandRequested(quint8 circuit_id, quint8 command);
     void clearAlarmRequested();
 
-    // --- Signals to request service calls on the ROS thread ---
+    // 用于与ROS节点线程通信的信号 (参数下发)
     void systemSettingsUpdateRequest(SystemSettingsData* data);
     void regulatorSettingsUpdateRequest(quint8 regulator_id, RegulatorSettingsData* data);
     void circuitSettingsUpdateRequest(quint8 circuit_id, CircuitSettingsData* data);
 
-    // --- Signal to notify QML about the result ---
+    // 通知 QML 关于设置和服务的结果
     void settingsUpdateResult(const QString &service_name, bool success, const QString &message);
     void commandResult(const QString &service_name, bool success, const QString &message);
 
-    // 历史数据：给 Node 的信号
+    // 历史数据请求与返回
     void historyQueryRequested(const QString& start_time_str, int duration, const QStringList& columns);
-
-    // 历史数据：给 QML 的信号
     void historyDataReady(const QVariantMap& data);
     void historyQueryError(const QString& msg);
 
-    // 表格数据信号
+    // 表格数据请求与返回
     void tableQueryRequested(const QString& start_time_str, int duration, int circuit_id);
     void tableDataReady(const QVariantMap& data);
     void tableQueryError(const QString& msg);
 
-    // 数据导出
+    // 运行历史数据导出
     void exportDataRequested(const QString& start_date, const QString& end_date, int circuit_id, const QString& file_path);
     void exportProgressChanged(int percentage);
     void exportResult(bool success, const QString& message);
 
-    // 电缆管理，请求给 QtROSNode
+    // 电缆管理请求与返回
     void listCablesRequested(const QString& keyword, int page, int pageSize, int sortColumn, bool isAscending);
     void saveCableRequested(const QVariantMap& cableMap);
     void deleteCableRequested(int id);
-
-    // 电缆管理，QtROSNode 返回结果给 QML
     void cablesListed(const QVariantMap& result);
     void cableSaveResult(bool success, const QString& msg);
     void cableDeleteResult(bool success, const QString& msg);
+
+    // 试验管理请求与返回
+    void listTestRecordsRequested(const QString& keyword, int page, int pageSize, int circuitId);
+    void saveTestRecordRequested(const QVariantMap& recordMap);
+    void deleteTestRecordRequested(int id);
+    void exportTestRecordsRequested(const QString& file_path);
+    void testRecordsListed(int circuitId, const QVariantMap& result);
+    void testRecordSaveResult(bool success, const QString& msg);
+    void testRecordDeleteResult(bool success, const QString& msg);
+    void exportTestRecordResult(bool success, const QString& msg);
 
 private:
     // 存储数据的成员变量

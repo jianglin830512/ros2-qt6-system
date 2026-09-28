@@ -23,9 +23,9 @@ void convertAndApply(const ros2_interfaces::msg::RegulatorSettings::SharedPtr& m
     target->setVoltage_down_speed_percent(msg->voltage_down_speed_percent);
     target->setOver_voltage_protection_mode(msg->over_voltage_protection_mode);
 }
+
 // Helper for the helper
 void convertAndApplyLoop(const ros2_interfaces::msg::LoopSettings& ros_loop, LoopSettingsData* qt_loop) {
-
     qt_loop->setStart_current_a(ros_loop.hardware_loop_settings.start_current_a);
     qt_loop->setMax_current_a(ros_loop.hardware_loop_settings.max_current_a);
     qt_loop->setCurrent_change_range_percent(ros_loop.hardware_loop_settings.current_change_range_percent);
@@ -33,11 +33,9 @@ void convertAndApplyLoop(const ros2_interfaces::msg::LoopSettings& ros_loop, Loo
     qt_loop->setCycle_count(ros_loop.cycle_count);
     qt_loop->setStart_date(QDateTime::fromSecsSinceEpoch(ros_loop.start_date.sec));
     qt_loop->setHeating_start_time_sec(ros_loop.heating_time.sec);
-
     qt_loop->setHeating_duration_sec(ros_loop.heating_duration.sec);
     qt_loop->setEnabled(ros_loop.enabled);
     qt_loop->setAuto_strategy(ros_loop.auto_strategy);
-
 }
 
 // Helper for the helper
@@ -56,14 +54,14 @@ void convertAndApplyCable(const ros2_interfaces::msg::Cable& ros_cable, CableDat
 
 void convertAndApply(const ros2_interfaces::msg::CircuitSettings::SharedPtr& msg, CircuitSettingsData* target) {
     if (!msg || !target) return;
-
-    // Convert nested objects first
     convertAndApplyLoop(msg->test_loop, target->test_loop());
     convertAndApplyLoop(msg->ref_loop, target->ref_loop());
-    convertAndApplyCable(msg->sample_cable, target->sample_cable()); // 换用 Cable
+    convertAndApplyCable(msg->sample_cable, target->sample_cable());
+    target->setTest_id(msg->test_id);
 }
 
 } // End anonymous namespace
+
 
 ROSProxy::ROSProxy(QObject *parent) : QObject(parent)
 {
@@ -82,62 +80,22 @@ ROSProxy::ROSProxy(QObject *parent) : QObject(parent)
 
 // --- 属性的只读访问器 ---
 
-CircuitStatusData ROSProxy::circuitStatus1() const
-{
-    return m_circuitStatus1;
-}
+CircuitStatusData ROSProxy::circuitStatus1() const { return m_circuitStatus1; }
+CircuitStatusData ROSProxy::circuitStatus2() const { return m_circuitStatus2; }
+RegulatorStatusData ROSProxy::regulatorStatus1() const { return m_regulatorStatus1; }
+RegulatorStatusData ROSProxy::regulatorStatus2() const { return m_regulatorStatus2; }
+SystemStatusData ROSProxy::systemStatus() const { return m_systemStatus; }
 
-CircuitStatusData ROSProxy::circuitStatus2() const
-{
-    return m_circuitStatus2;
-}
-
-RegulatorStatusData  ROSProxy::regulatorStatus1() const
-{
-    return m_regulatorStatus1;
-}
-
-RegulatorStatusData  ROSProxy::regulatorStatus2() const
-{
-    return m_regulatorStatus2;
-}
-
-SystemStatusData  ROSProxy::systemStatus() const
-{
-    return m_systemStatus;
-}
-
-SystemSettingsData *ROSProxy::qmlSystemSettings() const
-{
-    return m_qmlSystemSettings;
-}
-
-RegulatorSettingsData *ROSProxy::qmlRegulatorSettings1() const
-{
-    return m_qmlRegulatorSettings1;
-}
-
-RegulatorSettingsData *ROSProxy::qmlRegulatorSettings2() const
-{
-    return m_qmlRegulatorSettings2;
-}
-
-CircuitSettingsData *ROSProxy::qmlCircuitSettings1() const
-{
-    return m_qmlCircuitSettings1;
-}
-
-CircuitSettingsData *ROSProxy::qmlCircuitSettings2() const
-{
-    return m_qmlCircuitSettings2;
-}
-
+SystemSettingsData *ROSProxy::qmlSystemSettings() const { return m_qmlSystemSettings; }
+RegulatorSettingsData *ROSProxy::qmlRegulatorSettings1() const { return m_qmlRegulatorSettings1; }
+RegulatorSettingsData *ROSProxy::qmlRegulatorSettings2() const { return m_qmlRegulatorSettings2; }
+CircuitSettingsData *ROSProxy::qmlCircuitSettings1() const { return m_qmlCircuitSettings1; }
+CircuitSettingsData *ROSProxy::qmlCircuitSettings2() const { return m_qmlCircuitSettings2; }
 
 // --- 更新数据的槽函数 ---
 
 void ROSProxy::updateCircuitStatus(const CircuitStatusData &data)
 {
-    // 根据传入数据的ID，直接更新对应的成员变量并发出信号
     if (data.circuit_id == 1) {
         m_circuitStatus1 = data;
         emit circuitStatus1Changed();
@@ -149,12 +107,12 @@ void ROSProxy::updateCircuitStatus(const CircuitStatusData &data)
 
 void ROSProxy::updateRegulatorStatus(const RegulatorStatusData &data)
 {
-    if (data.regulator_id == 1) { // 字段名变更
+    if (data.regulator_id == 1) {
         m_regulatorStatus1 = data;
-        emit regulatorStatus1Changed(); // 信号名变更
+        emit regulatorStatus1Changed();
     } else if (data.regulator_id == 2) {
         m_regulatorStatus2 = data;
-        emit regulatorStatus2Changed(); // 信号名变更
+        emit regulatorStatus2Changed();
     }
 }
 
@@ -167,7 +125,7 @@ void ROSProxy::updateSystemStatus(const SystemStatusData &data)
 void ROSProxy::updateSystemSettings(SystemSettingsMsgPtr msg)
 {
     convertAndApply(msg, m_qmlSystemSettings);
-    emit qmlSystemSettingsChanged(); // Manually emit the top-level signal
+    emit qmlSystemSettingsChanged();
 }
 
 void ROSProxy::updateRegulatorSettings(RegulatorSettingsMsgPtr msg)
@@ -197,9 +155,9 @@ void ROSProxy::updateCircuitSettings(CircuitSettingsMsgPtr msg)
 }
 
 // --- Q_INVOKABLE 方法的实现 ---
+
 void ROSProxy::initiateShutdown()
 {
-    // 只是简单地发出信号，将任务传递给后端
     emit shutdownRequested();
 }
 
@@ -244,7 +202,6 @@ void ROSProxy::setCircuitSettings(quint8 circuit_id, CircuitSettingsData* data)
 
 void ROSProxy::onSettingsUpdateResult(const QString &service_name, bool success, const QString &message)
 {
-    // Forward the result to QML
     emit settingsUpdateResult(service_name, success, message);
 }
 
@@ -254,12 +211,10 @@ void ROSProxy::onCommandResult(const QString &service_name, bool success, const 
 }
 
 // --- History ---
+
 void ROSProxy::queryHistory(const QString& dateStr, const QString& timeStr, int spanHours, const QStringList& cols)
 {
-    // 简单的拼接： Date "2023-10-01" + Time "09:00" -> "2023-10-01 09:00:00"
     QString startDateTime = QString("%1 %2:00").arg(dateStr, timeStr);
-
-    // 转发请求到 Node 线程
     emit historyQueryRequested(startDateTime, spanHours, cols);
 }
 
@@ -274,6 +229,7 @@ void ROSProxy::onHistoryQueryFailed(const QString& msg)
 }
 
 // --- Data Table ---
+
 void ROSProxy::queryTable(const QString& dateStr, const QString& timeStr, int spanHours, int circuitId)
 {
     QString startDateTime = QString("%1 %2:00").arg(dateStr, timeStr);
@@ -290,6 +246,8 @@ void ROSProxy::onTableQueryFailed(const QString& msg)
     emit tableQueryError(msg);
 }
 
+// --- Run History Data Export ---
+
 void ROSProxy::exportData(const QString& start_date, const QString& end_date, int circuit_id, const QString& file_path) {
     emit exportDataRequested(start_date, end_date, circuit_id, file_path);
 }
@@ -298,12 +256,15 @@ void ROSProxy::onExportProgress(int percentage) {
     emit exportProgressChanged(percentage);
 }
 
-// --- Data Export ---
 void ROSProxy::onExportFinished(bool success, const QString& message) {
     emit exportResult(success, message);
 }
 
+
+// ==========================================
 // --- Cable Management ---
+// ==========================================
+
 void ROSProxy::listCables(const QString& keyword, int page, int pageSize, int sortColumn, bool isAscending)
 {
     emit listCablesRequested(keyword, page, pageSize, sortColumn, isAscending);
@@ -332,4 +293,49 @@ void ROSProxy::onCableSaveResult(bool success, const QString& msg)
 void ROSProxy::onCableDeleteResult(bool success, const QString& msg)
 {
     emit cableDeleteResult(success, msg);
+}
+
+
+// ==========================================
+// --- Test Management (试验管理) ---
+// ==========================================
+
+void ROSProxy::listTestRecords(const QString& keyword, int page, int pageSize, int circuitId)
+{
+    emit listTestRecordsRequested(keyword, page, pageSize, circuitId);
+}
+
+void ROSProxy::saveTestRecord(const QVariantMap& recordMap)
+{
+    emit saveTestRecordRequested(recordMap);
+}
+
+void ROSProxy::deleteTestRecord(int id)
+{
+    emit deleteTestRecordRequested(id);
+}
+
+void ROSProxy::exportTestRecords(const QString& file_path)
+{
+    emit exportTestRecordsRequested(file_path);
+}
+
+void ROSProxy::onTestRecordsListed(int circuitId, const QVariantMap& result)
+{
+    emit testRecordsListed(circuitId, result);
+}
+
+void ROSProxy::onTestRecordSaveResult(bool success, const QString& msg)
+{
+    emit testRecordSaveResult(success, msg);
+}
+
+void ROSProxy::onTestRecordDeleteResult(bool success, const QString& msg)
+{
+    emit testRecordDeleteResult(success, msg);
+}
+
+void ROSProxy::onExportTestRecordResult(bool success, const QString& msg)
+{
+    emit exportTestRecordResult(success, msg);
 }

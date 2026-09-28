@@ -23,34 +23,34 @@ public:
         std::chrono::steady_clock::time_point last_cmd_time;
 
         // --- 参数设置 ---
-        // 对应 RegulatorSettings.msg
-        int32_t over_current_limit = 450;       // [修改] 调压器最大过流默认改为 450A
-        int32_t over_voltage_limit = 450;       // [修改] 最大过压默认改为 450V
-        int32_t speed_up_percent = 50;          // voltage_up_speed_percent
-        int32_t speed_down_percent = 50;        // voltage_down_speed_percent
-        bool ovp_enabled = true;                // over_voltage_protection_mode
+        int32_t over_current_limit = 450;
+        int32_t over_voltage_limit = 450;
+        int32_t speed_up_percent = 50;
+        int32_t speed_down_percent = 50;
+        bool ovp_enabled = true;
     };
 
     struct LoopState {
         // --- 状态反馈 ---
         bool breaker_closed = false;
         double current = 0.0;
-        float temperatures[16];
         bool over_current_alarm = false;
         uint8_t plc_mode = 1;
 
         // --- 参数设置 ---
-        // 对应 HardwareLoopSettings.msg
-        int32_t max_current_setting = 7200;     // [修改] 最大电流默认改为 7200A
-        int32_t start_current_setting = 0;      // start_current_a (恒流设定值)
-        int32_t current_change_range = 10;      // current_change_range_percent
-        int32_t ct_ratio = 1;                   // ct_ratio
+        int32_t max_current_setting = 7200;
+        int32_t start_current_setting = 0;
+        int32_t current_change_range = 10;
+        int32_t ct_ratio = 1;
     };
 
     struct CircuitState {
         uint8_t id;
         LoopState test_loop;
         LoopState ref_loop;
+
+        // 剥离支路层，回路直接维护 40路温度
+        float temperatures[40];
     };
 
     MockDevice();

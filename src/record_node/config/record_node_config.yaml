@@ -28,3 +28,7 @@ record_node:
     get_circuit_settings_service: "get_circuit_settings"
     get_data_records_service: "get_data_records"
     query_data_records_service: "query_data_records"
+
+    list_test_records_service: "list_test_records"
+    save_test_record_service: "save_test_record"
+    delete_test_record_service: "delete_test_record"

@@ -16,3 +16,11 @@ bool plc_connected
 
 # 温度监控设备连接状态
 bool temp_monitor_connected
+
+# --- 测温设备型号定义 ---
+uint8 TEMP_DEV_NONE       = 0
+uint8 TEMP_DEV_TP1100_64CH = 1  # 当前型号（最大64路）
+uint8 TEMP_DEV_NEXTGEN_80CH = 2 # 新型号（最大80路）
+
+# 当前生效的设备型号
+uint8 temp_monitor_type
